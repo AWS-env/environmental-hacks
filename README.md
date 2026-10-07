@@ -36,6 +36,8 @@ gh pr create --fill --base main
 
 See [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the full loop and [`CONTRIBUTING.md`](CONTRIBUTING.md) for the rules.
 
+Open decisions (idea, track, stack) live in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+
 ## Repo layout
 
 ```
