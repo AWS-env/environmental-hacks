@@ -30,7 +30,7 @@ jobs:
 
       # Check out the PR head SHA, not refs/pull/<n>/merge. The merge ref is a
       # synthetic merge commit that would false-positive the linear-history check.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
@@ -91,7 +91,7 @@ jobs:
     name: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Detect project manifest
         id: detect
