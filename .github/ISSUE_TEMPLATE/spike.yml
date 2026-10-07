@@ -1,0 +1,35 @@
+name: Spike
+description: Time-boxed investigation to reduce uncertainty. No production code.
+title: "[Spike] "
+labels:
+  - "type: spike"
+  - "status: triage"
+body:
+  - type: textarea
+    id: question
+    attributes:
+      label: Question to answer
+      description: The single decision this spike unblocks.
+    validations:
+      required: true
+  - type: input
+    id: timebox
+    attributes:
+      label: Timebox
+      placeholder: "4 hours"
+    validations:
+      required: true
+  - type: textarea
+    id: approach
+    attributes:
+      label: Approach
+      description: What will you try, read, or prototype?
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Expected outcome
+      description: A written finding, a throwaway prototype, or a follow-up issue.
+    validations:
+      required: true

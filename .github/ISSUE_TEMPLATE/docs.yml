@@ -1,0 +1,31 @@
+name: Docs
+description: Add or improve documentation.
+title: "[Docs] "
+labels:
+  - "type: docs"
+  - "status: triage"
+body:
+  - type: textarea
+    id: target
+    attributes:
+      label: What needs documenting
+      description: Files or sections, with links where possible.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change
+      description: What should the docs say that they do not say now?
+    validations:
+      required: true
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Audience
+      multiple: true
+      options:
+        - end users
+        - contributors
+        - maintainers
+        - judges/reviewers

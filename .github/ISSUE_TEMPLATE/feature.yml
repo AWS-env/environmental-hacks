@@ -1,0 +1,66 @@
+name: Feature
+description: Propose a new capability or user-facing improvement.
+title: "[Feature] "
+labels:
+  - "type: feature"
+  - "status: triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a feature. One issue = one PR. Keep it scoped.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What problem does this solve? Who is it for?
+      placeholder: "As a ___, I want ___ so that ___."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the behaviour you want. Sketch the approach if you can.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: A checklist of what "done" means.
+      value: |
+        - [ ] 
+        - [ ] 
+        - [ ] Tests cover the new behaviour
+        - [ ] Docs updated (if user-facing)
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - frontend
+        - backend
+        - infra/aws
+        - data
+        - ui/ux
+        - docs
+  - type: dropdown
+    id: track
+    attributes:
+      label: Hackathon track
+      options:
+        - Air
+        - Heat and Water
+        - Waste and Energy
+        - Not track-specific
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Optional. Other approaches and why you ruled them out.
+    validations:
+      required: false

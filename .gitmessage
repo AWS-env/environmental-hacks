@@ -1,0 +1,9 @@
+
+# House commit style — uncomment and fill in:
+# <issue> | <type>(<scope>): <summary>
+#
+# type:  feat | fix | refactor | docs | test | perf | chore | ci | build | revert
+# scope: api | web | infra | data | ui | auth | ci
+#
+# Rules: imperative mood, lowercase, no trailing period, one logical change.
+# Reference the issue, e.g. "#42 | feat(dashboard): add live AQI card"

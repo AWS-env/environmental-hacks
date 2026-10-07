@@ -1,0 +1,53 @@
+name: Refactor
+description: Improve internal code without changing external behaviour.
+title: "[Refactor] "
+labels:
+  - "type: refactor"
+  - "status: triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Refactors must not change behaviour. If behaviour changes, it is a Feature or Bug.
+  - type: textarea
+    id: target
+    attributes:
+      label: What to refactor
+      description: Files, modules, or symbols involved.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why
+      description: What pain does this remove? Complexity, duplication, coupling, perf?
+    validations:
+      required: true
+  - type: textarea
+    id: plan
+    attributes:
+      label: Plan
+      description: Step-by-step, so it can be reviewed as small, safe changes.
+      value: |
+        1. 
+        2. 
+    validations:
+      required: true
+  - type: textarea
+    id: invariants
+    attributes:
+      label: Behaviour that must not change
+      description: List the invariants and the tests that protect them.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      multiple: true
+      options:
+        - frontend
+        - backend
+        - infra/aws
+        - data
+        - docs

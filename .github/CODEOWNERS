@@ -1,0 +1,10 @@
+# Default owners for everything. Adjust handles as the team grows.
+# Syntax: <pattern>  @user-or-team
+# CODEOWNERS are auto-requested as reviewers on PRs touching these paths.
+
+*                       @prx-my
+
+/.github/               @prx-my
+/docs/                  @prx-my
+/infra/                 @prx-my
+/scripts/               @prx-my

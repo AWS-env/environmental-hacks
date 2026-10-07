@@ -1,0 +1,45 @@
+# Path-based auto labels for PRs. Keep in sync with docs/LABELS.md.
+"area: frontend":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "web/**"
+          - "app/**"
+          - "src/components/**"
+          - "**/*.tsx"
+          - "**/*.jsx"
+          - "**/*.css"
+
+"area: backend":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "api/**"
+          - "server/**"
+          - "src/server/**"
+
+"area: infra/aws":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "infra/**"
+          - "cdk/**"
+          - "terraform/**"
+          - ".aws-sam/**"
+          - "**/*.tf"
+
+"area: data":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "data/**"
+          - "etl/**"
+          - "**/*.sql"
+
+"area: docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "**/*.md"
+
+"area: ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "scripts/**"

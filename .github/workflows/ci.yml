@@ -1,0 +1,122 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  meta:
+    name: meta
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Validate PR title
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          re='^#[0-9]+ \| (feat|fix|refactor|docs|test|perf|chore|ci|build|revert|spike)\([a-z0-9/_-]+\): .+'
+          if [[ ! "$TITLE" =~ $re ]]; then
+            echo "::error::PR title must match: #<issue> | <type>(<scope>): <summary>"
+            echo "Got: $TITLE"
+            exit 1
+          fi
+          echo "PR title OK: $TITLE"
+
+      - name: Validate linked issue
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          if ! grep -Eiq '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' <<< "$BODY"; then
+            echo "::error::PR body must link exactly one issue, e.g. 'Closes #42'."
+            exit 1
+          fi
+          count=$(grep -Eio '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' <<< "$BODY" | wc -l | tr -d ' ')
+          if [[ "$count" -ne 1 ]]; then
+            echo "::error::Link exactly one issue (found $count). One issue, one PR."
+            exit 1
+          fi
+          echo "Linked issue OK."
+
+      - name: Validate branch name
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+          case "$HEAD_REF" in
+            dependabot/*|renovate/*) echo "Bot branch, skipping."; exit 0 ;;
+          esac
+          re='^[0-9]+-(feat|fix|refactor|docs|test|perf|chore|ci|spike)-[a-z0-9._-]+$'
+          if [[ ! "$HEAD_REF" =~ $re ]]; then
+            echo "::error::Branch must be <issue>-<type>-<slug>, e.g. 42-feat-aqi-dashboard. Got: $HEAD_REF"
+            exit 1
+          fi
+          echo "Branch name OK."
+
+      - name: Reject merge commits (linear history)
+        run: |
+          set -euo pipefail
+          git fetch origin main --quiet
+          merges=$(git rev-list --merges origin/main..HEAD | wc -l | tr -d ' ')
+          if [[ "$merges" -ne 0 ]]; then
+            echo "::error::Branch contains $merges merge commit(s). Rebase on main instead of merging."
+            exit 1
+          fi
+          echo "History is linear."
+
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect project manifest
+        id: detect
+        run: |
+          if [[ -f package.json ]]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node
+        if: steps.detect.outputs.exists == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        if: steps.detect.outputs.exists == 'true'
+        run: npm ci
+
+      - name: Lint
+        if: steps.detect.outputs.exists == 'true'
+        run: npm run lint --if-present
+
+      - name: Typecheck
+        if: steps.detect.outputs.exists == 'true'
+        run: npm run typecheck --if-present
+
+      - name: Test
+        if: steps.detect.outputs.exists == 'true'
+        run: npm test --if-present
+
+      - name: No manifest yet
+        if: steps.detect.outputs.exists == 'false'
+        run: echo "No package.json yet — governance scaffold only. Skipping build."

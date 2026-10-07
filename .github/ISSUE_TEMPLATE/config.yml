@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Question or discussion
+    url: https://discord.gg/wemakedevs
+    about: Ask in the WeMakeDevs Discord instead of opening an issue.
+  - name: Hackathon rules
+    url: https://www.wemakedevs.org/aws/env/rules
+    about: Read the official Environmental Hacks rules before building.

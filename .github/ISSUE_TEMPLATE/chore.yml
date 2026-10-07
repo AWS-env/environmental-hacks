@@ -1,0 +1,39 @@
+name: Chore
+description: Tooling, dependencies, config, or maintenance work.
+title: "[Chore] "
+labels:
+  - "type: chore"
+  - "status: triage"
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What
+      description: The task, in one or two sentences.
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why now
+    validations:
+      required: true
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Kind
+      multiple: true
+      options:
+        - dependencies
+        - ci
+        - build/tooling
+        - config
+        - cleanup
+  - type: textarea
+    id: done
+    attributes:
+      label: Definition of done
+      value: |
+        - [ ] 
+    validations:
+      required: true
