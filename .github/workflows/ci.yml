@@ -20,11 +20,23 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
+      - name: Detect bot branch
+        id: bot
+        run: |
+          case "${{ github.head_ref }}" in
+            dependabot/*|renovate/*) echo "is_bot=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "is_bot=false" >> "$GITHUB_OUTPUT" ;;
+          esac
+
+      # Check out the PR head SHA, not refs/pull/<n>/merge. The merge ref is a
+      # synthetic merge commit that would false-positive the linear-history check.
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 0
 
       - name: Validate PR title
+        if: steps.bot.outputs.is_bot != 'true'
         env:
           TITLE: ${{ github.event.pull_request.title }}
         run: |
@@ -38,29 +50,24 @@ jobs:
           echo "PR title OK: $TITLE"
 
       - name: Validate linked issue
+        if: steps.bot.outputs.is_bot != 'true'
         env:
           BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
-          if ! grep -Eiq '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' <<< "$BODY"; then
-            echo "::error::PR body must link exactly one issue, e.g. 'Closes #42'."
-            exit 1
-          fi
           count=$(grep -Eio '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' <<< "$BODY" | wc -l | tr -d ' ')
           if [[ "$count" -ne 1 ]]; then
-            echo "::error::Link exactly one issue (found $count). One issue, one PR."
+            echo "::error::Link exactly one issue with Closes/Fixes/Resolves #n (found $count)."
             exit 1
           fi
           echo "Linked issue OK."
 
       - name: Validate branch name
+        if: steps.bot.outputs.is_bot != 'true'
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
-          case "$HEAD_REF" in
-            dependabot/*|renovate/*) echo "Bot branch, skipping."; exit 0 ;;
-          esac
           re='^[0-9]+-(feat|fix|refactor|docs|test|perf|chore|ci|spike)-[a-z0-9._-]+$'
           if [[ ! "$HEAD_REF" =~ $re ]]; then
             echo "::error::Branch must be <issue>-<type>-<slug>, e.g. 42-feat-aqi-dashboard. Got: $HEAD_REF"
@@ -69,6 +76,7 @@ jobs:
           echo "Branch name OK."
 
       - name: Reject merge commits (linear history)
+        if: steps.bot.outputs.is_bot != 'true'
         run: |
           set -euo pipefail
           git fetch origin main --quiet
