@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parsePythonSource } from "../src/core/parse.js";
 import { checkCodeC31 } from "../src/checks/code-c3-1/index.js";
+import { evaluate } from "../src/contract.js";
+import { staticInput, validatePair, validatorAvailable } from "./helpers/contract.js";
 
 const FIXTURES_DIR = join(__dirname, "fixtures", "code-c3-1");
 
@@ -243,6 +245,37 @@ describe("CODE-C3.1 Inefficient iteration construct detector (static half)", () 
       expect(after[0].location.startLine).not.toBe(
         before[0].location.startLine
       );
+    });
+  });
+
+  describe("Contract v1 (C31-12)", () => {
+    const read = (f: string) => readFileSync(join(FIXTURES_DIR, f), "utf-8");
+
+    it("positives: completed, one contract finding per owner-a finding, line-free identities", () => {
+      const input = staticInput("CODE-C3.1", { "positives.py": read("positives.py") });
+      const result = evaluate(input);
+      expect(result.status).toBe("completed");
+      expect(result.findings).toHaveLength(10);
+      expect(result.findings.every((f) => f.identity.includes("inefficient-iteration-construct:"))).toBe(true);
+      expect(result.coverage.limitations.some((l) => l.includes("R1R2"))).toBe(true);
+    });
+
+    it("syntax error is never certified", () => {
+      const result = evaluate(staticInput("CODE-C3.1", { "syntax_error.py": read("syntax_error.py") }));
+      expect(result.status).toBe("unavailable");
+      expect(result.findings).toEqual([]);
+    });
+
+    it.skipIf(!validatorAvailable)("positives, negatives and syntax-error pairs pass shared validate_pair", () => {
+      for (const files of [
+        { "positives.py": read("positives.py") },
+        { "negatives.py": read("negatives.py") },
+        { "positives.py": read("positives.py"), "syntax_error.py": read("syntax_error.py") },
+      ]) {
+        const input = staticInput("CODE-C3.1", files);
+        const verdict = validatePair(input, evaluate(input));
+        expect(verdict.ok, verdict.output).toBe(true);
+      }
     });
   });
 });

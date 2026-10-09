@@ -798,6 +798,7 @@ function buildFinding(
 
   const normalizedHeader = headerLine.replace(/\s+/g, " ");
   const scope = enclosingScopeName(loop);
+  const identity = `${KIND}:${scope}:${signal}:${normalizedHeader}:${ordinal}`;
   const fingerprint = generateFingerprint(
     CHECK,
     KIND,
@@ -810,6 +811,7 @@ function buildFinding(
     check: CHECK,
     kind: KIND,
     fingerprint,
+    identity,
     location,
     evidence: {
       snippet: headerLine,
