@@ -1,4 +1,5 @@
 import Parser from "tree-sitter";
+import setupCostData from "./setup-cost.json" with { type: "json" };
 
 export type LoopType = "for" | "while";
 
@@ -63,24 +64,84 @@ export const VOLATILE_CALLS = new Set<string>([
   "get_random_bytes",
 ]);
 
+export type SetupSignal = "compile" | "connection" | "file-open";
+
 /**
- * Heavy setup constructors owned by C3.3 (#62, per-iteration setup).
- * C3.2 yields precedence to C3.3 on these callees so both do not fire.
+ * Heavy (Tier A) setup callees owned by C3.3 (#62, per-iteration setup), keyed by
+ * fully qualified name. Data lives in `setup-cost.json` so C3.2 and C3.3 share one
+ * source of truth for "this call belongs to C3.3".
  */
-export const C33_SETUP_CALLEES = new Set<string>([
-  "re.compile",
-  "compile",
-  "open",
-  "Path.open",
-  "pathlib.Path.open",
-  "sqlite3.connect",
-  "requests.Session",
-  "urllib3.PoolManager",
-  "boto3.client",
-  "boto3.resource",
-  "psycopg2.connect",
-  "pymongo.MongoClient",
-]);
+export const SETUP_CALLEES: ReadonlyMap<string, SetupSignal> = new Map(
+  Object.entries(setupCostData.callees as Record<string, SetupSignal>)
+);
+
+/** Kept for compatibility: the Tier A callee names. */
+export const C33_SETUP_CALLEES = new Set<string>(SETUP_CALLEES.keys());
+
+/**
+ * Map local names to fully qualified import targets for the file:
+ * `import requests as rq` → rq: requests; `from requests import Session as S`
+ * → S: requests.Session. Relative and star imports are ignored.
+ */
+export function collectImportAliases(
+  rootNode: Parser.SyntaxNode
+): Map<string, string> {
+  const aliases = new Map<string, string>();
+  const visit = (node: Parser.SyntaxNode) => {
+    if (node.type === "import_statement") {
+      for (const child of node.namedChildren) {
+        if (child.type === "dotted_name") {
+          const top = child.text.split(".")[0];
+          aliases.set(top, top);
+        } else if (child.type === "aliased_import") {
+          const name = child.childForFieldName("name")?.text;
+          const alias = child.childForFieldName("alias")?.text;
+          if (name && alias) aliases.set(alias, name);
+        }
+      }
+    } else if (node.type === "import_from_statement") {
+      const module = node.childForFieldName("module_name");
+      if (!module || module.type === "relative_import") return;
+      for (const child of node.namedChildren) {
+        if (child.startIndex === module.startIndex) continue;
+        if (child.type === "dotted_name") {
+          aliases.set(child.text, `${module.text}.${child.text}`);
+        } else if (child.type === "aliased_import") {
+          const name = child.childForFieldName("name")?.text;
+          const alias = child.childForFieldName("alias")?.text;
+          if (name && alias) aliases.set(alias, `${module.text}.${name}`);
+        }
+      }
+    }
+    for (const child of node.namedChildren) visit(child);
+  };
+  visit(rootNode);
+  return aliases;
+}
+
+/** Resolve the head of a dotted callee through the file's import aliases. */
+export function resolveCallee(
+  calleeText: string,
+  aliases?: ReadonlyMap<string, string>
+): string {
+  const normalized = calleeText.replace(/\s+/g, "");
+  if (!aliases) return normalized;
+  const [head, ...rest] = normalized.split(".");
+  const target = aliases.get(head);
+  if (!target) return normalized;
+  return [target, ...rest].join(".");
+}
+
+/** Tier A signal for a (resolved) callee, if any. */
+export function setupSignalFor(resolvedCallee: string): SetupSignal | null {
+  const direct = SETUP_CALLEES.get(resolvedCallee);
+  if (direct) return direct;
+  const last = resolvedCallee.split(".").pop() ?? "";
+  // `<module>.compile(...)` / `<module>.open(...)` from unlisted modules.
+  if (last === "compile") return "compile";
+  if (last === "open" && resolvedCallee !== last) return "file-open";
+  return null;
+}
 
 /**
  * Trivial O(1) built-ins that fall outside the "costly value" caveat and overlap with C3.1.
@@ -118,16 +179,16 @@ export function isVolatileCall(calleeText: string): boolean {
 /**
  * Check if a callee matches C3.3 heavy setup constructors (including CapWords class names).
  */
-export function isC33SetupCallee(calleeText: string): boolean {
-  const normalized = calleeText.trim();
-  if (C33_SETUP_CALLEES.has(normalized)) {
+export function isC33SetupCallee(
+  calleeText: string,
+  aliases?: ReadonlyMap<string, string>
+): boolean {
+  const resolved = resolveCallee(calleeText, aliases);
+  if (setupSignalFor(resolved) !== null) {
     return true;
   }
-  const parts = normalized.split(".");
+  const parts = resolved.split(".");
   const last = parts[parts.length - 1];
-  if (last && C33_SETUP_CALLEES.has(last)) {
-    return true;
-  }
   // Check for CapWords class construction (e.g. `MyClass(...)`, `models.User(...)`)
   if (last && /^[A-Z][a-zA-Z0-9]+$/.test(last)) {
     return true;
