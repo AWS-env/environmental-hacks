@@ -111,6 +111,9 @@ jobs:
           PYTHONPATH: detectors/owner-c
         run: python -m unittest discover -s detectors/owner-c/tests
 
+      - name: Scan runner
+        run: python -m unittest discover -s tests/scanner
+
       - name: Detect project manifest
         id: detect
         run: |
