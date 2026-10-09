@@ -61,3 +61,7 @@ This increment adds the DB-16 public registry entry, detection specification, si
 ## Background jobs and scheduling interfaces
 
 [JOBS.md](JOBS.md) defines Group 3 formats, evidence levels and AWS integration. Each dependent issue registers its own check. Public source scans provide candidates; missing runtime data never counts as clean coverage.
+
+## NET-02 registration (#214)
+
+Adds extraneous fetching. See checks/net-02/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
