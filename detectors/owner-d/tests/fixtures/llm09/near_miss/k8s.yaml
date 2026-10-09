@@ -1,0 +1,10 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assistant
+spec:
+  template:
+    spec:
+      containers:
+        - name: weave
+          image: weaveworks/weave-kube:2.8.1

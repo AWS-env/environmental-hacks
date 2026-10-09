@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm09-001",
+  "commit_sha": "9999999999999999999999999999999999999999",
+  "check_id": "LLM-09",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py",
+    "file:bedrock_app.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "\"\"\"Synthetic LLM-09 positive: responses are read for their text only, so token usage is dropped.\"\"\"\n\nimport anthropic\nfrom openai import OpenAI\n\nclaude = anthropic.Anthropic()\noai = OpenAI()\n\n\ndef summarise(text):\n    message = claude.messages.create(\n        model=\"claude-sonnet-4-5\",\n        max_tokens=512,\n        messages=[{\"role\": \"user\", \"content\": text}],\n    )\n    return message.content[0].text\n\n\ndef stream_answer(question):\n    stream = oai.chat.completions.create(\n        model=\"gpt-4.1-mini\",\n        messages=[{\"role\": \"user\", \"content\": question}],\n        stream=True,\n    )\n    return \"\".join(chunk.choices[0].delta.content or \"\" for chunk in stream)\n\n\ndef warm_up():\n    oai.responses.create(model=\"gpt-4.1-mini\", input=\"ping\")\n\n\nasync def draft(client: anthropic.AsyncAnthropic, prompt):\n    request = {\"model\": \"claude-haiku-4-5\", \"max_tokens\": 256}\n    async with client.messages.stream(messages=[{\"role\": \"user\", \"content\": prompt}], **request) as stream:\n        async for text in stream.text_stream:\n            print(text, end=\"\")\n        final = await stream.get_final_message()\n    return final.content[0].text\n"
+    },
+    {
+      "source_id": "src:bedrock_app.py",
+      "scope_id": "file:bedrock_app.py",
+      "kind": "static",
+      "locator": "bedrock_app.py",
+      "content": "\"\"\"Synthetic LLM-09 positive: Bedrock responses are read for their text only.\"\"\"\n\nimport json\n\nimport boto3\n\nbedrock = boto3.client(\"bedrock-runtime\", region_name=\"ap-south-1\")\nMODEL_ID = \"anthropic.claude-3-haiku-20240307-v1:0\"\n\n\ndef lambda_handler(event, context):\n    response = bedrock.converse(\n        modelId=MODEL_ID,\n        messages=[{\"role\": \"user\", \"content\": [{\"text\": event[\"question\"]}]}],\n        inferenceConfig={\"maxTokens\": 512},\n    )\n    answer = response[\"output\"][\"message\"][\"content\"][0][\"text\"]\n    return {\"statusCode\": 200, \"body\": answer}\n\n\ndef classify(text):\n    body = json.dumps({\"anthropic_version\": \"bedrock-2023-05-31\", \"max_tokens\": 16, \"messages\": [text]})\n    raw = bedrock.invoke_model(modelId=MODEL_ID, body=body)\n    payload = json.loads(raw[\"body\"].read())\n    return payload[\"content\"][0][\"text\"].strip()\n\n\ndef stream_reply(prompt):\n    response = bedrock.converse_stream(modelId=MODEL_ID, messages=[{\"role\": \"user\", \"content\": [{\"text\": prompt}]}])\n    parts = []\n    for event in response[\"stream\"]:\n        if \"contentBlockDelta\" in event:\n            parts.append(event[\"contentBlockDelta\"][\"delta\"][\"text\"])\n    return \"\".join(parts)\n"
+    }
+  ]
+}
