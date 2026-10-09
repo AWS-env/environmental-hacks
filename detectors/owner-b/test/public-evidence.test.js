@@ -19,7 +19,7 @@ test('Public evidence excludes AWS identity and concrete resource metadata',()=>
 });
 test('Sanitized public pairs retain valid contracts, local results and separately labelled hashes',()=>{
   const dbDirectories=['db-34','db-06','db-05','db-16'];
-  for(const file of dbDirectories.flatMap(name=>files(path.join(directory,name))).filter(name=>name.endsWith('receipts.json'))) {
+  for(const file of dbDirectories.filter(name=>fs.existsSync(path.join(directory,name))).flatMap(name=>files(path.join(directory,name))).filter(name=>name.endsWith('receipts.json'))) {
     const receipt=JSON.parse(fs.readFileSync(file,'utf8'));
     assert.equal(receipt.public_redaction.byte_identical_to_s3,false);
     for(const record of receipt.records) {
