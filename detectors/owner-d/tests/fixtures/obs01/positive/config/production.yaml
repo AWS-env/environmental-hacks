@@ -1,0 +1,22 @@
+# Synthetic OBS-01 fixture: production YAML. Never deployed.
+service: api
+log_level: DEBUG
+logging:
+  level:
+    root: INFO
+    org.hibernate.SQL: debug
+  handlers:
+    console:
+      level: DEBUG
+spec:
+  containers:
+    - name: api
+      env:
+        - name: LOG_LEVEL
+          value: "trace"
+        - name: TIMEOUT
+          value: "30"
+services:
+  worker:
+    environment:
+      - RUST_LOG=info,worker=debug

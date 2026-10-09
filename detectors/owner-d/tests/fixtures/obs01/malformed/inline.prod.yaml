@@ -1,0 +1,2 @@
+# Synthetic OBS-01 fixture: flow-style mapping the line scanner does not interpret.
+logging: {level: {root: debug}}

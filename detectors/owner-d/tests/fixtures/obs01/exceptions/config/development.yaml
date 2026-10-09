@@ -1,0 +1,2 @@
+# Synthetic OBS-01 fixture: development config may log at DEBUG.
+log_level: debug

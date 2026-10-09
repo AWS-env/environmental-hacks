@@ -1,0 +1,2 @@
+# Synthetic OBS-01 fixture: no environment marker in path or keys.
+log_level: Debug

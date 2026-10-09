@@ -1,0 +1,6 @@
+# Synthetic OBS-01 fixture: production TOML.
+app = "api"
+
+[env]
+  PORT = "8080"
+  LOG_LEVEL = "DEBUG"

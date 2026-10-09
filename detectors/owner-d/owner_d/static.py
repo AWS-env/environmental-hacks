@@ -6,6 +6,11 @@ to parse stays out of `evaluated_scope` with a limitation, so it is never report
 
 A check module provides CHECK_ID, DETECTOR_VERSION, NOQA, REFERENCES, RECOMMENDATION,
 LIMITATION and `run(ctx) -> list[Hit]` (the same shape as owner C's static checks).
+Optionally it provides `parse(locator, content)` and SUPPORTED_FORMATS to accept other file
+types: `parse` returns a context with `lines` and `evidence_lines(node)` (or None when the file
+type is unsupported) and raises ValueError/SyntaxError when the file cannot be parsed. A hit's
+`node` then only needs `lineno` (and optionally `end_lineno`). Without `parse`, files are
+Python and parsed into `Ctx`.
 """
 
 from __future__ import annotations
@@ -181,12 +186,15 @@ def _evaluate_file(scope_id, sources, check):
     content = source.get("content")
     if not isinstance(locator, str) or not isinstance(content, str):
         return None, f"{scope_id}: static source needs a string locator and content"
-    if not locator.endswith(".py"):
+    parse = getattr(check, "parse", None)
+    if parse is None and not locator.endswith(".py"):
         return None, f"{scope_id}: unsupported language; {check.CHECK_ID} v{check.DETECTOR_VERSION} supports Python (.py) only"
     try:
-        ctx = Ctx(locator, content)
+        ctx = (parse or Ctx)(locator, content)
     except (SyntaxError, ValueError) as error:
         return None, f"{scope_id}: could not be parsed ({type(error).__name__}); not evaluated"
+    if ctx is None:
+        return None, f"{scope_id}: unsupported file type; {check.CHECK_ID} v{check.DETECTOR_VERSION} supports {check.SUPPORTED_FORMATS}"
 
     items = []
     try:

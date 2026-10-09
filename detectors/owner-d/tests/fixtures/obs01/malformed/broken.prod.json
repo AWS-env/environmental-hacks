@@ -1,0 +1,4 @@
+{
+  "environment": [
+    {"name": "LOG_LEVEL", "value": "DEBUG"},
+  ]

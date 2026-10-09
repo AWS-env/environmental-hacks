@@ -1,0 +1,2 @@
+# Synthetic OBS-01 fixture: incident override acknowledged with noqa.
+log_level: debug  # noqa: OBS-01 incident INC-42, revert after 2026-10-12

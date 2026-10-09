@@ -341,6 +341,62 @@ The identity is `<qualified function>:<provider>.<api>`, e.g.
 `summarise:bedrock.converse`; a repeat in the same function gets `#2`. Missing,
 non-Python or unparseable files are left out of `evaluated_scope`, never
 reported clean.
+## OBS-01 — DEBUG/TRACE logging enabled in production
+
+Flags literal DEBUG/TRACE log levels in production configuration and in Python
+code that configures logging. The check is static: config files are scanned
+line by line (so evidence is the exact source line), Python is parsed with
+`ast`, and nothing is imported or executed. The log-volume telemetry half of the
+check (CloudWatch) is out of scope for v1, and the result says so in
+`coverage.limitations`.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Supported: YAML, JSON, TOML, INI/CFG, `.properties`, `.env` files
+(`.env`, `.env.*`, `*.env`), Dockerfiles and Python. Optional context:
+`environment: "production"` declares that files without an environment marker
+are production config. Config support uses the optional `parse` hook in
+`owner_d/static.py`.
+
+### Detection rule
+
+A setting is flagged when all of the following hold:
+
+- Its key path is a log-level setting: `LOG_LEVEL`/`*_LOG_LEVEL`/`logLevel`/
+  `RUST_LOG` anywhere in the path (`Logging.LogLevel.Default`), `level` under a
+  logger key (`logging.level.root`, `loggers.app.level`, `[logger_root] level`)
+  or log4j `rootLogger`. Kubernetes/ECS `name: LOG_LEVEL` + `value:` pairs,
+  compose `- LOG_LEVEL=debug` items and Dockerfile `ENV` are resolved.
+- Its literal value is DEBUG or TRACE (case-insensitive). Lists such as
+  `DEBUG, stdout` or `info,app=trace` and `${VAR:-debug}` defaults count.
+- In Python: `logging.basicConfig(level=DEBUG)`, `<logger>.setLevel(DEBUG)`,
+  `os.getenv("LOG_LEVEL", "DEBUG")` defaults, and `LOGGING`-style dict or
+  assignment settings. Calls inside an `if` (other than `__main__`) are skipped,
+  because the level is then chosen at runtime.
+
+The environment comes from path tokens, the keys leading to the setting and the
+Docker stage name:
+
+| Marker | Example | Outcome |
+| --- | --- | --- |
+| non-production | `config/development.yaml`, `tests/`, `.env.local`, `staging:` key, `AS dev` stage, `.github/` | not flagged |
+| production | `config/production.yaml`, `values-prod.yaml`, `prod:` key, `AS production` stage | config `high`, Python `medium` |
+| production template | `.env.production.example` | `medium` |
+| none, but `context.environment: production` | `config/settings.yaml` | `medium` (Python `low`) |
+| none | `config/settings.yaml` | `low`, summary says production use is not established |
+
+Not flagged: handler/appender levels (they only filter), keys named after a
+level (`DEBUG_LOG_LEVEL`, `TRACE_LOG_LEVEL = 5`), framework debug switches
+(`DEBUG = True`, `APP_DEBUG`), CLI flags (`--log-level debug`), commented-out
+lines and lines with `# noqa: OBS-01` (for example, an acknowledged incident override).
+
+The identity is `log-level:<key path>` for config (for example
+`log-level:logging.level.root`) and `<qualified function>:<call or key path>`
+for Python. Repeats get `#2`. Unparseable files (invalid JSON/TOML/INI,
+tab-indented YAML), flow-style YAML/TOML mappings that contain a level, and
+unsupported file types are left out of `evaluated_scope` with a limitation, so
+they are never reported clean. No measurements are emitted.
 
 ### Run
 
@@ -348,4 +404,5 @@ reported clean.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs03/obs03-01-positive-input.json
   detectors/owner-d/tests/fixtures/llm07/llm07-01-positive-input.json
+  detectors/owner-d/tests/fixtures/obs01/obs01-01-positive-input.json
 ```

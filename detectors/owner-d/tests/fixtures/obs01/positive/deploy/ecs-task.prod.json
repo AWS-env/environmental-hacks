@@ -1,0 +1,15 @@
+{
+  "family": "api",
+  "containerDefinitions": [
+    {
+      "name": "api",
+      "environment": [
+        {"name": "PORT", "value": "8080"},
+        {
+          "name": "LOG_LEVEL",
+          "value": "DEBUG"
+        }
+      ]
+    }
+  ]
+}
