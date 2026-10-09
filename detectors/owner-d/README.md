@@ -826,3 +826,69 @@ shown to transfer to Python, so no measurements are emitted.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst01/tst01-01-positive-input.json
 ```
+
+## LLM-01 — No prompt caching for stable prompt prefixes (static proxy)
+
+Flags LLM API calls in Python source that resend a large, static prompt prefix
+without the provider's prompt-caching marker. The taxonomy detects this from
+token-usage logs; this v1 is a static proxy: it proves that a statically large
+prefix is sent with no cache marker, not that calls repeat within the cache
+TTL, that the cache would hit, or any cost. It emits no token counts.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only). No context settings are required.
+
+### Detection rule
+
+The prefix follows the providers' cache order, `tools` → `system` →
+`messages`: fully static tool definitions (compact JSON length), then the
+static leading text of the system prompt, then the static leading text of the
+messages (each stops at the first dynamic part, e.g. an f-string placeholder).
+Text is resolved from literals, single-assignment names, `+`, f-strings,
+`.format`/`%` (up to the first field), `str.join`, `.strip()`,
+`textwrap.dedent` and `inspect.cleandoc`. Tokens are estimated at 4
+characters per token, which undercounts Claude (about 3.5 characters per
+token, and about 30% more tokens on Claude 4.7+).
+
+| Call | Flagged when | Cache marker that is missing |
+| --- | --- | --- |
+| Anthropic SDK `messages.create/stream/parse` (also `beta.`) | estimated prefix ≥ model minimum | top-level `cache_control` or `cache_control` on a block |
+| Bedrock `converse` / `converse_stream` (Claude, Nova) | same | `cachePoint` block in `toolConfig.tools`, `system` or `messages` |
+| Bedrock `invoke_model` with `body=json.dumps(<static dict>)` | same | `cache_control` (Claude) / `cachePoint` (Nova) |
+
+Minimum cacheable prefix per model (the larger of the Anthropic API and
+Bedrock figures): 512 tokens for Claude 5.x (Opus/Sonnet/Haiku 5.5, Opus 5,
+Fable/Mythos 5 and 5.1) except Sonnet 5 (1,024); 1,024 for Opus 4.8,
+Opus 4.1/4, Sonnet 4.6/4.5/4, Claude 3.7 Sonnet and Claude 3.5 Sonnet v2;
+2,048 for Mythos Preview and Haiku 3.5; 4,096 for Opus 4.7/4.6/4.5 and
+Haiku 4.5; 1,024 for Nova Micro/Lite/Pro/2 Lite (whose tool definitions do not
+take checkpoints and are not counted). Opus 4.1/4, Sonnet 4, Haiku 3.5 and
+Mythos Preview count only on the Anthropic SDK, because Bedrock's table does
+not list them. An Anthropic SDK call whose model is not
+statically known uses 4,096; a Bedrock call must name a model from Bedrock's
+explicit-caching table. Confidence is `medium` for the Anthropic SDK (nothing
+is cached without `cache_control`) and `low` for Bedrock (Claude and Nova also
+get best-effort implicit caching there).
+
+Not flagged: OpenAI (prompt caching is automatic for prompts of 1,024 tokens
+or more); a file that mentions `cache_control`/`cachePoint` anywhere; tools,
+system blocks or request bodies that are not statically resolvable (a cache
+marker could be inside); `**kwargs`, `extra_body`, Bedrock Prompt management;
+prompts loaded from files or imported from other modules; one-shot calls at
+module level or in a function named `main` (outside a loop). Cache markers
+added to `messages` in another module are not seen. `# noqa` or
+`# noqa: LLM-01` suppresses a call.
+
+The identity is `<qualified function>:<provider>.<api>`, e.g.
+`answer:anthropic.messages.create`; a repeat in the same function gets `#2`.
+Missing, non-Python or unparseable files are left out of `evaluated_scope`,
+never reported clean.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm01/llm01-01-positive-input.json
+```
