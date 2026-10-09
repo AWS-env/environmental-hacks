@@ -1,0 +1,78 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs01-001",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "OBS-01",
+  "detector_version": "1.0.0",
+  "context": {},
+  "scope": [
+    "file:.env.production",
+    "file:Dockerfile",
+    "file:config/production.yaml",
+    "file:deploy/ecs-task.prod.json",
+    "file:fly.production.toml",
+    "file:logging.prod.ini",
+    "file:settings/production.py",
+    "file:src/main/resources/application-prod.properties"
+  ],
+  "sources": [
+    {
+      "source_id": "src:.env.production",
+      "scope_id": "file:.env.production",
+      "kind": "static",
+      "locator": ".env.production",
+      "content": "# Synthetic OBS-01 fixture: production .env file.\nAPP_ENV=production\nLOG_LEVEL=debug\nexport WORKER_LOG_LEVEL=\"${WORKER_LOG_LEVEL:-trace}\"\n"
+    },
+    {
+      "source_id": "src:Dockerfile",
+      "scope_id": "file:Dockerfile",
+      "kind": "static",
+      "locator": "Dockerfile",
+      "content": "# Synthetic OBS-01 fixture: multi-stage image.\nFROM python:3.12-slim AS builder\nENV PIP_NO_CACHE_DIR=1\n\nFROM python:3.12-slim AS production\nENV APP_ENV=production \\\n    LOG_LEVEL=debug\nCMD [\"python\", \"-m\", \"app\"]\n"
+    },
+    {
+      "source_id": "src:config/production.yaml",
+      "scope_id": "file:config/production.yaml",
+      "kind": "static",
+      "locator": "config/production.yaml",
+      "content": "# Synthetic OBS-01 fixture: production YAML. Never deployed.\nservice: api\nlog_level: DEBUG\nlogging:\n  level:\n    root: INFO\n    org.hibernate.SQL: debug\n  handlers:\n    console:\n      level: DEBUG\nspec:\n  containers:\n    - name: api\n      env:\n        - name: LOG_LEVEL\n          value: \"trace\"\n        - name: TIMEOUT\n          value: \"30\"\nservices:\n  worker:\n    environment:\n      - RUST_LOG=info,worker=debug\n"
+    },
+    {
+      "source_id": "src:deploy/ecs-task.prod.json",
+      "scope_id": "file:deploy/ecs-task.prod.json",
+      "kind": "static",
+      "locator": "deploy/ecs-task.prod.json",
+      "content": "{\n  \"family\": \"api\",\n  \"containerDefinitions\": [\n    {\n      \"name\": \"api\",\n      \"environment\": [\n        {\"name\": \"PORT\", \"value\": \"8080\"},\n        {\n          \"name\": \"LOG_LEVEL\",\n          \"value\": \"DEBUG\"\n        }\n      ]\n    }\n  ]\n}\n"
+    },
+    {
+      "source_id": "src:fly.production.toml",
+      "scope_id": "file:fly.production.toml",
+      "kind": "static",
+      "locator": "fly.production.toml",
+      "content": "# Synthetic OBS-01 fixture: production TOML.\napp = \"api\"\n\n[env]\n  PORT = \"8080\"\n  LOG_LEVEL = \"DEBUG\"\n"
+    },
+    {
+      "source_id": "src:logging.prod.ini",
+      "scope_id": "file:logging.prod.ini",
+      "kind": "static",
+      "locator": "logging.prod.ini",
+      "content": "; Synthetic OBS-01 fixture: logging.config.fileConfig for production.\n[loggers]\nkeys=root\n\n[handlers]\nkeys=console\n\n[formatters]\nkeys=\n\n[logger_root]\nlevel=DEBUG\nhandlers=console\n\n[handler_console]\nclass=StreamHandler\nlevel=DEBUG\nargs=(sys.stdout,)\n"
+    },
+    {
+      "source_id": "src:settings/production.py",
+      "scope_id": "file:settings/production.py",
+      "kind": "static",
+      "locator": "settings/production.py",
+      "content": "# Synthetic OBS-01 fixture: Django-style production settings. Never executed.\nimport logging\nimport os\n\nlogging.basicConfig(level=logging.DEBUG)\n\nlogger = logging.getLogger(__name__)\nlogger.setLevel(10)\n\nLOG_LEVEL = os.getenv(\"LOG_LEVEL\", \"DEBUG\")\n\nLOGGING = {\n    \"version\": 1,\n    \"handlers\": {\"console\": {\"class\": \"logging.StreamHandler\", \"level\": \"DEBUG\"}},\n    \"root\": {\"handlers\": [\"console\"], \"level\": \"DEBUG\"},\n    \"loggers\": {\n        \"django.db.backends\": {\"level\": \"DEBUG\"},\n        \"app\": {\"level\": \"INFO\"},\n    },\n}\n"
+    },
+    {
+      "source_id": "src:src/main/resources/application-prod.properties",
+      "scope_id": "file:src/main/resources/application-prod.properties",
+      "kind": "static",
+      "locator": "src/main/resources/application-prod.properties",
+      "content": "# Synthetic OBS-01 fixture: Spring Boot production profile.\nserver.port=8080\nlogging.level.root=DEBUG\nlogging.level.com.example.web=INFO\nlog4j.rootLogger=TRACE, stdout\n"
+    }
+  ]
+}

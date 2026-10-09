@@ -1,0 +1,4 @@
+# Synthetic OBS-01 fixture: CI runner environment, not the deployed service.
+name: deploy-prod
+env:
+  LOG_LEVEL: debug

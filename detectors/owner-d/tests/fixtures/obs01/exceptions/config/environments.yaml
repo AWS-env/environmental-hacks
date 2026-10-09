@@ -1,0 +1,8 @@
+# Synthetic OBS-01 fixture: one file, several environments.
+environments:
+  development:
+    LOG_LEVEL: debug
+  staging:
+    LOG_LEVEL: trace
+  production:
+    LOG_LEVEL: info

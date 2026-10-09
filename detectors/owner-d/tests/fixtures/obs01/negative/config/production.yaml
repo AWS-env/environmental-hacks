@@ -1,0 +1,28 @@
+# Synthetic OBS-01 fixture: production YAML with near misses only.
+# log_level: debug   (commented out)
+log_level: INFO
+debug: true
+DEBUG_LOG_LEVEL: debug
+log_format: debug-friendly
+logging:
+  level:
+    root: WARN
+  handlers:
+    console:
+      level: DEBUG
+alerts:
+  level: debug
+tracing:
+  sampler: trace-id-ratio
+spec:
+  containers:
+    - name: api
+      args: ["--log-level", "debug"]
+      env:
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef: {name: api, key: level}
+        - name: MODE
+          value: debug
+  release_notes: |
+    log_level: debug was removed in v2
