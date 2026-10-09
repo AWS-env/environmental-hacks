@@ -101,3 +101,7 @@ Adds compression and numeric-array format fit. See checks/net-10/SPEC.md and NET
 ## NET-11 registration (#223)
 
 Adds duplicate or serial client fetching. See checks/net-11/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
+
+## NET-12 registration (#224)
+
+Adds repeated parse and serialize across layers. See checks/net-12/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
