@@ -19,6 +19,9 @@ annotation in this file), `signature` (Bedrock's `modelId=` keyword) or `chain` 
 from __future__ import annotations
 
 import ast
+import inspect
+import json
+import textwrap
 from dataclasses import dataclass
 
 OPENAI_CLIENTS = frozenset(
@@ -337,7 +340,7 @@ def _bindings(scope, name):
             and isinstance(node.func, ast.Attribute)
             and isinstance(node.func.value, ast.Name)
             and node.func.value.id == name
-            and node.func.attr in ("update", "setdefault", "pop", "popitem", "clear", "__setitem__")
+            and node.func.attr in ("update", "setdefault", "pop", "popitem", "clear", "__setitem__", "insert", "remove")
         ):
             other += 1
     return values, other
@@ -390,3 +393,172 @@ def call_keywords(ctx, call):
             return None
         keywords.update(expanded)
     return keywords
+
+
+# --- static content of prompts and tool definitions (LLM-01, LLM-15) ------------------------
+
+TEXT_WRAPPERS = {"textwrap.dedent": textwrap.dedent, "inspect.cleandoc": inspect.cleandoc}
+STRIPS = ("strip", "lstrip", "rstrip")
+STATIC_DEPTH = 24
+
+
+def static_text(ctx, node, depth=0):
+    """(leading text, complete) of a string expression.
+
+    `complete` is False when the text continues with something not known statically (an f-string
+    placeholder, `.format()` field, unknown name); the returned text is then the static prefix.
+    """
+    node = resolve(ctx, node) if depth < STATIC_DEPTH else None
+    if node is None:
+        return "", False
+    if isinstance(node, ast.Constant):
+        return (node.value, True) if isinstance(node.value, str) else ("", False)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, done = static_text(ctx, node.left, depth + 1)
+        if not done:
+            return left, False
+        right, done = static_text(ctx, node.right, depth + 1)
+        return left + right, done
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):  # "..." % args
+        text, _ = static_text(ctx, node.left, depth + 1)
+        cut = text.find("%")
+        return (text, False) if cut < 0 else (text[:cut], False)
+    if isinstance(node, ast.JoinedStr):
+        parts = []
+        for value in node.values:
+            if isinstance(value, ast.Constant):
+                parts.append(value.value)
+                continue
+            text, done = static_text(ctx, value.value, depth + 1)
+            if value.conversion != -1 or value.format_spec is not None:
+                text, done = "", False
+            parts.append(text)
+            if not done:
+                return "".join(parts), False
+        return "".join(parts), True
+    if isinstance(node, ast.Call):
+        return _static_call_text(ctx, node, depth)
+    return "", False
+
+
+def _static_call_text(ctx, node, depth):
+    wrapper = TEXT_WRAPPERS.get(ctx.dotted(node.func) or "")
+    if wrapper and len(node.args) == 1 and not node.keywords:
+        text, done = static_text(ctx, node.args[0], depth + 1)
+        return wrapper(text), done
+    if not isinstance(node.func, ast.Attribute):
+        return "", False
+    method, receiver = node.func.attr, node.func.value
+    if method in STRIPS and not node.args and not node.keywords:
+        text, done = static_text(ctx, receiver, depth + 1)
+        return (getattr(text, method)() if done else text.lstrip() if method != "rstrip" else text), done
+    if method == "format":
+        text, done = static_text(ctx, receiver, depth + 1)
+        cut = text.find("{")
+        return (text, done) if cut < 0 else (text[:cut], False)
+    if method == "join" and len(node.args) == 1 and not node.keywords:
+        sep, done = static_text(ctx, receiver, depth + 1)
+        items, complete = static_elements(ctx, node.args[0], depth + 1)
+        if not done or items is None:
+            return "", False
+        parts = []
+        for item in items:
+            text, done = static_text(ctx, item, depth + 1)
+            parts.append(text)
+            if not done:
+                return sep.join(parts), False
+        return sep.join(parts), complete
+    return "", False
+
+
+def static_elements(ctx, node, depth=0):
+    """(element nodes, complete) of a list/tuple literal, following names, `*spread` and `+`.
+
+    Returns (None, False) when the value is not a statically known sequence at all.
+    """
+    node = resolve(ctx, node) if depth < STATIC_DEPTH else None
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left, done = static_elements(ctx, node.left, depth + 1)
+        if left is None or not done:
+            return left, False
+        right, done = static_elements(ctx, node.right, depth + 1)
+        return left + (right or []), done and right is not None
+    if not isinstance(node, (ast.List, ast.Tuple)):
+        return None, False
+    items = []
+    for element in node.elts:
+        if isinstance(element, ast.Starred):
+            spread, done = static_elements(ctx, element.value, depth + 1)
+            items.extend(spread or [])
+            if not done:
+                return items, False
+        else:
+            items.append(element)
+    return items, True
+
+
+def static_size(ctx, node, depth=0):
+    """Length of the compact JSON encoding of a fully static literal (tool definitions), else None."""
+    node = resolve(ctx, node) if depth < STATIC_DEPTH else None
+    if node is None:
+        return None
+    if isinstance(node, ast.Constant):
+        if node.value is None or isinstance(node.value, (bool, int, float, str)):
+            return len(json.dumps(node.value, ensure_ascii=False))
+        return None
+    if isinstance(node, ast.Dict) or _is_dict_call(node):
+        pairs = _dict_pairs(ctx, node, depth)
+        if pairs is None:
+            return None
+        sizes = [static_size(ctx, value, depth + 1) for _, value in pairs]
+        if None in sizes:
+            return None
+        return 1 + sum(len(json.dumps(key)) + 1 + size + 1 for (key, _), size in zip(pairs, sizes)) + (not pairs)
+    items, complete = static_elements(ctx, node, depth + 1)
+    if items is not None:
+        if not complete:
+            return None
+        sizes = [static_size(ctx, item, depth + 1) for item in items]
+        return None if None in sizes else 1 + sum(size + 1 for size in sizes) + (not items)
+    text, done = static_text(ctx, node, depth + 1)
+    return len(json.dumps(text, ensure_ascii=False)) if done else None
+
+
+def _is_dict_call(node):
+    return isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id == "dict" and not node.args
+
+
+def _dict_pairs(ctx, node, depth):
+    """[(key, value node)] of a dict literal or `dict(k=v)`, expanding known `**spread`; else None."""
+    if _is_dict_call(node):
+        pairs = []
+        for kw in node.keywords:
+            if kw.arg is None:
+                return None
+            pairs.append((kw.arg, kw.value))
+        return pairs
+    pairs = []
+    for key, value in zip(node.keys, node.values):
+        if key is None:
+            spread = resolve(ctx, value) if depth < STATIC_DEPTH else None
+            if not isinstance(spread, ast.Dict) and not _is_dict_call(spread):
+                return None
+            inner = _dict_pairs(ctx, spread, depth + 1)
+            if inner is None:
+                return None
+            pairs.extend(inner)
+            continue
+        name = _string(key)
+        if name is None:
+            return None
+        pairs.append((name, value))
+    return pairs
+
+
+def dict_items(ctx, node):
+    """{key: value node} of a statically known dict (literal, `dict(k=v)` or known `**spread`), else None."""
+    node = resolve(ctx, node)
+    if not (isinstance(node, ast.Dict) or _is_dict_call(node)):
+        return None
+    pairs = _dict_pairs(ctx, node, 0)
+    return None if pairs is None else dict(pairs)
