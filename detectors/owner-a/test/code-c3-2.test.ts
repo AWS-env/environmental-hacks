@@ -36,7 +36,10 @@ describe("CODE-C3.2 Recomputing loop-invariant detector", () => {
       expect(s1ForFinding?.limitations).toContain(
         "hoist only if side-effect free — verify callee purity"
       );
-      expect(s1ForFinding?.references[0].id).toBe("taxonomy-c3.2");
+      expect(s1ForFinding?.references.map((r) => r.id)).toEqual([
+        "SRC-01",
+        "taxonomy-c3.2",
+      ]);
       expect(s1ForFinding?.agentPrompt).toContain("compute_rate(cfg)");
 
       // 2. S1 Invariant call in while loop
@@ -96,6 +99,47 @@ describe("CODE-C3.2 Recomputing loop-invariant detector", () => {
     it("reports zero findings on negatives.py across all guards", () => {
       const findings = runCheckOnFixture("negatives.py");
       expect(findings).toEqual([]);
+    });
+  });
+
+  describe("Audit regressions (2026-10-09)", () => {
+    const run = (src: string) => checkCodeC32(parsePythonSource("a.py", src));
+
+    it("does not flag statement-level calls run for their side effects", () => {
+      expect(run("for r in rows:\n    print(header)\n    notify(cfg)\n    use(r)\n")).toEqual([]);
+    });
+
+    it("does not flag awaited calls", () => {
+      expect(
+        run("async def f(rows, cfg):\n    for r in rows:\n        x = (await load(cfg)) + r\n")
+      ).toEqual([]);
+    });
+
+    it("leaves single-hop lookups to C10.5 but flags two-hop chains", () => {
+      expect(run("for item in items:\n    total += item.price * rate.value\n")).toEqual([]);
+      expect(run("for item in items:\n    total += item.price * cfg['rate']\n")).toEqual([]);
+      const twoHop = run("for item in items:\n    total += item.price * cfg.rates['eu']\n");
+      expect(twoHop).toHaveLength(1);
+      expect(twoHop[0].evidence.expr).toBe("cfg.rates['eu']");
+    });
+
+    it("reports a repeated expression once per loop", () => {
+      const findings = run("for r in rows:\n    a = f(cfg) + r\n    b = f(cfg) - r\n");
+      expect(findings).toHaveLength(1);
+    });
+
+    it("gives identical-header loops in one scope distinct fingerprints", () => {
+      const findings = run(
+        "def g(rows, cfg):\n    for r in rows:\n        a = f(cfg) + r\n    for r in rows:\n        b = f(cfg) - r\n"
+      );
+      expect(findings).toHaveLength(2);
+      expect(findings[0].fingerprint).not.toBe(findings[1].fingerprint);
+    });
+
+    it("does not widen the default noqa codes (a C3.2 noqa must not hide C1.1)", async () => {
+      const { isLineSuppressed } = await import("../src/core/suppressions.js");
+      expect(isLineSuppressed("import os  # noqa: CODE-C3.2").isSuppressed).toBe(false);
+      expect(isLineSuppressed("x = f(cfg)  # noqa: CODE-C3.2", ["CODE-C3.2"]).isSuppressed).toBe(true);
     });
   });
 

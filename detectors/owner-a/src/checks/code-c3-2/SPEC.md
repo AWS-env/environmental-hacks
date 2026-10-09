@@ -23,16 +23,29 @@
 
 - **S1 Invariant call in loop:**
   - Value-position function or method call whose operands are defined outside the loop and never reassigned or mutated in the loop body.
+  - Not flagged: statement-level calls whose result is discarded (`print(header)`, `notify(cfg)` — they run for their side effects) and awaited calls.
   - Severity: `medium`, Confidence: `medium` (purity unverified statically).
   - Limitations: `["hoist only if side-effect free — verify callee purity"]`.
 - **S2 Invariant attribute / subscript chain:**
-  - Attribute read or subscript access chain in value position whose base object and indexing keys are defined outside the loop.
+  - Attribute read or subscript access chain in value position, **two or more hops deep** (`settings.limits["max"]`, `cfg.rates["eu"]`), whose base object and indexing keys are defined outside the loop. Single lookups (`rate.value`, `cfg["k"]`) are C10.5's lookup-overhead territory and too cheap for the "value is costly" caveat.
   - Severity: `low`, Confidence: `medium`.
   - Limitations: `["property getters and __getitem__ may perform computation or have side effects"]`.
 - **S3 Invariant arithmetic over outer names:**
   - Binary arithmetic computation over variables defined outside the loop.
   - Severity: `low`, Confidence: `high` (pure).
   - Limitations: `[]`.
+
+One finding per (loop, expression): repeated occurrences of the same invariant in one
+loop are reported once.
+
+## Fingerprint & Suppressions
+
+- `generateFingerprint("CODE-C3.2", kind, path, id)` with
+  `id = <enclosing def/class qualname>:<normalized loop header>:<ordinal among identical
+  headers in that scope>:<normalized expr>`. Line numbers stay out of the hash.
+- `# noqa: CODE-C3.2` (or blanket `# noqa`) on the loop header or the expression's line.
+  The check passes its own code; the shared default list in `core/suppressions.ts` stays
+  `["F401", "CODE-C1.1"]` so a C3.2 noqa never hides another check's finding.
 
 ## Boundaries with Sibling Checks
 

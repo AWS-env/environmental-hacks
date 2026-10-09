@@ -5,7 +5,7 @@ export interface SuppressionCheck {
 
 export function isLineSuppressed(
   lineContent: string,
-  ruleCodes: string[] = ["F401", "CODE-C1.1", "CODE-C3.2"]
+  ruleCodes: string[] = ["F401", "CODE-C1.1"]
 ): SuppressionCheck {
   const commentIndex = lineContent.indexOf("#");
   if (commentIndex === -1) {

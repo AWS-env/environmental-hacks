@@ -113,6 +113,20 @@ function isInAssignmentTargetPosition(node: Parser.SyntaxNode): boolean {
   return false;
 }
 
+/** Number of attribute/subscript hops from the root object (`a.b["c"]` → 2). */
+function chainDepth(node: Parser.SyntaxNode): number {
+  let depth = 0;
+  let curr: Parser.SyntaxNode | null = node;
+  while (curr && (curr.type === "attribute" || curr.type === "subscript")) {
+    depth++;
+    curr =
+      curr.type === "attribute"
+        ? curr.childForFieldName("object")
+        : curr.childForFieldName("value");
+  }
+  return depth;
+}
+
 /**
  * Check if candidate expression node is invariant with respect to the given loop.
  */
@@ -131,6 +145,14 @@ function checkCandidateInvariance(
   if (node.type === "call") {
     const func = node.childForFieldName("function");
     if (!func) return null;
+
+    // Guard: a call whose result is discarded (`print(header)`, `notify(cfg)`)
+    // runs for its side effects, and an awaited call is I/O — hoisting either
+    // changes behaviour. Only value-position calls are hoist candidates.
+    const parentType = node.parent?.type;
+    if (parentType === "expression_statement" || parentType === "await") {
+      return null;
+    }
 
     const calleeText = func.text.trim();
 
@@ -201,6 +223,11 @@ function checkCandidateInvariance(
     if (parent && (parent.type === "subscript" || parent.type === "attribute")) {
       return null;
     }
+
+    // A single lookup (`rate.value`, `cfg["k"]`) is C10.5's territory (lookup
+    // overhead) and too cheap for the "value is costly" caveat; only chains of
+    // two or more hops (`settings.limits["max"]`) are C3.2 candidates.
+    if (chainDepth(node) < 2) return null;
 
     const identifiers = collectAllIdentifiers(node);
     if (identifiers.length === 0) return null;
@@ -320,11 +347,20 @@ export function detectLoopInvariants(
   });
 
   const reportedNodeSpans = new Set<string>();
+  // Loops with identical headers in one scope get an ordinal so their
+  // fingerprints differ; repeated occurrences of one expression in one loop
+  // are reported once.
+  const loopOrdinals = new Map<string, number>();
 
   for (const loop of loops) {
     if (loop.runsAtMostOnce || !loop.bodyNode) {
       continue;
     }
+
+    const loopKey = `${loop.enclosingQualname}:${loop.headerText}`;
+    const ordinal = loopOrdinals.get(loopKey) ?? 0;
+    loopOrdinals.set(loopKey, ordinal + 1);
+    const reportedExprs = new Set<string>();
 
     // Check if the loop header line itself is suppressed
     const loopHeaderSuppressed = isLineSuppressed(
@@ -350,6 +386,10 @@ export function detectLoopInvariants(
       }
 
       const candidate = checkCandidateInvariance(n, loop);
+      if (candidate && reportedExprs.has(candidate.expr)) {
+        reportedNodeSpans.add(spanKey);
+        return;
+      }
       if (candidate) {
         const startLine = candidate.node.startPosition.row + 1;
         const endLine = candidate.node.endPosition.row + 1;
@@ -358,7 +398,7 @@ export function detectLoopInvariants(
         // Check line suppression
         const suppression = isLineSuppressed(lineContent, ["CODE-C3.2"]);
         if (!suppression.isSuppressed) {
-          const fingerprintId = `${loop.enclosingQualname}:${loop.headerText}:${candidate.expr}`;
+          const fingerprintId = `${loopKey}:${ordinal}:${candidate.expr}`;
           const fingerprint = generateFingerprint(
             "CODE-C3.2",
             "loop-invariant-recomputation",
@@ -395,6 +435,12 @@ export function detectLoopInvariants(
             },
             references: [
               {
+                id: "SRC-01",
+                title:
+                  "Watts This Smell: An Empirical Study on Energy Smells in Python Software",
+                url: "https://arxiv.org/abs/2604.04809",
+              },
+              {
                 id: "taxonomy-c3.2",
                 title:
                   "Software Compute Waste Taxonomy — C3.2 Recomputing loop-invariant",
@@ -409,6 +455,7 @@ export function detectLoopInvariants(
           });
 
           reportedNodeSpans.add(spanKey);
+          reportedExprs.add(candidate.expr);
         }
         return; // outermost invariant found, do not descend into children
       }
