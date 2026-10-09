@@ -1,0 +1,194 @@
+[
+  {
+    "id": "FE-15-01",
+    "title": "known positive: app.js spends 161 ms in forced reflow (real capture)",
+    "files": {
+      "app.js": "for (const e of els) { e.style.width = '1px'; e.offsetHeight; }\n"
+    },
+    "artifacts": {
+      "lighthouse": {
+        "app.js": {
+          "profiler": "lighthouse",
+          "forced_reflow_ms": 161.075
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "forced-reflow",
+          "line": 0,
+          "confidence": "medium"
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ]
+    }
+  },
+  {
+    "id": "FE-15-02",
+    "title": "similar negative: only 5 ms of forced reflow",
+    "files": {
+      "app.js": "x();\n"
+    },
+    "artifacts": {
+      "lighthouse": {
+        "app.js": {
+          "profiler": "lighthouse",
+          "forced_reflow_ms": 5
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [],
+      "evaluated": [
+        "app.js"
+      ]
+    }
+  },
+  {
+    "id": "FE-15-03",
+    "title": "boundary: exactly the default threshold (30 ms) is reported",
+    "files": {
+      "app.js": "x();\n"
+    },
+    "artifacts": {
+      "lighthouse": {
+        "app.js": {
+          "profiler": "lighthouse",
+          "forced_reflow_ms": 30
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "forced-reflow",
+          "line": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-15-04",
+    "title": "boundary: 29.9 ms is below the default threshold",
+    "files": {
+      "app.js": "x();\n"
+    },
+    "artifacts": {
+      "lighthouse": {
+        "app.js": {
+          "profiler": "lighthouse",
+          "forced_reflow_ms": 29.9
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-15-05",
+    "title": "legitimate exception: the team raised min_reflow_ms to 200",
+    "files": {
+      "app.js": "x();\n"
+    },
+    "context": {
+      "min_reflow_ms": 200
+    },
+    "artifacts": {
+      "lighthouse": {
+        "app.js": {
+          "profiler": "lighthouse",
+          "forced_reflow_ms": 161.075
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-15-06",
+    "title": "bundled script not in the repo is reported on a page: scope",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/assets/main.4b1c.js": {
+          "profiler": "lighthouse",
+          "forced_reflow_ms": 75
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "forced-reflow",
+          "line": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-15-07",
+    "title": "required evidence missing: a second script has no reflow data -> partial, not clean",
+    "files": {
+      "app.js": "x();\n",
+      "other.js": "y();\n"
+    },
+    "artifacts": {
+      "lighthouse": {
+        "app.js": {
+          "profiler": "lighthouse",
+          "forced_reflow_ms": 161.075
+        }
+      }
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "forced-reflow",
+          "line": 0
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ],
+      "limitations_contain": [
+        "other.js",
+        "no lighthouse artifact"
+      ]
+    }
+  },
+  {
+    "id": "FE-15-08",
+    "title": "malformed artifact: forced_reflow_ms is a string -> unavailable, no clean claim",
+    "files": {
+      "app.js": "x();\n"
+    },
+    "artifacts": {
+      "lighthouse": {
+        "app.js": {
+          "profiler": "lighthouse",
+          "forced_reflow_ms": "long"
+        }
+      }
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "app.js",
+        "forced_reflow_ms"
+      ]
+    }
+  }
+]
