@@ -1756,3 +1756,128 @@ detect. OpenTelemetry SDK declarative-configuration YAML is not read yet.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs09/obs09-01-positive-input.json
 ```
+
+## INF-02 — Static replicas without demand-based autoscaling
+
+Flags workloads in deployment manifests that run a fixed replica count at or
+above a configured threshold when no autoscaler in the supplied files targets
+them. The check is static: manifests are read as text and are never applied,
+rendered or sent to a cluster or to AWS. YAML is read with
+`owner_d/miniyaml.py` and the contract runner is `textstatic.py`, both as in
+INF-08. v1 is a proxy. It proves "fixed replicas, and no autoscaler in these
+files". It does not prove that demand varies or that replicas sit idle, so it
+emits no measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item and the context setting below. Supported files:
+
+- **Kubernetes** `.yaml`/`.yml`: `Deployment`, `StatefulSet`, `ReplicaSet`,
+  `ReplicationController` and Argo `Rollout`, including inside `kind: List`.
+  `HorizontalPodAutoscaler` and KEDA `ScaledObject` count as autoscalers.
+- **CloudFormation** `.json`/`.yaml`/`.yml`: `AWS::ECS::Service`. An
+  `AWS::ApplicationAutoScaling::ScalableTarget` on `ecs:service:DesiredCount`
+  counts as its autoscaler.
+- **Docker Compose** `.yaml`/`.yml`: `deploy.replicas`, or the legacy `scale`.
+
+### Context settings (required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_static_replicas` | Smallest fixed replica count that is flagged (inclusive); an integer of at least 2 | `2` |
+
+The threshold is a judgment call, so it is required, as in LLM-15/TST-07. A
+missing or invalid setting gives `unavailable`. With a single replica there is
+no idle replica for HPA or ECS Service Auto Scaling to remove, so 1 is not
+allowed. The repository scanner does not supply this setting yet, so repo
+scans report INF-02 as `unavailable`, as they do for LLM-15/TST-07.
+
+### Detection rule
+
+| Format | Identity | Flagged when | Confidence |
+| --- | --- | --- | --- |
+| Kubernetes | `<Kind>/[<ns>/]<name>` | Literal `spec.replicas` >= threshold and no HPA/ScaledObject whose `scaleTargetRef` kind and name match, in a matching namespace | medium; low for `StatefulSet` |
+| CloudFormation | `AWS::ECS::Service/<LogicalId>` | Literal `DesiredCount` >= threshold and no ECS scalable target refers to the service | medium |
+| Compose | `service/<name>` | Literal `deploy.replicas`/`scale` >= threshold. Compose has no demand-based autoscaler. | low |
+
+**Cross-file matching.** The runner evaluates one file per scope item. INF-02
+first indexes autoscalers in **every supplied source**, so an HPA in
+`hpa.yaml` covers a Deployment in `deployment.yaml`.
+
+- **Kubernetes namespaces.** An unset namespace on either side matches any
+  namespace, because it is chosen at apply time (`kubectl -n`, Kustomize).
+  Namespaces that are both set and differ do not match.
+- **ECS scalable targets.** A scalable target matches a service in the same
+  template when its `ResourceId` names the service:
+  - the logical ID through `Ref`, `Fn::GetAtt` (`Service.Name`), `Fn::Join`,
+    or `Fn::Sub` with `${Service}`/`${Service.Name}`
+  - a literal `ServiceName`
+
+  In another template, it matches only through a literal
+  `service/<cluster>/<name>` ResourceId and the service's literal `ServiceName`.
+
+**When findings drop to `low`.**
+
+- A supplied `.yaml`/`.yml`/`.json` file could not be read (a Helm template, a
+  YAML construct outside the parser's subset, Kubernetes JSON) and its text
+  mentions `HorizontalPodAutoscaler`/`ScaledObject`. This affects Kubernetes
+  findings, because an autoscaler there would not be seen.
+- An unreadable file mentions `ScalableTarget`/`ecs:service:DesiredCount`, or an
+  ECS scalable target could not be tied to any service (e.g. `!ImportValue`).
+  This affects ECS findings.
+
+The summary states the reason.
+
+The following are not flagged:
+
+- `replicas`/`DesiredCount` omitted (the default is 1), `null`, or below the
+  threshold
+- ECS services with `SchedulingStrategy: DAEMON`
+- `ReplicaSet`s with `ownerReferences` (managed by a Deployment)
+- Compose services with `deploy.mode: global`/`*-job` or `extends`
+- `# noqa` / `# noqa: INF-02` on the count line or the comment lines directly
+  above it
+
+Evidence is the exact `replicas:` / `DesiredCount:` / `scale:` line.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- files where a workload that no autoscaler covers has a count that is not a
+  literal integer (`replicas: ${REPLICAS}`, `DesiredCount: !Ref DesiredCount`,
+  `{"Ref": ...}`), because the count is set at deploy time
+- Helm/Go templates and YAML outside the subset
+- invalid JSON and Kubernetes JSON manifests
+- YAML/JSON with no Kubernetes objects, Compose services or CloudFormation
+  resources (including ECS task definition JSON, which has no service count)
+- Compose files marked as development/test, as in INF-08
+
+### Limitations
+
+Static only and no telemetry, so no measurements. The taxonomy's "regardless of
+demand" needs replica utilisation or request-rate history, which v1 does not
+read.
+
+Not visible:
+
+- autoscalers outside the supplied files: other repositories, `kubectl
+  autoscale`, scalable targets registered in the console or CLI
+- Kustomize `replicas:` overrides and patches
+- Helm values
+
+An HPA pinned at `minReplicas == maxReplicas` still counts as an autoscaler.
+
+Not covered: Copilot manifests, EC2 Auto Scaling groups and ECS services that
+are not defined in CloudFormation.
+
+StatefulSets are flagged at `low` because many of them are sized for quorum
+(etcd, Kafka, Cassandra). A deliberate fixed count can be kept with
+`# noqa: INF-02`.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/inf02/inf02-01-positive-input.json
+```

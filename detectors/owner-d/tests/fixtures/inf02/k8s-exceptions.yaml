@@ -1,0 +1,39 @@
+# Synthetic INF-02 fixture: deliberate fixed counts suppressed with noqa.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: etcd
+spec:
+  serviceName: etcd
+  # noqa: INF-02 (three-member quorum)
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: etcd
+          image: example/etcd:3.5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: licensed
+spec:
+  replicas: 2  # noqa: INF-02 licence allows exactly two nodes
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/licensed:1.0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: other-rule
+spec:
+  # noqa: INF-08
+  replicas: 2
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1.0

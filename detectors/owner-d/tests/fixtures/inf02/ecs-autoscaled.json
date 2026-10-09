@@ -1,0 +1,42 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Synthetic INF-02 fixture: ECS service scaled through Fn::Join / Fn::GetAtt.",
+  "Resources": {
+    "Service": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "Cluster": {"Ref": "Cluster"},
+        "DesiredCount": 2,
+        "TaskDefinition": {"Ref": "Task"}
+      }
+    },
+    "Target": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "ServiceNamespace": "ecs",
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ResourceId": {"Fn::Join": ["/", ["service", {"Ref": "Cluster"}, {"Fn::GetAtt": ["Service", "Name"]}]]},
+        "MinCapacity": 2,
+        "MaxCapacity": 6
+      }
+    },
+    "Parameterised": {
+      "Type": "AWS::ECS::Service",
+      "Properties": {
+        "Cluster": {"Ref": "Cluster"},
+        "DesiredCount": {"Ref": "Count"},
+        "TaskDefinition": {"Ref": "Task"}
+      }
+    },
+    "ParameterisedTarget": {
+      "Type": "AWS::ApplicationAutoScaling::ScalableTarget",
+      "Properties": {
+        "ServiceNamespace": "ecs",
+        "ScalableDimension": "ecs:service:DesiredCount",
+        "ResourceId": {"Fn::Sub": "service/${Cluster}/${Parameterised.Name}"},
+        "MinCapacity": 1,
+        "MaxCapacity": 4
+      }
+    }
+  }
+}

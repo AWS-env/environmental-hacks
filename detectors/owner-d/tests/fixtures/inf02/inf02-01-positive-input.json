@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf02-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "INF-02",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "manifest",
+    "min_static_replicas": 2
+  },
+  "scope": [
+    "file:k8s-positive.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:k8s-positive.yaml",
+      "scope_id": "file:k8s-positive.yaml",
+      "kind": "static",
+      "locator": "k8s-positive.yaml",
+      "content": "# Synthetic INF-02 fixture: fixed replica counts that no autoscaler targets.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  namespace: shop\nspec:\n  replicas: 4\n  selector:\n    matchLabels: {app: web}\n  template:\n    metadata:\n      labels: {app: web}\n    spec:\n      containers:\n        - name: web\n          image: example/web:1.0\n---\napiVersion: apps/v1\nkind: StatefulSet\nmetadata:\n  name: queue\nspec:\n  serviceName: queue\n  replicas: 3\n  selector:\n    matchLabels: {app: queue}\n  template:\n    metadata:\n      labels: {app: queue}\n    spec:\n      containers:\n        - name: queue\n          image: example/queue:1.0\n---\napiVersion: v1\nkind: List\nitems:\n  - apiVersion: apps/v1\n    kind: Deployment\n    metadata:\n      name: api\n    spec:\n      replicas: 2\n      template:\n        spec:\n          containers:\n            - name: api\n              image: example/api:1.0\n---\n# The HPA targets a different Deployment name, and the Rollout below is a different kind.\napiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: web-hpa\n  namespace: shop\nspec:\n  scaleTargetRef:\n    apiVersion: apps/v1\n    kind: Deployment\n    name: web-v2\n  minReplicas: 2\n  maxReplicas: 10\n---\napiVersion: autoscaling/v2\nkind: HorizontalPodAutoscaler\nmetadata:\n  name: canary\nspec:\n  scaleTargetRef:\n    apiVersion: apps/v1\n    kind: Deployment\n    name: canary\n  minReplicas: 2\n  maxReplicas: 6\n---\napiVersion: argoproj.io/v1alpha1\nkind: Rollout\nmetadata:\n  name: canary\nspec:\n  replicas: 5\n  template:\n    spec:\n      containers:\n        - name: canary\n          image: example/canary:1.0\n"
+    }
+  ]
+}

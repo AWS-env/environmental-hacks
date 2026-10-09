@@ -1,0 +1,38 @@
+# Synthetic INF-02 fixture: CloudFormation ECS services, one autoscaled and one fixed.
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  Cluster:
+    Type: AWS::ECS::Cluster
+  Api:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      DesiredCount: 3
+      LaunchType: FARGATE
+      TaskDefinition: !Ref ApiTask
+  Worker:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      DesiredCount: 4
+      LaunchType: FARGATE
+      TaskDefinition: !Ref WorkerTask
+  WorkerScaling:
+    Type: AWS::ApplicationAutoScaling::ScalableTarget
+    Properties:
+      ServiceNamespace: ecs
+      ScalableDimension: ecs:service:DesiredCount
+      ResourceId: !Sub service/${Cluster}/${Worker.Name}
+      MinCapacity: 1
+      MaxCapacity: 10
+  Agent:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      SchedulingStrategy: DAEMON
+      TaskDefinition: !Ref AgentTask
+  Single:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: !Ref Cluster
+      TaskDefinition: !Ref ApiTask

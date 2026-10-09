@@ -1,0 +1,87 @@
+# Synthetic INF-02 fixture: fixed replica counts that no autoscaler targets.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: shop
+spec:
+  replicas: 4
+  selector:
+    matchLabels: {app: web}
+  template:
+    metadata:
+      labels: {app: web}
+    spec:
+      containers:
+        - name: web
+          image: example/web:1.0
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: queue
+spec:
+  serviceName: queue
+  replicas: 3
+  selector:
+    matchLabels: {app: queue}
+  template:
+    metadata:
+      labels: {app: queue}
+    spec:
+      containers:
+        - name: queue
+          image: example/queue:1.0
+---
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: api
+    spec:
+      replicas: 2
+      template:
+        spec:
+          containers:
+            - name: api
+              image: example/api:1.0
+---
+# The HPA targets a different Deployment name, and the Rollout below is a different kind.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web-hpa
+  namespace: shop
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: web-v2
+  minReplicas: 2
+  maxReplicas: 10
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: canary
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: canary
+  minReplicas: 2
+  maxReplicas: 6
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: canary
+spec:
+  replicas: 5
+  template:
+    spec:
+      containers:
+        - name: canary
+          image: example/canary:1.0

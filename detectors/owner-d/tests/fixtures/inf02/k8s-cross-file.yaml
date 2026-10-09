@@ -1,0 +1,26 @@
+# Synthetic INF-02 fixture: workloads whose autoscalers live in hpa.yaml.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout
+  namespace: shop
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: checkout
+          image: example/checkout:1.0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: search
+  namespace: shop
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: search
+          image: example/search:1.0
