@@ -778,3 +778,51 @@ weak (CI time on tests that may assert nothing).
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst09/tst09-01-positive-input.json
 ```
+
+## TST-01 — Assertion Roulette
+
+Flags tests with more than one assertion that has no explanation message,
+following PyNose's Assertion Roulette rule ("a test case contains more than
+one assertion statement without an explanation/message";
+[Wang et al., ASE 2021](https://arxiv.org/abs/2108.04639), adopted from
+[tsDetect](https://testsmells.org/pages/testsmells.html)). It is static (`ast`
+only), uses the same input, test recognition and per-file "nothing to flag"
+note as TST-06, and needs no context settings.
+
+### Detection rule
+
+Only assertions with a message slot are counted:
+
+- `assert` statements (message after the comma);
+- `unittest` assert methods with a known signature, where the message is
+  positional at the documented index or given as `msg=`;
+- numpy-style `assert_*` helpers that take `err_msg=`.
+
+Mock `assert_called*`, `pytest.raises`/`warns`, `assertRaises` contexts and
+custom `TestCase` assertions are ignored.
+
+A test is flagged when at least 2 counted assertions have no message. That
+includes assertions in nested helpers defined inside the test, as in PyNose.
+One finding per test; evidence starts at the `def` line and the summary lists
+the undocumented lines. Confidence:
+
+- `medium` when at least two undocumented assertions are truthiness checks
+  (`assertTrue`/`assertFalse`/`assert_`), whose failure reads only
+  "False is not true";
+- `low` otherwise. `assertEqual`-style failures print both operands, and
+  pytest rewrites bare `assert` to show values, so the cost is mostly
+  readability.
+
+`# noqa: TST-01` on the `def` line suppresses a finding. The identity is the
+qualified test name, with `#n` for a redefined name.
+
+The taxonomy cites the strongest energy association for this smell (Kendall
+tau 0.615, SRC-15). That evidence comes from JUnit/Maven projects and is not
+shown to transfer to Python, so no measurements are emitted.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst01/tst01-01-positive-input.json
+```
