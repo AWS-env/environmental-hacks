@@ -7,7 +7,7 @@ import json
 import sys
 from pathlib import Path
 
-from . import inf01, inf02, inf08, inf09, inf10, llm01, llm07, llm10, llm15, obs01, obs02, obs03, obs04, obs06, obs07, obs09, tst01, tst04, tst05, tst06, tst07, tst09, tst10, tst12
+from . import inf01, inf02, inf08, inf09, inf10, llm01, llm07, llm10, llm15, obs01, obs02, obs03, obs04, obs05, obs06, obs07, obs09, tst01, tst04, tst05, tst06, tst07, tst09, tst10, tst12
 
 DETECTORS = {
     inf01.CHECK_ID: inf01,
@@ -23,6 +23,7 @@ DETECTORS = {
     obs02.CHECK_ID: obs02,
     obs03.CHECK_ID: obs03,
     obs04.CHECK_ID: obs04,
+    obs05.CHECK_ID: obs05,
     obs06.CHECK_ID: obs06,
     obs07.CHECK_ID: obs07,
     obs09.CHECK_ID: obs09,

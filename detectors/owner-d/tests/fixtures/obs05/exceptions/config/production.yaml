@@ -1,0 +1,12 @@
+services:
+  api:
+    environment:
+      OTEL_SDK_DISABLED: "true"
+      OTEL_TRACES_SAMPLER: always_on
+  worker:
+    environment:
+      OTEL_TRACES_SAMPLER: always_on  # noqa: OBS-05 incident 812, revert by 2026-11-01
+  batch:
+    environment:
+      OTEL_TRACES_EXPORTER: none
+      OTEL_TRACES_SAMPLER: always_on

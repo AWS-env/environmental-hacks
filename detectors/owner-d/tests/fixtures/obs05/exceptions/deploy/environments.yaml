@@ -1,0 +1,7 @@
+dev:
+  env:
+    OTEL_TRACES_SAMPLER: always_on
+production:
+  env:
+    OTEL_TRACES_SAMPLER: parentbased_traceidratio
+    OTEL_TRACES_SAMPLER_ARG: "0.05"

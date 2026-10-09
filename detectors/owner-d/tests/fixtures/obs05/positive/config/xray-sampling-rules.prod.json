@@ -1,0 +1,17 @@
+{
+  "version": 2,
+  "rules": [
+    {
+      "description": "Checkout",
+      "host": "*",
+      "http_method": "POST",
+      "url_path": "/checkout",
+      "fixed_target": 1,
+      "rate": 1.0
+    }
+  ],
+  "default": {
+    "fixed_target": 1,
+    "rate": 1
+  }
+}

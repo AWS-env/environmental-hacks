@@ -1,0 +1,13 @@
+{
+  "family": "orders",
+  "containerDefinitions": [
+    {
+      "name": "orders",
+      "image": "example/orders:3.1",
+      "environment": [
+        {"name": "OTEL_TRACES_SAMPLER", "value": "parentbased_traceidratio"},
+        {"name": "OTEL_TRACES_SAMPLER_ARG", "value": "1"}
+      ]
+    }
+  ]
+}

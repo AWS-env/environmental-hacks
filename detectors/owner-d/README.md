@@ -1995,3 +1995,97 @@ The check cannot see:
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/inf10/inf10-01-positive-input.json
 ```
+
+## OBS-05 — Tracing without sampling (static proxy: 100% trace sampling)
+
+Flags tracing that is configured to keep every trace. The check is static,
+like OBS-01:
+
+- YAML and JSON are read with `owner_d/miniyaml.py`, which keeps line numbers.
+- `.env`, `.properties`, INI/CFG, TOML and Dockerfile `ENV` use the OBS-01
+  line scanners.
+- Python is parsed with `ast`.
+
+Nothing is imported, executed or rendered, and no measurements are emitted.
+
+### Detection rule
+
+| Signal | Flagged when | Identity |
+| --- | --- | --- |
+| `OTEL_TRACES_SAMPLER` (also `otel.traces.sampler`, `quarkus.otel.traces.sampler`, `QUARKUS_OTEL_TRACES_SAMPLER`), from env files, Compose `environment` (map or `KEY=value` list), Kubernetes/ECS `name`/`value` env, CloudFormation Lambda `Variables` or Dockerfile `ENV` | `always_on` / `parentbased_always_on`; `traceidratio` / `parentbased_traceidratio` with `OTEL_TRACES_SAMPLER_ARG` exactly 1 (`1`, `"1"`, `1.0`) in the same block; the same ratio samplers with no ARG in the block (the specified default ratio is 1.0) | `trace-sampling:<key path>` |
+| `OTEL_TRACES_SAMPLER_ARG` with no sampler in the same block | The ARG is ignored and the SDK default `parentbased_always_on` applies. Always `low`, because the sampler may be set elsewhere | `ignored-sampler-arg:<key path>` |
+| Spring `management.tracing.sampling.probability` / `spring.sleuth.sampler.probability` (any relaxed-binding form) | equal to 1 | `trace-sampling:<key path>` |
+| Python `TracerProvider(sampler=...)` (keyword or first positional, inline or through a variable assigned once in the same scope) | `ALWAYS_ON`, `DEFAULT_ON`, `ParentBased(<one of these>)`, `TraceIdRatioBased(1)` / `(1.0)`, `ParentBasedTraceIdRatio(1.0)`, `StaticSampler(Decision.RECORD_AND_SAMPLE)` from `opentelemetry` | `<function>:TracerProvider.sampler` |
+| Python `os.environ["OTEL_TRACES_SAMPLER"] = ...` / `os.environ.setdefault(...)` | `always_on` / `parentbased_always_on` | `<function>:os.environ:OTEL_TRACES_SAMPLER` |
+| AWS X-Ray rules: `AWS::XRay::SamplingRule` / API `SamplingRule` (`FixedRate`), and SDK local rules files (`default` and `rules` with `rate`) | rate equal to 1 | `xray-sampling-rule:<RuleName, logical ID, default or service:host:method:path>` |
+| Python `aws_xray_sdk` `xray_recorder.configure(sampling=False)` | always (every request is traced) | `<function>:xray_recorder.configure.sampling` |
+
+**Confidence.** The environment comes from path, key and Docker stage names,
+as in OBS-01.
+
+| Environment | Config | Python |
+| --- | --- | --- |
+| Production marker | `high` | `medium` |
+| Production template, or `context.environment: "production"` | `medium` | `low` |
+| No marker | `low` | `low` |
+
+Some cases drop one tier:
+
+- Parent-based samplers drop one tier, because they keep 100% only of root
+  spans and child spans follow the caller.
+- A ratio sampler without an ARG drops one tier, and two tiers if it is also
+  parent-based.
+- X-Ray rules narrowed to a service, host, method, path or attributes drop
+  one tier. They may be the deliberate "full tracing for debugging"
+  exception.
+- A Python setting under an `if` that has no alternative (a guard such as
+  `if endpoint:`) drops one tier. It only applies when tracing is switched on.
+
+**Not flagged:**
+
+- dev/test/staging/local/CI/docs/example paths, keys or stages
+- `# noqa: OBS-05` on the first evidence line
+- a block that also sets `OTEL_SDK_DISABLED=true` or
+  `OTEL_TRACES_EXPORTER=none`
+- ratios below 1, such as `0.99`
+- ratios above 1, which the SDKs reject
+- `${VAR}` without a default, or tagged values such as `!Ref`
+- Python samplers chosen at runtime: a ternary, an `if`/`else` whose other
+  branch configures another sampler, a parameter, or a variable assigned more
+  than once or inside an `if`
+- `TraceIdRatioBased("1")` or `TraceIdRatioBased(True)`
+- remote or other samplers: `xray`, `jaeger_remote`, `always_off`
+- Lambda `TracingConfig: Active`, which uses the default X-Ray rule
+
+### Limitations
+
+"No sampler configured" is not flagged, although the OpenTelemetry SDK
+default `parentbased_always_on` keeps every root trace. The sampler may come
+from another env source, from code, from remote configuration, or from a
+Collector that tail-samples. The one exception is the ignored-ARG case above,
+which is always `low`.
+
+The taxonomy's "head-only sampling" half (no tail sampling for rare
+failures) is not judged.
+
+**OpenTelemetry Collector `probabilistic_sampler` config is not evaluated in
+v1.** It will be added on top of the shared `otelconfig.py` after the OBS-09
+PR (#233) lands.
+
+The following are not evaluated:
+
+- Terraform `aws_xray_sampling_rule`, CDK code and non-Python SDK code
+- X-Ray rules passed inline in code (`LocalSampler({...})`)
+- `env_file` / `envFrom` sources
+- actual trace volume (X-Ray/CloudWatch)
+
+Unparseable files are listed as limitations and never reported clean. That
+covers invalid JSON/TOML/INI, Helm templates, and TOML inline tables holding a
+sampler key.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs05/obs05-01-positive-input.json
+```

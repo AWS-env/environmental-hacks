@@ -1,0 +1,19 @@
+services:
+  api:
+    image: example/api:1.4
+    environment:
+      OTEL_TRACES_SAMPLER: xray
+  worker:
+    image: example/worker:1.4
+    environment:
+      - OTEL_TRACES_SAMPLER=jaeger_remote
+      - OTEL_TRACES_SAMPLER_ARG=endpoint=http://jaeger:14250
+  batch:
+    image: example/batch:1.4
+    environment:
+      OTEL_TRACES_SAMPLER: always_off
+  cron:
+    image: example/cron:1.4
+    command: ["sh", "-c", "echo always_on"]
+    environment:
+      OTEL_TRACES_SAMPLER: ${OTEL_TRACES_SAMPLER}

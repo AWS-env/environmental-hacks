@@ -1,0 +1,14 @@
+apiVersion: apps/v1
+kind: Deployment
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: OTEL_TRACES_SAMPLER
+              value: always_on
+        - name: sidecar
+          env:
+            - name: OTEL_TRACES_SAMPLER
+              value: always_on

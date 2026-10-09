@@ -1,0 +1,11 @@
+services:
+  api:
+    image: example/api:1.4
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "1.0"
+  worker:
+    image: example/worker:1.4
+    environment:
+      - OTEL_TRACES_SAMPLER=parentbased_always_on
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317
