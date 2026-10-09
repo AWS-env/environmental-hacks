@@ -1,0 +1,13 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: checkout
+spec:
+  template:
+    spec:
+      containers:
+        - name: checkout
+          image: example/checkout:2.0
+          env:
+            - name: OTEL_TRACES_SAMPLER
+              value: always_on

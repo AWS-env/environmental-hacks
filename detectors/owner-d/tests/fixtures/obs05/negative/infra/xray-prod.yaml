@@ -1,0 +1,28 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Sampler:
+    Type: String
+Resources:
+  DefaultRule:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: sampled
+        Priority: 100
+        FixedRate: 0.05
+        ReservoirSize: 1
+        ServiceName: "*"
+        ServiceType: "*"
+        Host: "*"
+        HTTPMethod: "*"
+        URLPath: "*"
+        ResourceARN: "*"
+        Version: 1
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      TracingConfig:
+        Mode: Active
+      Environment:
+        Variables:
+          OTEL_TRACES_SAMPLER: !Ref Sampler

@@ -1,0 +1,38 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  CatchAllRule:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: catch-all
+        Priority: 100
+        FixedRate: 1.0
+        ReservoirSize: 1
+        ServiceName: "*"
+        ServiceType: "*"
+        Host: "*"
+        HTTPMethod: "*"
+        URLPath: "*"
+        ResourceARN: "*"
+        Version: 1
+  CheckoutRule:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        Priority: 10
+        FixedRate: 1
+        ReservoirSize: 5
+        ServiceName: checkout
+        ServiceType: "*"
+        Host: "*"
+        HTTPMethod: "*"
+        URLPath: "*"
+        ResourceARN: "*"
+        Version: 1
+  ApiFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Environment:
+        Variables:
+          OTEL_TRACES_SAMPLER: always_on

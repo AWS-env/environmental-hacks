@@ -1,0 +1,2 @@
+# Synthetic OBS-05 test inputs (no secrets): track the .env fixtures ignored at the repo root.
+!.env.*

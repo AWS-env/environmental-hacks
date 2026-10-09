@@ -1,0 +1,2 @@
+app = "checkout"
+env = { OTEL_TRACES_SAMPLER = "always_on" }

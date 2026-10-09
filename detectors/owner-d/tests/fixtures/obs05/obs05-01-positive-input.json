@@ -1,0 +1,86 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs05-001",
+  "commit_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "check_id": "OBS-05",
+  "detector_version": "1.0.0",
+  "context": {},
+  "scope": [
+    "file:.env.production",
+    "file:Dockerfile",
+    "file:app/production/tracing.py",
+    "file:config/xray-sampling-rules.prod.json",
+    "file:deploy/docker-compose.prod.yaml",
+    "file:deploy/ecs-task.prod.json",
+    "file:infra/xray-prod.yaml",
+    "file:k8s/deployment-prod.yaml",
+    "file:src/main/resources/application-prod.properties"
+  ],
+  "sources": [
+    {
+      "source_id": "src:.env.production",
+      "scope_id": "file:.env.production",
+      "kind": "static",
+      "locator": ".env.production",
+      "content": "# Synthetic OBS-05 fixture: production service environment.\nOTEL_SERVICE_NAME=checkout\nOTEL_TRACES_SAMPLER=always_on\nOTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317\n"
+    },
+    {
+      "source_id": "src:Dockerfile",
+      "scope_id": "file:Dockerfile",
+      "kind": "static",
+      "locator": "Dockerfile",
+      "content": "FROM python:3.12-slim AS base\nWORKDIR /app\n\nFROM base AS production\nENV OTEL_TRACES_SAMPLER_ARG=0.1\nCMD [\"python\", \"-m\", \"app\"]\n"
+    },
+    {
+      "source_id": "src:app/production/tracing.py",
+      "scope_id": "file:app/production/tracing.py",
+      "kind": "static",
+      "locator": "app/production/tracing.py",
+      "content": "\"\"\"Synthetic OBS-05 fixture: production tracing setup.\"\"\"\nimport os\n\nfrom aws_xray_sdk.core import xray_recorder\nfrom opentelemetry import trace\nfrom opentelemetry.sdk.trace import TracerProvider\nfrom opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased, TraceIdRatioBased\n\nos.environ[\"OTEL_TRACES_SAMPLER\"] = \"always_on\"\n\ntrace.set_tracer_provider(TracerProvider(sampler=ALWAYS_ON))\n\nxray_recorder.configure(service=\"checkout\", sampling=False)\n\n\ndef build_provider():\n    sampler = ParentBased(root=TraceIdRatioBased(1.0))\n    return TracerProvider(sampler=sampler)\n\n\ndef ratio_provider():\n    return TracerProvider(TraceIdRatioBased(rate=1))\n\n\ndef guarded_provider(endpoint):\n    if endpoint:\n        return TracerProvider(sampler=ALWAYS_ON)\n    return None\n"
+    },
+    {
+      "source_id": "src:config/xray-sampling-rules.prod.json",
+      "scope_id": "file:config/xray-sampling-rules.prod.json",
+      "kind": "static",
+      "locator": "config/xray-sampling-rules.prod.json",
+      "content": "{\n  \"version\": 2,\n  \"rules\": [\n    {\n      \"description\": \"Checkout\",\n      \"host\": \"*\",\n      \"http_method\": \"POST\",\n      \"url_path\": \"/checkout\",\n      \"fixed_target\": 1,\n      \"rate\": 1.0\n    }\n  ],\n  \"default\": {\n    \"fixed_target\": 1,\n    \"rate\": 1\n  }\n}\n"
+    },
+    {
+      "source_id": "src:deploy/docker-compose.prod.yaml",
+      "scope_id": "file:deploy/docker-compose.prod.yaml",
+      "kind": "static",
+      "locator": "deploy/docker-compose.prod.yaml",
+      "content": "services:\n  api:\n    image: example/api:1.4\n    environment:\n      OTEL_TRACES_SAMPLER: traceidratio\n      OTEL_TRACES_SAMPLER_ARG: \"1.0\"\n  worker:\n    image: example/worker:1.4\n    environment:\n      - OTEL_TRACES_SAMPLER=parentbased_always_on\n      - OTEL_EXPORTER_OTLP_ENDPOINT=http://collector:4317\n"
+    },
+    {
+      "source_id": "src:deploy/ecs-task.prod.json",
+      "scope_id": "file:deploy/ecs-task.prod.json",
+      "kind": "static",
+      "locator": "deploy/ecs-task.prod.json",
+      "content": "{\n  \"family\": \"orders\",\n  \"containerDefinitions\": [\n    {\n      \"name\": \"orders\",\n      \"image\": \"example/orders:3.1\",\n      \"environment\": [\n        {\"name\": \"OTEL_TRACES_SAMPLER\", \"value\": \"parentbased_traceidratio\"},\n        {\"name\": \"OTEL_TRACES_SAMPLER_ARG\", \"value\": \"1\"}\n      ]\n    }\n  ]\n}\n"
+    },
+    {
+      "source_id": "src:infra/xray-prod.yaml",
+      "scope_id": "file:infra/xray-prod.yaml",
+      "kind": "static",
+      "locator": "infra/xray-prod.yaml",
+      "content": "AWSTemplateFormatVersion: \"2010-09-09\"\nResources:\n  CatchAllRule:\n    Type: AWS::XRay::SamplingRule\n    Properties:\n      SamplingRule:\n        RuleName: catch-all\n        Priority: 100\n        FixedRate: 1.0\n        ReservoirSize: 1\n        ServiceName: \"*\"\n        ServiceType: \"*\"\n        Host: \"*\"\n        HTTPMethod: \"*\"\n        URLPath: \"*\"\n        ResourceARN: \"*\"\n        Version: 1\n  CheckoutRule:\n    Type: AWS::XRay::SamplingRule\n    Properties:\n      SamplingRule:\n        Priority: 10\n        FixedRate: 1\n        ReservoirSize: 5\n        ServiceName: checkout\n        ServiceType: \"*\"\n        Host: \"*\"\n        HTTPMethod: \"*\"\n        URLPath: \"*\"\n        ResourceARN: \"*\"\n        Version: 1\n  ApiFunction:\n    Type: AWS::Lambda::Function\n    Properties:\n      Runtime: python3.12\n      Environment:\n        Variables:\n          OTEL_TRACES_SAMPLER: always_on\n"
+    },
+    {
+      "source_id": "src:k8s/deployment-prod.yaml",
+      "scope_id": "file:k8s/deployment-prod.yaml",
+      "kind": "static",
+      "locator": "k8s/deployment-prod.yaml",
+      "content": "apiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: checkout\nspec:\n  template:\n    spec:\n      containers:\n        - name: checkout\n          image: example/checkout:2.0\n          env:\n            - name: OTEL_TRACES_SAMPLER\n              value: always_on\n"
+    },
+    {
+      "source_id": "src:src/main/resources/application-prod.properties",
+      "scope_id": "file:src/main/resources/application-prod.properties",
+      "kind": "static",
+      "locator": "src/main/resources/application-prod.properties",
+      "content": "spring.application.name=orders\nmanagement.tracing.sampling.probability=1.0\notel.traces.sampler=always_on\n"
+    }
+  ]
+}

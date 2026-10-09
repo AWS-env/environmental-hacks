@@ -1,0 +1,35 @@
+services:
+  below:
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "0.99"
+  quoted:
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: "1"
+  number:
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: 1
+  decimal:
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: 1.0
+  invalid:
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: 1.5
+  default-ratio:
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+  default-parent:
+    environment:
+      OTEL_TRACES_SAMPLER: parentbased_traceidratio
+  runtime:
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: ${TRACE_RATIO}
+  fallback:
+    environment:
+      OTEL_TRACES_SAMPLER: traceidratio
+      OTEL_TRACES_SAMPLER_ARG: ${TRACE_RATIO:-1}
