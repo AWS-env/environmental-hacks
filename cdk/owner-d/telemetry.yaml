@@ -18,6 +18,7 @@ Metadata:
       - "read-only toward telemetry: no Put/Create/Delete on CloudWatch, Logs or X-Ray; queries are bounded"
       - "findings-hub bus and the findings writer exist outside this stack (owner-d-findings-hub)"
       - "no reserved concurrency by default: the project's Lambda concurrency quota is 10, so Lambda refuses any reservation"
+      - "owner-d-telemetry-readonly requires sts:ExternalId; the value is a NoEcho parameter, never committed"
     ref:
       - docs/ARCHITECTURE_FLOWS.md
       - detectors/owner-d/README.md
@@ -46,6 +47,17 @@ Parameters:
     Type: Number
     Default: 7
     AllowedValues: [1, 3, 5, 7]
+  ReadOnlyExternalId:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    MaxLength: 1224
+    AllowedPattern: "[\\w+=,.@:/-]+"
+    ConstraintDescription: 16-1224 characters from the STS ExternalId set (letters, digits, _+=,.@:/-).
+    Description: >-
+      sts:ExternalId that owner-d-telemetry-readonly requires in its trust policy. No default: generate one
+      locally (see detectors/owner-d/README.md) and never commit it. The analyzers get it as
+      READONLY_EXTERNAL_ID and send it only when assuming this stack's read-only role.
   ReservedConcurrency:
     Type: Number
     Default: 0
@@ -258,7 +270,8 @@ Resources:
       com.aws.cloudformation.Context:
         why: "simulates the client's read-only telemetry role inside our project (STS AssumeRole path)"
         must:
-          - "trusted only by the three analyzer roles; read-only actions only; 1-hour max session"
+          - "trusted only by the three analyzer roles, and only with the sts:ExternalId from ReadOnlyExternalId"
+          - "read-only actions only; 1-hour max session"
     Properties:
       RoleName: owner-d-telemetry-readonly
       MaxSessionDuration: 3600
@@ -274,6 +287,8 @@ Resources:
                   - !GetAtt TelemetryAnalyzerRole.Arn
                   - !GetAtt LogAnalyzerRole.Arn
                   - !GetAtt TraceAnalyzerRole.Arn
+              StringEquals:
+                "sts:ExternalId": !Ref ReadOnlyExternalId
       Policies:
         - PolicyName: owner-d-telemetry-readonly
           PolicyDocument:
@@ -325,6 +340,8 @@ Resources:
         Variables:
           FINDINGS_BUS_NAME: !Ref FindingsBusName
           ALLOWED_REGION: ap-south-1
+          READONLY_ROLE_ARN: !GetAtt ReadOnlyRole.Arn
+          READONLY_EXTERNAL_ID: !Ref ReadOnlyExternalId
       LoggingConfig:
         LogGroup: !Ref TelemetryAnalyzerLogGroup
       Tags:
@@ -351,6 +368,8 @@ Resources:
         Variables:
           FINDINGS_BUS_NAME: !Ref FindingsBusName
           ALLOWED_REGION: ap-south-1
+          READONLY_ROLE_ARN: !GetAtt ReadOnlyRole.Arn
+          READONLY_EXTERNAL_ID: !Ref ReadOnlyExternalId
           LOG_GROUP_ALLOWLIST: !Ref LogQueryPattern
       LoggingConfig:
         LogGroup: !Ref LogAnalyzerLogGroup
@@ -378,6 +397,8 @@ Resources:
         Variables:
           FINDINGS_BUS_NAME: !Ref FindingsBusName
           ALLOWED_REGION: ap-south-1
+          READONLY_ROLE_ARN: !GetAtt ReadOnlyRole.Arn
+          READONLY_EXTERNAL_ID: !Ref ReadOnlyExternalId
       LoggingConfig:
         LogGroup: !Ref TraceAnalyzerLogGroup
       Tags:
@@ -416,7 +437,9 @@ Outputs:
   TraceAnalyzerFunctionName:
     Value: !Ref TraceAnalyzerFunction
   ReadOnlyRoleArn:
-    Description: Pass as role_arn in analyzer events to read through the simulated client role.
+    Description: >-
+      Pass as role_arn in analyzer events to read through the simulated client role; the analyzers add the
+      ExternalId themselves.
     Value: !GetAtt ReadOnlyRole.Arn
   TelemetryDlqUrl:
     Value: !Ref TelemetryDlq

@@ -74,26 +74,34 @@ This route implements the read-only telemetry path in
 Lambdas read existing telemetry. Each can read through a read-only role using
 STS AssumeRole (session `owner-d-telemetry-reader`, 15 minutes). They
 normalize the data per check, evaluate the contract v1 detectors and publish
-one `detector.result.v1` event per result to the `findings-hub` bus. The
-`owner-d-findings-writer` ([`hub/`](../../hub/README.md)) validates each event
-again and stores it with `evidence: unverified`. The detectors themselves stay
-pure and never call AWS.
+one `detector.result.v1` event per result to the `findings-hub` bus. Before
+publishing, every input/result pair goes through the shared `validate_pair`.
+A pair that fails is refused: it is not published and is listed under
+`refused` in the response. The `owner-d-findings-writer`
+([`hub/`](../../hub/README.md)) validates each event again and stores it with
+`evidence: unverified`. The detectors themselves stay pure and never call AWS.
 
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
-| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01 (OBS-06 ready to wire) |
-| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07 ready to wire |
-| `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10 ready to wire |
+| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
+| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07 |
+| `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10 |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
-(plain CloudFormation). Build: `scripts/build-owner-d-telemetry.sh` (pure
-Python; boto3 comes from the runtime).
+(plain CloudFormation). Build: `scripts/build-owner-d-telemetry.sh`. The zip
+bundles `owner_d/`, `shared/contracts`, `docs/taxonomy/checks.json` and
+jsonschema with its dependencies as python3.12 arm64 wheels. They are pure
+Python except `rpds-py`, a compiled manylinux wheel. boto3 comes from the
+runtime. If `shared.contracts` cannot be imported, an analyzer fails before it
+reads anything; it never publishes unvalidated results.
 
 ### Event formats
 
 All analyzers take `repository_id`, a full 40-character `commit_sha`, an
 optional `scan_id` (default: a new UUID), `role_arn` and `external_id`
-(optional; without them the execution role reads its own project), `checks`
+(optional; without them the execution role reads its own project; for this
+stack's `owner-d-telemetry-readonly` role the analyzers add the ExternalId
+themselves, see [ExternalId](#externalid-for-owner-d-telemetry-readonly)), `checks`
 (default: every registered check for that Lambda), `settings` keyed by check
 ID, `scope_per_payload` (1-200, default 50) and `dry_run`.
 
@@ -126,12 +134,21 @@ ID, `scope_per_payload` (1-200, default 50) and `dry_run`.
   LLM-10 can analyze.
 - `{"probe": ["cpu_metrics" | "metrics" | "log_groups" | "logs_insights" | "traces"], "role_arn": ...}`
   only collects. It returns counts and publishes nothing, so you can check
-  IAM and the role before any check is wired.
+  IAM and the role before running checks.
 
 The response, and one JSON log line per invocation, contains a per-result
 summary, collection counts (including Logs Insights `bytes_scanned`),
-`published` and `assumed_role`. It never contains the role ARN or raw
-telemetry. A `dry_run` response also includes the full `result_payloads`.
+`published` and `assumed_role`. It never contains the role ARN, the
+ExternalId or raw telemetry. A `dry_run` response also includes the full
+`result_payloads` (valid results only).
+
+`refused` lists results that failed `validate_pair`: `check_id`, `scope`
+size, `status` and the contract error (at most 300 characters). Refused
+results are not published, while the valid results of the same invocation
+still are. The invocation still succeeds, so a refusal shows up in the
+response and the log line, not in the DLQ. A detector that raises is listed
+under `errors` and fails the invocation after the valid results are
+published.
 
 ### INF-01 normalization
 
@@ -159,21 +176,26 @@ rather than clean:
 The default 15-day lookback leaves one day of headroom over INF-01's 14-day
 minimum.
 
-### Wiring OBS-06, OBS-07 and LLM-10 (one line each)
+### Registered checks (one line each)
 
-`owner_d/aws/registry.py` lists the checks each Lambda runs. A detector module
-plugs in through a normalizer, by default `normalize_<source>(raw, *,
-settings)`. It returns contract `telemetry` sources, or `{"scope", "sources",
-"limitations"}`. Normalizers that take raw API pages use an adapter. The adapter
-builds the sources with account-free locators and drops `log_group_arn`. The
-lines are already in `CHECKS`, commented out. Uncomment each one once its
-detector is merged:
+`owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
+(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`) and LLM-10
+(`traces`). A detector module plugs in through a normalizer, by default
+`normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
+sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
+API pages use an adapter. The adapter builds the sources with account-free
+locators and drops `log_group_arn`. OBS-06, OBS-07 and LLM-10 use the
+`list_metrics`, `describe_log_groups` and `xray_traces` adapters:
 
 ```python
-TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:normalize_list_metrics", adapter="list_metrics", defaults=OBS06_DEFAULTS),
-TelemetryCheck("OBS-07", "owner_d.obs07", "log_groups", normalizer="owner_d.obs07:normalize_describe_log_groups", adapter="describe_log_groups", defaults=OBS07_DEFAULTS),
-TelemetryCheck("LLM-10", "owner_d.llm10", "traces", normalizer="owner_d.llm10:normalize_xray_traces", adapter="xray_traces", defaults=LLM10_DEFAULTS),
+TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:normalize_list_metrics",
+               adapter="list_metrics", defaults=OBS06_DEFAULTS),
 ```
+
+Without `checks`, the telemetry analyzer runs INF-01 and OBS-06. OBS-06 needs
+`list_metrics` (for example `{"namespace": "OwnerD/Demo"}`); without it,
+ListMetrics lists every namespace. Pass `"checks": ["INF-01"]` to run only
+one of them.
 
 Raw shapes:
 
@@ -202,12 +224,14 @@ profile:
 
 ```bash
 export AWS_PROFILE=<your profile> AWS_REGION=ap-south-1 AWS_DEFAULT_REGION=ap-south-1
-./scripts/build-owner-d-telemetry.sh      # prints cdk/owner-d/build/owner-d-telemetry-<sha>.zip
+./scripts/build-owner-d-telemetry.sh      # prints cdk/owner-d/build/owner-d-telemetry-<sha>.zip (needs pip)
 aws s3 cp cdk/owner-d/build/owner-d-telemetry-<sha>.zip s3://owner-d-deploy-<account>-ap-south-1/
+# first deploy: ReadOnlyExternalId is required (see "ExternalId" below); later deploys may omit it
 aws cloudformation deploy --stack-name owner-d-telemetry \
   --template-file cdk/owner-d/telemetry.yaml --capabilities CAPABILITY_NAMED_IAM \
   --tags owner=D project=environmental-hacks \
-  --parameter-overrides CodeBucket=owner-d-deploy-<account>-ap-south-1 CodeKey=owner-d-telemetry-<sha>.zip
+  --parameter-overrides CodeBucket=owner-d-deploy-<account>-ap-south-1 CodeKey=owner-d-telemetry-<sha>.zip \
+    ReadOnlyExternalId="$(cat ~/.config/owner-d/telemetry-external-id)"
 # smoke test through the simulated client role (read only, publishes nothing)
 aws lambda invoke --function-name owner-d-log-analyzer --cli-binary-format raw-in-base64-out \
   --payload '{"probe": ["log_groups"], "role_arn": "<ReadOnlyRoleArn output>"}' /tmp/probe.json
@@ -220,8 +244,47 @@ PYTHONPATH=hub python -m findings_hub.readback --repository-id <repo> --scan-id 
 `LogQueryPattern` (default `/aws/lambda/owner-d-*`) is the only log group
 pattern that Logs Insights may query. It is the `logs:StartQuery` resource in
 both roles and the code-level allowlist. `owner-d-telemetry-readonly` trusts
-only the three analyzer roles and grants read-only actions. A real client
-role would grant the same actions, and it should require an `ExternalId`.
+only the three analyzer roles, only with the right `sts:ExternalId`, and
+grants read-only actions. A real client role grants the same actions and
+requires its own ExternalId.
+
+#### ExternalId for `owner-d-telemetry-readonly`
+
+The role's trust policy requires `sts:ExternalId` to equal the
+`ReadOnlyExternalId` parameter (NoEcho, 16-1224 characters from
+`[\w+=,.@:/-]`, no default). The template also sets it on the three analyzers
+as `READONLY_EXTERNAL_ID`, next to `READONLY_ROLE_ARN`. When an event's
+`role_arn` is this stack's role and the event has no `external_id`, the
+analyzers send that value. They never send it to any other role, because
+another project's CloudTrail would record it. For a client's role, put the
+client's ExternalId in the event's `external_id`.
+
+The deployer generates the value once, locally, and keeps it outside the
+repository:
+
+```bash
+mkdir -p ~/.config/owner-d && chmod 700 ~/.config/owner-d
+( umask 077; python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > ~/.config/owner-d/telemetry-external-id )
+```
+
+Pass it with `ReadOnlyExternalId="$(cat ~/.config/owner-d/telemetry-external-id)"`,
+as in the deploy command above. The value then never appears in the
+repository, in shell history or in `describe-stacks` output (NoEcho). `aws
+cloudformation deploy` keeps the previous value when a later deploy omits the
+override. To rotate it, generate a new file and deploy with the override. The
+trust policy and the analyzers' environment change in the same update. Never
+commit the file or paste the value into issues, PRs or events in the
+repository.
+
+Why a NoEcho parameter and not Secrets Manager or SSM: an ExternalId is not a
+secret. It prevents the confused-deputy problem. Anyone who can read the role
+can see it in the trust policy (`iam:GetRole`), and anyone who can read the
+function configuration can see it in the analyzers' environment. Neither
+Secrets Manager nor SSM would hide it from those reads. Secrets Manager also
+costs money per secret on this Free-plan project. CloudFormation's
+`ssm-secure` dynamic references are not supported in IAM trust policies or
+Lambda environment variables. The parameter keeps the value out of the
+repository at no cost.
 
 ### Cost and limits
 
