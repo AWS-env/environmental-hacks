@@ -46,6 +46,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
   - `mutable-default-mutated`: a list/dict/set default argument that the function body mutates, so state persists across calls. Narrower than Ruff B006 / Pylint W0102: a default that is never mutated is not reported.
 - **`CODE-C6.6`**: Leaked resource handles (#84)
   - `unclosed-handle`: a file/socket/connection opened into a local name that is neither context-managed, closed in `finally`, nor handed on. Reliability finding with low energy weight.
+- **`CODE-C11.4`**: Blocking the main thread (#51)
+  - `blocking-call-in-async`: `time.sleep`, `requests.*`, `urlopen`, sync `httpx.*`, `subprocess.*`, `os.system`, `input()` or `open()` called directly in an `async def` (not awaited, not in a nested sync def). Impact is event-loop latency, not a measured energy cost.
 
 ## Shared contract v1
 
