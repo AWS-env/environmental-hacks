@@ -1,5 +1,11 @@
 # Detection Spec: DB-34 (Unnecessary Query Construction)
 
+This document describes the legacy `scanSource` compatibility API only. For the
+validated G01 implementation and its narrower, tested API models, use
+[checks/db-34/SPEC.md](checks/db-34/SPEC.md) and [README.md](README.md).
+Legacy findings must not enter the shared hub directly; the deployed handler
+uses `core/g01.js` and evidence-validates every input/result pair.
+
 **Taxonomy Key:** `DB-34`  
 **Layer:** Database access (`database`)  
 **Owner:** Owner B (Data & external I/O)  
