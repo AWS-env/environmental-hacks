@@ -1196,6 +1196,79 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm15/llm15-01-positive-input.json
 ```
 
+## LLM-04 — Whole context passed to every pipeline step (static proxy)
+
+Flags LLM steps in Python source that receive the whole conversation history,
+or the whole document, again after an earlier step in the same function
+already received it. They could receive a slice, a summary or only the
+previous step's output instead. This v1 is a static proxy: it shows what is
+re-sent, not how many tokens it costs, and it emits no measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only). No context settings are required.
+
+### Detection rule
+
+Steps are recognised LLM calls in the same function (or module body). Calls in
+nested functions form their own scope. Step B follows step A when it comes
+later in the source, the two are not in alternative branches (if/else arms,
+`try` body vs `except` handler, `match` cases), and A's result is not returned
+or raised.
+
+| Rule | B is flagged when | Confidence |
+| --- | --- | --- |
+| H — whole history | A and B both send all of the same name `h` as the conversation (`h`, `h + [...]`, `[*h, ...]`), and `h` grew between them (`append`/`extend`/`insert`/`+=`/`h = h + ...`) or B adds messages after it | `medium` (`low` for an unknown OpenAI-compatible client) |
+| D — whole document | A and B both embed the same name `d` whole in their prompt text (content, f-string field, `+`, `%`, `.format`, `str.join`, `str()`/`json.dumps()`, through single-assignment prompt variables), B also receives an earlier step's output, and B is not the last step | `low` |
+
+The conversation is `messages` for Anthropic `messages.*`, OpenAI chat
+completions and Bedrock `converse`/`converse_stream`, `input` for the OpenAI
+Responses API, and `messages` in a static `invoke_model` body
+(`json.dumps(<dict>)`). Prompt text also includes `system` / `instructions`.
+For rule D, `d` must not come from an earlier step's output. Its name must
+contain a context-like word (`doc`, `document`, `context`, `history`,
+`transcript`, `conversation`, `corpus`, `article`, `report`, `page`,
+`chunk`, `passage`, `source`, `content`, `text`, `memory`, `note`,
+`thread`, `email`, `record`, `knowledge`, `file`), so short inputs such as
+`question` stay out.
+
+Not flagged:
+
+- a single step;
+- slices (`h[-4:]`), summaries or any other rebinding between the steps;
+- trimming (`pop`/`remove`/`clear`/`del`/item assignment), or passing the
+  history to another function, which might compact it;
+- the same unchanged request sent twice (fallback or ensemble);
+- the last step for documents (final synthesis);
+- files that mention `cache_control`/`cachePoint`/`cache_point` anywhere;
+- functions that continue a tool-use turn (`tool_result`, `toolResult`,
+  `function_call_output`, `tool_call_id`, role `"tool"`);
+- requests with `context_management`, `previous_response_id`,
+  `conversation`, `truncation` or `extra_body`, and `**kwargs` that are not
+  statically known;
+- other SDK clients (`Groq()`, ...).
+
+`# noqa` or `# noqa: LLM-04` suppresses a step.
+
+Not evaluated: LangChain/LangGraph/LlamaIndex/LiteLLM chains and graph state;
+steps split across functions or modules; histories held in attributes or
+subscripts (`self.messages`, `state["messages"]`); per-turn re-sending in a
+loop with one call site (LLM-14). OpenAI's automatic prompt caching may
+discount a re-sent prefix, but cached tokens still fill the context window.
+
+The identity is `<qualified function>:<provider>.<api>`, e.g.
+`research:anthropic.messages.create`; a repeat in the same function gets
+`#2`. Missing, non-Python or unparseable files are left out of
+`evaluated_scope`, never reported clean.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm04/llm04-01-positive-input.json
+```
+
 ## TST-04 — Magic Number Test
 
 Flags tests whose assertions compare against bare numeric literals that
