@@ -350,6 +350,17 @@ line by line (so evidence is the exact source line), Python is parsed with
 check (CloudWatch) is out of scope for v1, and the result says so in
 `coverage.limitations`.
 
+## INF-09 — Oversized container images / unneeded packages
+
+Flags Dockerfile instructions that put avoidable bytes into the shipped image.
+The check is static: the Dockerfile is read as text and is never built, and no
+image is pulled. Non-Python text files go through `owner_d/textstatic.py`, a
+sibling of `static.py` with the same coverage rules (one `file:` scope per
+file; missing, unsupported or unparseable files are omitted with a limitation).
+`owner_d/dockerfile.py` is a small stdlib Dockerfile reader. It handles
+`# escape=`, continuations, comment lines inside continuations, heredocs,
+`FROM ... AS` stages, global `ARG` defaults and exec-form `RUN`.
+
 ### Input
 
 A contract v1 `input` payload with one `static` source per `file:<path>` scope
@@ -397,6 +408,51 @@ for Python. Repeats get `#2`. Unparseable files (invalid JSON/TOML/INI,
 tab-indented YAML), flow-style YAML/TOML mappings that contain a level, and
 unsupported file types are left out of `evaluated_scope` with a limitation, so
 they are never reported clean. No measurements are emitted.
+item. Supported files: `Dockerfile`, `Dockerfile.*`, `*.Dockerfile`,
+`Containerfile`, `Containerfile.*` and `*.Containerfile`. No context settings
+are required.
+
+### Detection rule
+
+Only the shipped stages are checked: the last stage, plus the stages it is
+built `FROM`. A builder stage that is only used through `COPY --from` is never
+flagged. Rules (identity `<stage>:<rule>`):
+
+| Rule | Flagged when | Not flagged when | Confidence |
+| --- | --- | --- | --- |
+| `full-base-image` | The base is `python`/`node`/`ruby`/`perl` with a full Debian tag (`3.12`, `lts`, `3.12-bookworm`, no tag) | The tag is `-slim`/`-alpine`/`-windowsservercore`/unknown, or the image ref still contains an unresolved `$VAR` | medium |
+| `toolchain-base-image` | The base is `golang`/`rust`/`maven`/`gradle` **and** the shipped stages run `go build`/`cargo build`/`mvn package`/`gradle build` | There is no build step (the toolchain is what the image is for, e.g. codegen images) | medium |
+| `apt-install-recommends` (DL3015) | `apt-get install` without `--no-install-recommends` | The same RUN or an earlier RUN sets `APT::Install-Recommends "false"` | medium |
+| `apt-lists-kept` (DL3009) | `apt-get update` and the same RUN does not remove `/var/lib/apt/lists` | The same RUN removes the lists, runs `apt-get dist-clean`, or uses a cache/tmpfs mount on `/var/lib/apt` | medium |
+| `apk-cache-kept` (DL3019) | `apk add` without `--no-cache` | The same RUN removes `/var/cache/apk`, or uses a cache mount | medium |
+| `yum`/`dnf`/`microdnf-cache-kept` (DL3032/DL3040/DL3041) | `install` without `<tool> clean all` in the same RUN | The same RUN cleans the cache, or uses a cache mount | medium |
+| `pip-cache-kept` (DL3042) | `pip install` (incl. `pip3`, `python -m pip`) without `--no-cache-dir` | `PIP_NO_CACHE_DIR` is set (ENV/ARG/inline), the same RUN removes `.cache`, a cache mount is used, or `pip config` sets `no-cache-dir` | medium |
+| `node-dev-dependencies` | `npm install`/`npm ci`/`yarn install`/`pnpm install` with no package arguments and no production flag | `--omit=dev`/`--production`/`--prod`, `NODE_ENV` or `npm_config_production` is set, `npm prune` runs in the same RUN, or explicit packages are given (`npm install -g pm2`) | low |
+| `build-toolchain` | apt/apk/yum/dnf installs `build-essential`, `gcc`, `g++`, `make`, `cmake`, `clang`, `build-base`, `musl-dev`, ... | The same RUN removes packages again (`apk del .build-deps`, `apt-get purge`) | medium |
+
+Cleanup only counts in the **same** `RUN`, because a later layer cannot shrink
+an earlier one. Suppressions: `# noqa` / `# noqa: INF-09` on the instruction
+or in the comment lines directly above it, and `# hadolint ignore=DL3009`
+(plus `# hadolint global ignore=...`) for the rule with that hadolint code.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- development/test/debug images: a final stage named `dev`, `dev-envs`,
+  `development`, `debug` or `test`, a file such as `Dockerfile.dev` or
+  `Dockerfile.debug`, or a file under `.devcontainer/`, `test/`, `tests/` or
+  `e2e/`
+- unparseable files: no `FROM`, an unknown instruction or an unterminated
+  heredoc
+- files that are not Dockerfiles
+
+### Limitations
+
+The image size and pull frequency are unknown: nothing is built or pulled, so
+no measurements are emitted. The build `--target` is unknown, so the last
+stage is assumed. The detector cannot see base-image contents, pip/npm config
+files or `.dockerignore`. As a result, `COPY . .` without a `.dockerignore` is
+not checked.
 
 ### Run
 
@@ -405,4 +461,5 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs03/obs03-01-positive-input.json
   detectors/owner-d/tests/fixtures/llm07/llm07-01-positive-input.json
   detectors/owner-d/tests/fixtures/obs01/obs01-01-positive-input.json
+  detectors/owner-d/tests/fixtures/inf09/inf09-01-positive-input.json
 ```
