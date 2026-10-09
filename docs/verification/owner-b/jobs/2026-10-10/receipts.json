@@ -2,7 +2,7 @@
   "prepared_date": "2026-10-10",
   "timezone": "Asia/Calcutta",
   "build": {
-    "build_commit": "75112e23b88edff17a114eef36f93f683680b255",
+    "build_commit": "ffdd267eeba3349f7a98f96a39fc503bf02a0287",
     "working_tree_clean": true,
     "lock_sha256": "8cdacb14cb7d9c72c0aba35807e8c44fe6d1cd1168bbd08e893986014cfdf3d6",
     "archive_sha256": "33f6245f5946c3c3d6bae51d817d7fd482e641ca7b39977a96442f129d5b79a1",
@@ -38,16 +38,184 @@
   },
   "hub": {
     "event_acceptance_verified": true,
-    "rules_discovered": 0,
-    "persisted_report_verified": false,
-    "table_readback_count": 0,
-    "blocker": "Owner D ingestion rule/writer missing; bus acceptance is not persistence"
+    "rules_discovered": 1,
+    "persisted_report_verified": true,
+    "report_count": 18,
+    "synthetic_reports": 15,
+    "auditor_provider_reports": 3,
+    "verification": "Actual consistent DynamoDB queries; hub readback reconstruction; exact stored result JSON, result/artifact hashes and findings matched",
+    "region": "ap-south-1",
+    "cross_region_calls": false,
+    "records": [
+      {
+        "check_id": "JOB-04",
+        "scan_id": "aws-smoke-JOB-04-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "d804fe107a781014ff6d89d6d3482b331424ca9e381bff80ac5306b96ebe08b9"
+      },
+      {
+        "check_id": "JOB-04",
+        "scan_id": "aws-smoke-JOB-04-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "e3104b2f3e0588aff6211831312856ba16440a86c525c6aea6a8903c93e28b78"
+      },
+      {
+        "check_id": "JOB-04",
+        "scan_id": "aws-smoke-JOB-04-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "6d0ba3357ca5c9acd0b63c8f6519b732e23adbcdaef46905cd739e3f9085e1f6"
+      },
+      {
+        "check_id": "JOB-03",
+        "scan_id": "aws-smoke-JOB-03-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "0a17d6a078d12eb0f5de793a593937b79df07db16e4f57fcc8a4bc2dd1dbc279"
+      },
+      {
+        "check_id": "JOB-03",
+        "scan_id": "aws-smoke-JOB-03-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "ba9d22c711385e5dfcd2bba068bb925069013511043f5edf0eb6d5d211359db5"
+      },
+      {
+        "check_id": "JOB-03",
+        "scan_id": "aws-smoke-JOB-03-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "cc6532014ce86b46814466f231c9d907eab5c5147d34aac6f7bbaa530dd19a62"
+      },
+      {
+        "check_id": "JOB-05",
+        "scan_id": "aws-smoke-JOB-05-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "6a711ce45d98be182f6d45b7131d4e5e782417fe139c329749e31ab00bc27567"
+      },
+      {
+        "check_id": "JOB-05",
+        "scan_id": "aws-smoke-JOB-05-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "9e5bb0e53158d6f6a611a388d5fe32590bc8b27c8da90e154906b4f1c299bc14"
+      },
+      {
+        "check_id": "JOB-05",
+        "scan_id": "aws-smoke-JOB-05-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "f43dcd19ff9d226da7ab2e3ed3816833d889778422c7dd4c98a1697168177853"
+      },
+      {
+        "check_id": "JOB-01",
+        "scan_id": "aws-smoke-JOB-01-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "5f70018bae272468c08fe8612bb2273d2d94c7ae2b40b3be2befde9272c35aa1"
+      },
+      {
+        "check_id": "JOB-01",
+        "scan_id": "aws-smoke-JOB-01-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "8242c80dc223ada0e92767c4d08664aa614308a2b02c2cfe7035ec9c09992748"
+      },
+      {
+        "check_id": "JOB-01",
+        "scan_id": "aws-smoke-JOB-01-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "12656534fb1d36a52f94084ea24547c89795ebd8b67d40d817d3f86ab116b77d"
+      },
+      {
+        "check_id": "JOB-06",
+        "scan_id": "aws-smoke-JOB-06-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "032cb60b4ca5d4f7d436752fe710c2c78523f23dbe5852103cf25f19f02c68c1"
+      },
+      {
+        "check_id": "JOB-06",
+        "scan_id": "aws-smoke-JOB-06-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "6154d561f9a59b66e278af1a6207c1558592f49d4e762ddcefc343220a863b30"
+      },
+      {
+        "check_id": "JOB-06",
+        "scan_id": "aws-smoke-JOB-06-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "2a6f3bef634357d4ff5436b97aa592d7e3e03e5a4b69ea1f6af27a35f63dfe3f"
+      },
+      {
+        "check_id": "JOB-04",
+        "scan_id": "aws-provider-JOB-04",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "5b10f7e6c362b06709b012c39634608ab79b979930b535f58ecc844ac5c95fdc"
+      },
+      {
+        "check_id": "JOB-03",
+        "scan_id": "aws-provider-JOB-03",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "191128b757d9c3e8c71dd50a4689f49fe86069b3e8bbc59c7e8078b98d2f2104"
+      },
+      {
+        "check_id": "JOB-05",
+        "scan_id": "aws-provider-JOB-05",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "ee5068a85efc78eec589249176e28f9e60770f83ca8765011de09fc9b0249f6b"
+      }
+    ]
   },
   "acceptance": {
     "code_and_unit_tests": true,
     "aws_analyzers_deployed": true,
     "real_client_data": false,
-    "owner_d_report_readback": false,
+    "owner_d_report_readback": true,
     "job_06_human_business_review": false,
     "issues_closed": false
   },
