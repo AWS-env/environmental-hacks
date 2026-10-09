@@ -10,6 +10,8 @@ Thanks for building with us. This project runs a strict **issue → branch → P
 4. **Rebase, never merge `main` into your branch.** Keep history linear.
 5. **Green before review.** CI must pass and the PR template must be filled in.
 6. **Squash-merge only.** Branch is deleted automatically after merge.
+7. **Ask before live AWS access.** If an agent needs AWS CLI/MCP context, follow
+   [`docs/AWS_AGENT_WORKFLOW.md`](docs/AWS_AGENT_WORKFLOW.md) first.
 
 ## 1. Find or open an issue
 

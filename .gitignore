@@ -49,10 +49,9 @@ __pycache__/
 .venv/
 venv/
 
-# Local agent tooling (not part of the project)
+# Local agent runtime files (not part of the project)
 .agents/
 .opencode/
-AGENTS.md
 .mcp.json
 opencode.json
 GEMINI.md
