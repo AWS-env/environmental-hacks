@@ -1,0 +1,51 @@
+{
+ "lighthouseVersion": "13.5.0",
+ "requestedUrl": "http://localhost:8766/csr.html",
+ "finalDisplayedUrl": "http://localhost:8766/csr.html",
+ "fetchTime": "2026-10-09T18:11:21.562Z",
+ "audits": {
+  "lcp-discovery-insight": {
+   "id": "lcp-discovery-insight",
+   "score": 0,
+   "scoreDisplayMode": "numeric",
+   "details": {
+    "type": "list",
+    "items": [
+     {
+      "type": "checklist",
+      "items": {
+       "priorityHinted": {
+        "label": "fetchpriority=high should be applied",
+        "value": false
+       },
+       "requestDiscoverable": {
+        "label": "Request is discoverable in initial document",
+        "value": false
+       },
+       "eagerlyLoaded": {
+        "label": "LCP resources should not use loading=lazy",
+        "value": true
+       }
+      }
+     },
+     {
+      "type": "node",
+      "lhId": "page-0-IMG",
+      "path": "1,HTML,1,BODY,0,DIV,0,IMG",
+      "selector": "body > div#root > img#hero",
+      "boundingRect": {
+       "top": 0,
+       "bottom": 240,
+       "left": 0,
+       "right": 412,
+       "width": 412,
+       "height": 240
+      },
+      "snippet": "<img id=\"hero\" width=\"1200\" height=\"700\" src=\"hero.png\" style=\"width: 100%; height: auto;\">",
+      "nodeLabel": "body > div#root > img#hero"
+     }
+    ]
+   }
+  }
+ }
+}

@@ -1,0 +1,59 @@
+[
+  {
+    "id": "FE-11-01",
+    "title": "known positive: a stylesheet blocks first paint for 463 ms in the Lighthouse report",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "render_blocking_ms": 463, "render_blocking_bytes": 35272}}},
+    "expect": {"status": "completed", "findings": [{"identity": "render-blocking-css", "line": 0, "confidence": "medium"}], "evaluated": ["style.css"]}
+  },
+  {
+    "id": "FE-11-02",
+    "title": "similar negative: the stylesheet is listed but blocks for only 30 ms",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "render_blocking_ms": 30, "render_blocking_bytes": 900}}},
+    "expect": {"status": "completed", "findings": [], "evaluated": ["style.css"]}
+  },
+  {
+    "id": "FE-11-03",
+    "title": "boundary: exactly the default threshold (50 ms) is reported",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "render_blocking_ms": 50, "render_blocking_bytes": 900}}},
+    "expect": {"status": "completed", "findings": [{"identity": "render-blocking-css", "line": 0}]}
+  },
+  {
+    "id": "FE-11-04",
+    "title": "boundary: 49 ms is below the default threshold",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "render_blocking_ms": 49, "render_blocking_bytes": 900}}},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-11-05",
+    "title": "legitimate exception: the team raised min_blocking_ms to 500 (one small critical stylesheet is fine)",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "context": {"min_blocking_ms": 500},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "render_blocking_ms": 463, "render_blocking_bytes": 35272}}},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-11-06",
+    "title": "unresolvable stylesheet (hashed build output not in the repo) is reported on a page: scope",
+    "files": {},
+    "artifacts": {"lighthouse": {"page:/_next/static/css/f647474d5749a6d8.css": {"profiler": "lighthouse", "render_blocking_ms": 150, "render_blocking_bytes": 20641}}},
+    "expect": {"status": "completed", "findings": [{"identity": "render-blocking-css", "line": 0}]}
+  },
+  {
+    "id": "FE-11-07",
+    "title": "required evidence missing: a second stylesheet has no Lighthouse data -> partial, not clean",
+    "files": {"style.css": ".a { color: red; }\n", "other.css": ".b { color: blue; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "render_blocking_ms": 463, "render_blocking_bytes": 35272}}},
+    "expect": {"status": "partial", "findings": [{"identity": "render-blocking-css", "line": 0}], "evaluated": ["style.css"], "limitations_contain": ["other.css", "no lighthouse artifact"]}
+  },
+  {
+    "id": "FE-11-08",
+    "title": "malformed artifact: render_blocking_ms is not a number -> unavailable, no clean claim",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "render_blocking_ms": "slow"}}},
+    "expect": {"status": "unavailable", "findings": [], "limitations_contain": ["style.css", "render_blocking_ms"]}
+  }
+]

@@ -102,6 +102,24 @@ def evaluate(payload: dict) -> dict:
 
     evaluated, limitations, findings = [], [], []
     for scope_id in payload["scope"]:
+        if getattr(module, "ARTIFACT_ONLY", False):  # evidence is the artifact alone (file: or page: scope)
+            artifact = artifacts.get(scope_id)
+            if artifact is None:
+                limitations.append(f"{scope_id}: no {module.PROFILER} artifact covers this file; not evaluated")
+                continue
+            try:
+                items = module.evaluate_artifact(artifact["data"], settings)
+            except ValueError as error:
+                limitations.append(f"{scope_id}: {error}; not evaluated")
+                continue
+            evaluated.append(scope_id)
+            for item in _unique_anchors([dict(i) for i in items]):
+                evidence = [{"source_id": artifact["source_id"], "kind": artifact["kind"],
+                             "locator": artifact["locator"], "field": field, "value": value}
+                            for field, value in item["observed"]]
+                findings.append(_finding(payload, module, scope_id, item["identity"], item["summary"],
+                                         item["confidence"], evidence))
+            continue
         source = statics.get(scope_id)
         if not scope_id.startswith("file:") or source is None:
             limitations.append(f"{scope_id}: no source supplied for this scope item")

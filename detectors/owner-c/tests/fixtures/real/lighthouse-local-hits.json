@@ -1,0 +1,269 @@
+{
+ "lighthouseVersion": "13.5.0",
+ "requestedUrl": "http://localhost:8765/index.html",
+ "finalDisplayedUrl": "http://localhost:8765/index.html",
+ "fetchTime": "2026-10-09T17:50:02.686Z",
+ "audits": {
+  "render-blocking-insight": {
+   "id": "render-blocking-insight",
+   "score": 0,
+   "scoreDisplayMode": "metricSavings",
+   "details": {
+    "type": "table",
+    "headings": [
+     {
+      "key": "url",
+      "valueType": "url",
+      "label": "URL"
+     },
+     {
+      "key": "totalBytes",
+      "valueType": "bytes",
+      "label": "Transfer Size"
+     },
+     {
+      "key": "wastedMs",
+      "valueType": "timespanMs",
+      "label": "Duration"
+     }
+    ],
+    "items": [
+     {
+      "url": "http://localhost:8765/style2.css",
+      "totalBytes": 34655,
+      "wastedMs": 613
+     },
+     {
+      "url": "http://localhost:8765/style.css",
+      "totalBytes": 35272,
+      "wastedMs": 463
+     }
+    ]
+   }
+  },
+  "unused-css-rules": {
+   "id": "unused-css-rules",
+   "score": 0,
+   "scoreDisplayMode": "metricSavings",
+   "numericValue": 190,
+   "details": {
+    "type": "opportunity",
+    "headings": [
+     {
+      "key": "url",
+      "valueType": "url",
+      "label": "URL"
+     },
+     {
+      "key": "totalBytes",
+      "valueType": "bytes",
+      "label": "Transfer Size"
+     },
+     {
+      "key": "wastedBytes",
+      "valueType": "bytes",
+      "label": "Est Savings"
+     }
+    ],
+    "items": [
+     {
+      "url": "http://localhost:8765/style.css",
+      "wastedBytes": 34943,
+      "wastedPercent": 99.59526863331908,
+      "totalBytes": 35085
+     },
+     {
+      "url": "http://localhost:8765/style2.css",
+      "wastedBytes": 34468,
+      "wastedPercent": 100,
+      "totalBytes": 34468
+     }
+    ],
+    "overallSavingsMs": 190,
+    "overallSavingsBytes": 69411,
+    "sortedBy": [
+     "wastedBytes"
+    ]
+   }
+  },
+  "dom-size-insight": {
+   "id": "dom-size-insight",
+   "score": 1,
+   "scoreDisplayMode": "numeric",
+   "numericValue": 2007,
+   "details": {
+    "type": "table",
+    "headings": [
+     {
+      "key": "statistic",
+      "valueType": "text",
+      "label": "Statistic"
+     },
+     {
+      "key": "node",
+      "valueType": "node",
+      "label": "Element"
+     },
+     {
+      "key": "value",
+      "valueType": "numeric",
+      "label": "Value"
+     }
+    ],
+    "items": [
+     {
+      "statistic": "Total elements",
+      "value": {
+       "type": "numeric",
+       "granularity": 1,
+       "value": 2007
+      }
+     },
+     {
+      "statistic": "DOM depth",
+      "node": {
+       "type": "node",
+       "lhId": "page-8-SPAN",
+       "path": "1,HTML,1,BODY,3,UL,0,LI,0,DIV,0,SPAN",
+       "selector": "ul > li > div > span",
+       "boundingRect": {
+        "top": 344,
+        "bottom": 361,
+        "left": 48,
+        "right": 85,
+        "width": 37,
+        "height": 17
+       },
+       "snippet": "<span>",
+       "nodeLabel": "row 0"
+      },
+      "value": {
+       "type": "numeric",
+       "granularity": 1,
+       "value": 5
+      }
+     },
+     {
+      "statistic": "Most children",
+      "node": {
+       "type": "node",
+       "lhId": "page-1-UL",
+       "path": "1,HTML,1,BODY,3,UL",
+       "selector": "body > ul",
+       "boundingRect": {
+        "top": 344,
+        "bottom": 111344,
+        "left": 8,
+        "right": 404,
+        "width": 396,
+        "height": 111000
+       },
+       "snippet": "<ul>",
+       "nodeLabel": "row 0\nrow 1\nrow 2\nrow 3\nrow 4\nrow 5\nrow 6\nrow 7\nrow 8\nrow 9\nrow 10\nrow 11\nrow 1\u2026"
+      },
+      "value": {
+       "type": "numeric",
+       "granularity": 1,
+       "value": 500
+      }
+     }
+    ]
+   }
+  },
+  "forced-reflow-insight": {
+   "id": "forced-reflow-insight",
+   "score": 0,
+   "scoreDisplayMode": "numeric",
+   "details": {
+    "type": "list",
+    "items": [
+     {
+      "type": "table",
+      "headings": [
+       {
+        "key": "source",
+        "valueType": "source-location",
+        "label": "Source"
+       },
+       {
+        "key": "reflowTime",
+        "valueType": "ms",
+        "granularity": 1,
+        "label": "Total reflow time"
+       }
+      ],
+      "items": [
+       {
+        "source": {
+         "type": "source-location",
+         "url": "http://localhost:8765/app.js",
+         "urlProvider": "network",
+         "line": 0,
+         "column": 114
+        },
+        "reflowTime": 161.075
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "non-composited-animations": {
+   "id": "non-composited-animations",
+   "score": 1,
+   "scoreDisplayMode": "informative",
+   "details": {
+    "type": "table",
+    "headings": [
+     {
+      "key": "node",
+      "valueType": "node",
+      "subItemsHeading": {
+       "key": "failureReason",
+       "valueType": "text"
+      },
+      "label": "Element"
+     },
+     {
+      "key": null,
+      "valueType": "text",
+      "subItemsHeading": {
+       "key": "animation",
+       "valueType": "text"
+      },
+      "label": "Name"
+     }
+    ],
+    "items": [
+     {
+      "node": {
+       "type": "node",
+       "lhId": "page-2-DIV",
+       "path": "1,HTML,1,BODY,2,DIV",
+       "selector": "body > div.box",
+       "boundingRect": {
+        "top": 278,
+        "bottom": 328,
+        "left": 12,
+        "right": 64,
+        "width": 52,
+        "height": 50
+       },
+       "snippet": "<div class=\"box\">",
+       "nodeLabel": "body > div.box"
+      },
+      "subItems": {
+       "type": "subitems",
+       "items": [
+        {
+         "failureReason": "Unsupported CSS Properties: left, width",
+         "animation": "slide"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  }
+ }
+}

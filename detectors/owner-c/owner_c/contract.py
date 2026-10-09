@@ -33,7 +33,8 @@ def static_source(path: str, content: str) -> dict:
 
 def artifact_source(profiler: str, path: str, data: dict, kind: str = "artifact") -> dict:
     """Normalized client-produced data for one file: an `artifact` (profiler output) or `telemetry` (X-Ray)."""
-    return {"source_id": f"{profiler}:{path}", "scope_id": file_scope(path), "kind": kind,
+    scope = path if path.startswith("page:") else file_scope(path)  # `page:<url path>` when no repo file matches
+    return {"source_id": f"{profiler}:{path}", "scope_id": scope, "kind": kind,
             "locator": f"{profiler}:{path}", "data": data}
 
 
