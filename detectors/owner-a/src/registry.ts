@@ -12,6 +12,7 @@ import { checkCodeC33 } from "./checks/code-c3-3/index.js";
 import { checkCodeC37 } from "./checks/code-c3-7/index.js";
 import { checkCodeC35 } from "./checks/code-c3-5/index.js";
 import { checkCodeC36 } from "./checks/code-c3-6/index.js";
+import { checkCodeC13 } from "./checks/code-c1-3/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -88,6 +89,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC36(parsed),
       limitations: [
         "Consumed share is not measured: a lazy producer saves work only for the elements its consumer never reads.",
+      ],
+    },
+  ],
+  [
+    "CODE-C1.3",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC13(parsed),
+      limitations: [
+        "Only `if`/`elif`/`else` chains and conditional expressions are analysed; `match` statements and zero-cost jumps (a trailing `continue`/`return`, `else: pass`) are not flagged.",
       ],
     },
   ],
