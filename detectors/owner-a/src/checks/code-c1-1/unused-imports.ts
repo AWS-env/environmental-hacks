@@ -70,6 +70,7 @@ export function detectUnusedImports(scope: PythonModuleScope): Finding[] {
       ? `Unused import of heavy module '${rootModule}' executes top-level package initialization, allocating memory and burning CPU cycles on startup without being referenced.`
       : `Unused import '${sym.boundName}' from module '${sym.moduleName}' loads unnecessary code into process memory on startup.`;
 
+    const identity = `unused-import:${sym.moduleName}:${sym.boundName}`;
     const fingerprint = generateFingerprint(
       "CODE-C1.1",
       "unused-import",
@@ -83,6 +84,7 @@ export function detectUnusedImports(scope: PythonModuleScope): Finding[] {
       check: "CODE-C1.1",
       kind: "unused-import",
       fingerprint,
+      identity,
       location: {
         path: scope.filePath,
         startLine: sym.startLine,

@@ -24,6 +24,28 @@ const CONSTANT_FALSE_CONDITIONS = new Set([
   "{}",
 ]);
 
+/**
+ * Line-free semantic identity: enclosing def/class qualname, the reason, and the
+ * first unreachable line's normalized text. Line numbers are excluded so the
+ * finding keeps its identity when code above it moves (contract v1 rule).
+ */
+function unreachableIdentity(
+  reason: string,
+  node: Parser.SyntaxNode,
+  sourceLines: string[]
+): string {
+  const parts: string[] = [];
+  for (let curr = node.parent; curr; curr = curr.parent) {
+    if (curr.type === "function_definition" || curr.type === "class_definition") {
+      const name = curr.childForFieldName("name");
+      if (name) parts.unshift(name.text);
+    }
+  }
+  const qualname = parts.length > 0 ? parts.join(".") : "<module>";
+  const text = (sourceLines[node.startPosition.row] ?? "").trim().replace(/\s+/g, " ");
+  return `unreachable-code:${qualname}:${reason}:${text}`;
+}
+
 export function detectUnreachableCode(
   rootNode: Parser.SyntaxNode,
   filePath: string,
@@ -53,17 +75,19 @@ export function detectUnreachableCode(
         if (!suppression.isSuppressed) {
           const snippet = lineText.trim();
           const why = `Statement is unreachable because it follows a terminal '${seenTerminal.type.replace("_statement", "")}' statement in the same block.`;
+          const identity = unreachableIdentity("after-" + seenTerminal.type, child, sourceLines);
           const fingerprint = generateFingerprint(
             "CODE-C1.1",
             "unreachable-code",
             filePath,
-            `after-${seenTerminal.type}:${startLine}`
+            identity
           );
 
           findings.push({
             check: "CODE-C1.1",
             kind: "unreachable-code",
             fingerprint,
+            identity,
             location: {
               path: filePath,
               startLine,
@@ -124,17 +148,19 @@ export function detectUnreachableCode(
           const suppression = isLineSuppressed(lineText, ["F401", "CODE-C1.1"]);
           if (!suppression.isSuppressed) {
             const snippet = lineText.trim();
+            const identity = unreachableIdentity("const-false", consequence, sourceLines);
             const fingerprint = generateFingerprint(
               "CODE-C1.1",
               "unreachable-code",
               filePath,
-              `const-false:${startLine}`
+              identity
             );
 
             findings.push({
               check: "CODE-C1.1",
               kind: "unreachable-code",
               fingerprint,
+              identity,
               location: {
                 path: filePath,
                 startLine,
@@ -186,17 +212,19 @@ export function detectUnreachableCode(
           const suppression = isLineSuppressed(lineText, ["F401", "CODE-C1.1"]);
           if (!suppression.isSuppressed) {
             const snippet = lineText.trim();
+            const identity = unreachableIdentity("while-false", body, sourceLines);
             const fingerprint = generateFingerprint(
               "CODE-C1.1",
               "unreachable-code",
               filePath,
-              `while-false:${startLine}`
+              identity
             );
 
             findings.push({
               check: "CODE-C1.1",
               kind: "unreachable-code",
               fingerprint,
+              identity,
               location: {
                 path: filePath,
                 startLine,
