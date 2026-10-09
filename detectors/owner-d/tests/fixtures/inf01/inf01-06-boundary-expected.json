@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "kind": "result",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf01-06",
+  "commit_sha": "ffffffffffffffffffffffffffffffffffffffff",
+  "check_id": "INF-01",
+  "detector_version": "1.0.0",
+  "context": {
+    "environment": "production",
+    "min_window_days": 14,
+    "min_sample_count": 100,
+    "average_utilization_threshold": 0.1,
+    "peak_utilization_threshold": 0.5
+  },
+  "scope": [
+    "resource:i-0f6a7b8c9d0e1f23",
+    "resource:i-0f7b8c9d0e1f2345"
+  ],
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "resource:i-0f6a7b8c9d0e1f23",
+      "resource:i-0f7b8c9d0e1f2345"
+    ],
+    "limitations": [
+      "resource:i-0f7b8c9d0e1f2345: average utilization 5.0% is below the 10.0% threshold, but the observed peak 50.0% reaches the 50.0% peak threshold; capacity appears driven by real peaks and was not flagged",
+      "Utilization thresholds cannot prove that this workload can scale down; confirm with the owning team before resizing."
+    ]
+  },
+  "findings": [],
+  "measurements": []
+}

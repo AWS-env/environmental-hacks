@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf01-07",
+  "commit_sha": "1111111111111111111111111111111111111111",
+  "check_id": "INF-01",
+  "detector_version": "1.0.0",
+  "context": {
+    "environment": "production",
+    "min_window_days": 14,
+    "min_sample_count": 100,
+    "average_utilization_threshold": 0.1,
+    "peak_utilization_threshold": 0.5
+  },
+  "scope": ["resource:i-0123456789abcdef0", "resource:i-0fedcba9876543210"],
+  "sources": [
+    {
+      "source_id": "cw-i-0123456789abcdef0-cpu",
+      "scope_id": "resource:i-0123456789abcdef0",
+      "kind": "telemetry",
+      "locator": "cloudwatch:ec2:i-0123456789abcdef0/CPUUtilization",
+      "data": {
+        "resource_id": "i-0123456789abcdef0",
+        "resource_type": "aws_ec2_instance",
+        "metric": "cpu_utilization",
+        "provisioned_capacity": 8,
+        "capacity_unit": "vcpu",
+        "average_utilization": 0.03,
+        "peak_utilization": 0.12,
+        "window_days": 30,
+        "sample_count": 1440
+      }
+    },
+    {
+      "source_id": "cw-i-0fedcba9876543210-cpu",
+      "scope_id": "resource:i-0fedcba9876543210",
+      "kind": "telemetry",
+      "locator": "cloudwatch:ec2:i-0fedcba9876543210/CPUUtilization",
+      "data": {
+        "resource_id": "i-0fedcba9876543210",
+        "resource_type": "aws_ec2_instance",
+        "metric": "cpu_utilization",
+        "provisioned_capacity": 8,
+        "capacity_unit": "vcpu",
+        "average_utilization": 0.03,
+        "peak_utilization": 0.12,
+        "window_days": 7,
+        "sample_count": 168
+      }
+    }
+  ]
+}

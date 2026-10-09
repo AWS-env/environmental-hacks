@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "kind": "result",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf01-04",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "INF-01",
+  "detector_version": "1.0.0",
+  "context": {
+    "environment": "production",
+    "min_window_days": 14,
+    "min_sample_count": 100,
+    "average_utilization_threshold": 0.1,
+    "peak_utilization_threshold": 0.5
+  },
+  "scope": [
+    "resource:i-0d4e5f6789012345"
+  ],
+  "status": "unavailable",
+  "coverage": {
+    "evaluated_scope": [],
+    "limitations": [
+      "resource:i-0d4e5f6789012345: no telemetry source supplied; INF-01 requires normalized telemetry",
+      "Utilization thresholds cannot prove that this workload can scale down; confirm with the owning team before resizing."
+    ]
+  },
+  "findings": [],
+  "measurements": []
+}

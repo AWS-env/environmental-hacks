@@ -1,0 +1,81 @@
+{
+  "schema_version": "1.0",
+  "kind": "result",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf01-01",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "INF-01",
+  "detector_version": "1.0.0",
+  "context": {
+    "environment": "production",
+    "min_window_days": 14,
+    "min_sample_count": 100,
+    "average_utilization_threshold": 0.1,
+    "peak_utilization_threshold": 0.5
+  },
+  "scope": [
+    "resource:i-0a1b2c3d4e5f67890"
+  ],
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "resource:i-0a1b2c3d4e5f67890"
+    ],
+    "limitations": [
+      "Utilization thresholds cannot prove that this workload can scale down; confirm with the owning team before resizing."
+    ]
+  },
+  "findings": [
+    {
+      "fingerprint": "fb20cadfc50336a5c00bafb399a6afdd1cd83d0fd9135a701313609e09faf85c",
+      "scope_id": "resource:i-0a1b2c3d4e5f67890",
+      "identity": "cpu-capacity-headroom",
+      "summary": "aws_ec2_instance i-0a1b2c3d4e5f67890 averages 5.7% CPU and peaks at 21.4% over 30 days on 8 vcpu of provisioned capacity; capacity is sized for peaks that did not occur",
+      "confidence": "high",
+      "recommendation": "Confirm the workload can scale down, then right-size the resource or move to queue-driven autoscaling so capacity follows demand instead of worst-case peaks.",
+      "references": [
+        "https://github.com/AWS-env/environmental-hacks/issues/169",
+        "https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_user_a2.html",
+        "https://docs.aws.amazon.com/wellarchitected/latest/framework/sus_sus_software_a2.html"
+      ],
+      "evidence": [
+        {
+          "source_id": "cw-i-0a1b2c3d4e5f67890-cpu",
+          "kind": "telemetry",
+          "locator": "cloudwatch:ec2:i-0a1b2c3d4e5f67890/CPUUtilization",
+          "field": "average_utilization",
+          "value": 0.057
+        },
+        {
+          "source_id": "cw-i-0a1b2c3d4e5f67890-cpu",
+          "kind": "telemetry",
+          "locator": "cloudwatch:ec2:i-0a1b2c3d4e5f67890/CPUUtilization",
+          "field": "peak_utilization",
+          "value": 0.214
+        },
+        {
+          "source_id": "cw-i-0a1b2c3d4e5f67890-cpu",
+          "kind": "telemetry",
+          "locator": "cloudwatch:ec2:i-0a1b2c3d4e5f67890/CPUUtilization",
+          "field": "provisioned_capacity",
+          "value": 8
+        },
+        {
+          "source_id": "cw-i-0a1b2c3d4e5f67890-cpu",
+          "kind": "telemetry",
+          "locator": "cloudwatch:ec2:i-0a1b2c3d4e5f67890/CPUUtilization",
+          "field": "window_days",
+          "value": 30
+        },
+        {
+          "source_id": "cw-i-0a1b2c3d4e5f67890-cpu",
+          "kind": "telemetry",
+          "locator": "cloudwatch:ec2:i-0a1b2c3d4e5f67890/CPUUtilization",
+          "field": "sample_count",
+          "value": 1440
+        }
+      ]
+    }
+  ],
+  "measurements": []
+}
