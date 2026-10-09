@@ -23,6 +23,16 @@ def client(name: str):
     """boto3 client, created on first use (boto3 ships with the Lambda runtime; tests patch this)."""
     import boto3
 
+    if name == "s3":
+        # Regional endpoint + SigV4: presigned URLs on the global s3.amazonaws.com host get a
+        # TemporaryRedirect for new buckets outside us-east-1, which breaks the signature.
+        from botocore.config import Config
+
+        region = os.environ.get("AWS_REGION") or os.environ.get("AWS_DEFAULT_REGION")
+        return boto3.client(
+            "s3", region_name=region,
+            endpoint_url=f"https://s3.{region}.amazonaws.com" if region else None,
+            config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}))
     return boto3.client(name)
 
 
