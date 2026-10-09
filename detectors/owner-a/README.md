@@ -13,6 +13,9 @@ This package contains lightweight, read-only static code detectors for **Owner A
 - **`CODE-C1.1`**: Dead code / unused results (#34)
   - `unused-import`: Heavy and light unused module and binding imports in Python.
   - `unreachable-code`: Dead code after terminal statements (`return`, `raise`, `break`, `continue`) and constant-false conditionals (`if False:`, `while 0:`).
+- **`CODE-C1.2`**: Redundant assignment (#35)
+  - `self-assignment`: Statements that assign a target to itself (`x = x`, `a, b = a, b`, `self.n = self.n`, `row[i] = row[i]`); class bodies are skipped.
+  - `dead-store`: A function-local `x = …` overwritten by a later `x = …` in the same block before any read; closures, `global`/`nonlocal`, frame introspection, `break`/`continue` and `try`/`with` exception paths are guarded.
 - **`CODE-C3.1`**: Inefficient iteration construct, static half (#60)
   - `inefficient-iteration-construct`: `range(len())` indexing loops, manual-index `while`
     loops, append-accumulation loops (gated or ungated) convertible to comprehensions,
