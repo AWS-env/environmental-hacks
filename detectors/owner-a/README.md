@@ -20,6 +20,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
     Low severity, unconfirmed without profiler evidence (R2 follow-up).
 - **`CODE-C3.2`**: Recomputing loop-invariant (#61)
   - `loop-invariant-recomputation`: Invariant calls (S1), attribute/subscript chains (S2), and binary arithmetic (S3) recomputed inside `for` and `while` loops.
+- **`CODE-C3.3`**: Inefficient per-iteration setup (#62)
+  - `per-iteration-setup`: Pattern/template compiles, connections/sessions/clients/pools, read-mode file opens (Tier A, `src/core/setup-cost.json`) and CapWords construction (Tier B) with loop-invariant arguments, resolved through the file's imports.
 
 ## Shared contract v1
 

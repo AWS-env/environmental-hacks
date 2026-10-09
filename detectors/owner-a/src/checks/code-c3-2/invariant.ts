@@ -9,6 +9,7 @@ import {
   isTrivialBuiltinCall,
   collectAllIdentifiers,
   getRootIdentifier,
+  collectImportAliases,
 } from "../../core/loops.js";
 
 const ARITHMETIC_OPERATORS = new Set([
@@ -132,7 +133,8 @@ function chainDepth(node: Parser.SyntaxNode): number {
  */
 function checkCandidateInvariance(
   node: Parser.SyntaxNode,
-  loop: LoopInfo
+  loop: LoopInfo,
+  aliases: ReadonlyMap<string, string>
 ): InvariantCandidate | null {
   if (isInCalleePosition(node)) {
     return null;
@@ -160,7 +162,7 @@ function checkCandidateInvariance(
     if (isVolatileCall(calleeText)) return null;
 
     // Guard: C3.3 setup calls
-    if (isC33SetupCallee(calleeText)) return null;
+    if (isC33SetupCallee(calleeText, aliases)) return null;
 
     // Guard: trivial O(1) built-ins
     if (isTrivialBuiltinCall(calleeText)) return null;
@@ -336,6 +338,7 @@ export function detectLoopInvariants(
 ): Finding[] {
   const findings: Finding[] = [];
   const loops = collectLoops(rootNode, sourceLines);
+  const aliases = collectImportAliases(rootNode);
 
   // Sort loops from outermost to innermost so nested loops attribute findings
   // to the outermost loop in which the expression is invariant.
@@ -385,7 +388,7 @@ export function detectLoopInvariants(
         return;
       }
 
-      const candidate = checkCandidateInvariance(n, loop);
+      const candidate = checkCandidateInvariance(n, loop, aliases);
       if (candidate && reportedExprs.has(candidate.expr)) {
         reportedNodeSpans.add(spanKey);
         return;
