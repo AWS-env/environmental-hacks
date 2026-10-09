@@ -1,0 +1,131 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "file:fixture.php"
+    ],
+    "limitations": [
+      "Bounded PHP local analysis; declared API and ordinary-table identities are connector assertions. No measured CPU, energy or carbon savings. No customer code is executed."
+    ]
+  },
+  "findings": [
+    {
+      "scope_id": "file:fixture.php",
+      "identity": "load:execution:1:PDO::query:data:reload:2",
+      "fingerprint": "ff35e306a28700aaa28b4c629c523b4ebb01c41e962f466084ec3a21a0388819",
+      "summary": "Read result is overwritten by a second read before any local use",
+      "confidence": "medium",
+      "recommendation": "Review removal of the first read; preserve transaction, error and side-effect semantics.",
+      "references": [
+        "https://github.com/AWS-env/environmental-hacks/issues/107",
+        "https://taoxie.cs.illinois.edu/publications/icsme20-dbperf.pdf"
+      ],
+      "evidence": [
+        {
+          "source_id": "php",
+          "kind": "static",
+          "locator": "fixture.php",
+          "line_start": 3,
+          "value": "  $data = $pdo->query(\"SELECT id FROM users\");"
+        },
+        {
+          "source_id": "php",
+          "kind": "static",
+          "locator": "fixture.php",
+          "line_start": 4,
+          "value": "  $data = $pdo->query(\"SELECT id FROM articles\");"
+        },
+        {
+          "source_id": "events",
+          "kind": "telemetry",
+          "locator": "synthetic:query-events",
+          "field": "events",
+          "value": [
+            {
+              "event_id": "synthetic-event-0",
+              "request_id": "synthetic-request",
+              "transaction_id": "synthetic-transaction",
+              "repository_id": "synthetic:g01-fixtures",
+              "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source_sha256": "27397dc02f29c652c22e78c2418b5722c0c87ab2eb24ea79ec35b9a7dbf3ab72",
+              "timestamp": "2026-10-09T00:00:01Z",
+              "function": "load",
+              "operation_id": "1",
+              "locator": "fixture.php",
+              "sql": "SELECT id FROM users",
+              "status": "success",
+              "dialect": "mysql-8.0"
+            },
+            {
+              "event_id": "synthetic-event-1",
+              "request_id": "synthetic-request",
+              "transaction_id": "synthetic-transaction",
+              "repository_id": "synthetic:g01-fixtures",
+              "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "source_sha256": "27397dc02f29c652c22e78c2418b5722c0c87ab2eb24ea79ec35b9a7dbf3ab72",
+              "timestamp": "2026-10-09T00:00:02Z",
+              "function": "load",
+              "operation_id": "2",
+              "locator": "fixture.php",
+              "sql": "SELECT id FROM articles",
+              "status": "success",
+              "dialect": "mysql-8.0"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "synthetic:g01-fixtures",
+  "scan_id": "synthetic:DB-05-01",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "DB-05",
+  "detector_version": "1.0.0",
+  "context": {
+    "cache_apis": {
+      "cache": {
+        "family": "psr16",
+        "version": "3.0"
+      },
+      "mem": {
+        "family": "memcached",
+        "version": "3.2"
+      },
+      "pool": {
+        "family": "psr6",
+        "version": "3.0"
+      }
+    },
+    "db_apis": {
+      "db": {
+        "family": "joomla",
+        "version": "4.4"
+      },
+      "pdo": {
+        "family": "pdo",
+        "version": "8.2"
+      }
+    },
+    "language": "php",
+    "limits": {
+      "max_ast_depth": 128,
+      "max_ast_nodes": 20000,
+      "max_source_bytes": 262144,
+      "max_sql_bytes": 8192
+    },
+    "mode": "runtime",
+    "ordinary_tables": [
+      "users",
+      "articles"
+    ],
+    "php_version": "8.2",
+    "rule_version": "g01-1",
+    "sql_dialect": "mysql-8.0"
+  },
+  "scope": [
+    "file:fixture.php"
+  ]
+}
