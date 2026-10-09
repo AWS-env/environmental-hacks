@@ -6,6 +6,7 @@ import zipfile
 from helpers import FIXTURES, SHA
 from owner_c.artifact_checks import ARTIFACT_CHECKS
 from owner_c.aws import common, profile_handler
+from owner_c.langs import accepts
 from shared.contracts.validation import validate
 from test_aws import AwsTestCase
 
@@ -22,7 +23,8 @@ class ProfileHandlerTests(AwsTestCase):
     def test_confirmed_finding_is_published_and_missing_artifacts_are_visible(self):
         out = profile_handler.lambda_handler(self.event())
         by_check = {r["check_id"]: r for r in out["results"]}
-        self.assertEqual(set(by_check), set(ARTIFACT_CHECKS))
+        expected = {k for k, m in ARTIFACT_CHECKS.items() if accepts(m, "hot.py")}  # JS checks need JS files
+        self.assertEqual(set(by_check), expected)
         self.assertEqual((by_check["PY-01"]["status"], by_check["PY-01"]["findings"]), ("completed", 1))
         # no memray artifact was supplied: not "clean", explicitly unavailable
         for key in ("PY-05", "PY-11"):  # present once their PRs land

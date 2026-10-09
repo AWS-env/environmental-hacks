@@ -7,6 +7,7 @@ from unittest import mock
 from helpers import SHA
 from owner_c.aws import common, handler
 from owner_c.checks import STATIC_CHECKS
+from owner_c.langs import accepts
 from shared.contracts.validation import validate
 
 BAD = "def f(a=[]):\n    pass\n"
@@ -53,7 +54,8 @@ class StaticHandlerTests(AwsTestCase):
     def test_publishes_one_valid_contract_result_per_check(self):
         out = handler.lambda_handler(self.event())
         self.assertTrue(out["published"])
-        self.assertEqual(len(self.events.entries), len(STATIC_CHECKS))
+        expected = [k for k, m in STATIC_CHECKS.items() if accepts(m, "app.py")]
+        self.assertEqual(len(self.events.entries), len(expected))
         for entry in self.events.entries:
             self.assertEqual((entry["Source"], entry["DetailType"], entry["EventBusName"]),
                              ("owner-c.python-detectors", "detector.result.v1", "findings-hub"))

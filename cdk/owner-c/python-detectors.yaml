@@ -1,33 +1,38 @@
 AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
-  Owner C Category 1 (Python) detector stack: read-only static-scan Lambda that parses
-  source with ast and publishes findings to the shared findings-hub bus, plus a private
-  short-lived S3 bucket for client-uploaded profiler artifacts. Never executes user code.
+  Owner C detector stack (Python, JavaScript and runtime-version checks): read-only static-scan Lambda, an
+  artifact parser fed by presigned uploads and S3 events, an X-Ray telemetry reader, a traced demo workload,
+  and findings published to the shared findings-hub bus. Parses only; never executes client code.
 
 Metadata:
   AWSToolsMetrics:
     AWSAgentToolkit: aws-cloudformation@3
   com.aws.cloudformation.Context:
-    arch: "client CI -> presigned PUT -> S3 artifacts; repo zip/files -> static-scan fn -> PutEvents findings-hub"
+    arch: >-
+      client CI -> presign fn -> PUT repo.zip + artifacts + manifest.json -> S3 event -> profile-parser fn;
+      client X-Ray (read-only role) -> xray-parser fn; repo zip/files -> static-scan fn;
+      all -> PutEvents findings-hub (detector.result.v1)
     must:
       - "all resources prefixed owner-c- & tagged owner=C (docs/aws_service_mapping_v1.6.md guardrails)"
       - "deploy in the same Region as owner D's findings-hub (ap-south-1); no cross-region calls"
       - "findings-hub bus is owned by owner D; this stack only publishes, never creates it"
-      - "never execute user code; fn parses only"
-      - "PutEvents to a missing bus succeeds silently, so fn must DescribeEventBus first"
+      - "never execute client code or uploaded artifacts; fns parse only"
+      - "PutEvents to a missing bus succeeds silently, so fns must DescribeEventBus first"
+      - "artifact bucket name is fixed so the S3 notification can reference fns without a circular dependency"
     ref:
       - docs/ARCHITECTURE_FLOWS.md
       - docs/aws_service_mapping_v1.6.md
       - docs/research/category-1-decisions.md
+      - docs/research/category-2-decisions.md
     owner: Medhansh-741
 
 Parameters:
   CodeBucket:
     Type: String
-    Description: S3 bucket holding the Lambda zip built by scripts/build-owner-c-lambda.sh.
+    Description: S3 bucket holding the Lambda zips built by scripts/build-owner-c-lambda.sh.
   CodeKey:
     Type: String
-    Description: S3 key of the Lambda zip.
+    Description: S3 key of owner-c-detectors.zip (Python Lambdas).
   FindingsBusName:
     Type: String
     Default: findings-hub
@@ -47,13 +52,16 @@ Resources:
     Type: AWS::S3::Bucket
     DeletionPolicy: Retain
     UpdateReplacePolicy: Retain
+    DependsOn: ProfileParserInvokePermission
     Metadata:
       com.aws.cloudformation.Context:
-        why: "landing zone for client-CI profiler artifacts (py-spy/memray); parse-only"
+        why: "landing zone for client-CI uploads (repo zip, profiler artifacts, manifest); parse-only"
         must:
           - "private; TLS only; expire objects to bound retention (auditor spec sec 6)"
+          - "manifest.json under uploads/ triggers the parser, so clients upload it last"
         mutable: change-with-constraints
     Properties:
+      BucketName: !Sub "owner-c-artifacts-${AWS::AccountId}-${AWS::Region}"
       PublicAccessBlockConfiguration:
         BlockPublicAcls: true
         BlockPublicPolicy: true
@@ -72,6 +80,15 @@ Resources:
             ExpirationInDays: !Ref ArtifactRetentionDays
             AbortIncompleteMultipartUpload:
               DaysAfterInitiation: 1
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Function: !GetAtt ProfileParserFunction.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - { Name: prefix, Value: "uploads/" }
+                  - { Name: suffix, Value: "manifest.json" }
       Tags:
         - { Key: owner, Value: C }
 
@@ -93,6 +110,34 @@ Resources:
               Bool:
                 "aws:SecureTransport": "false"
 
+  ParseDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: owner-c-parse-dlq
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: 345600
+      Tags:
+        - { Key: owner, Value: C }
+
+  ParseDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: owner-c-parse-dlq-not-empty
+      AlarmDescription: A detector invocation failed all retries and its event is waiting in owner-c-parse-dlq. No notification target is attached; check the alarm state.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt ParseDlq.QueueName }
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      Tags:
+        - { Key: owner, Value: C }
+
+  # ---- static scan ---------------------------------------------------------------
   StaticScanLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -132,7 +177,7 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
               - Effect: Allow
                 Action: s3:GetObject
-                Resource: !Sub "${ArtifactBucket.Arn}/uploads/*"
+                Resource: !Sub "arn:${AWS::Partition}:s3:::owner-c-artifacts-${AWS::AccountId}-${AWS::Region}/uploads/*"
       Tags:
         - { Key: owner, Value: C }
 
@@ -141,18 +186,18 @@ Resources:
     DependsOn: StaticScanLogGroup
     Metadata:
       com.aws.cloudformation.Context:
-        why: "runs the Category 1 static ast checks and publishes contract v1 results; arm64 for lower cost"
+        why: "runs every static check (Python, JavaScript/TypeScript, runtime versions) and publishes contract v1 results; arm64 for lower cost"
         must:
           - "fixed name owner-c-static-scan per guardrail naming"
-          - "code zip from scripts/build-owner-c-lambda.sh, uploaded to CodeBucket/CodeKey (zip root holds owner_c/)"
+          - "code zip from scripts/build-owner-c-lambda.sh (zip root holds owner_c/ plus tree-sitter arm64 wheels)"
     Properties:
       FunctionName: owner-c-static-scan
       Runtime: python3.13
       Architectures: [arm64]
       Handler: owner_c.aws.handler.lambda_handler
       Role: !GetAtt StaticScanRole.Arn
-      MemorySize: 512
-      Timeout: 60
+      MemorySize: 1024
+      Timeout: 120
       Code:
         S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
@@ -164,6 +209,7 @@ Resources:
       Tags:
         - { Key: owner, Value: C }
 
+  # ---- profile parser (uploads + S3 manifest trigger) ----------------------------------
   ProfileParserLogGroup:
     Type: AWS::Logs::LogGroup
     Properties:
@@ -176,9 +222,9 @@ Resources:
     Type: AWS::IAM::Role
     Metadata:
       com.aws.cloudformation.Context:
-        why: "least-privilege exec role for profile-parser fn (PY-01/05/11 artifact confirmation)"
+        why: "least-privilege exec role for profile-parser fn (py-spy, memray, V8 CPU/heap artifact confirmation)"
         must:
-          - "only: write own logs, publish to findings-hub, read uploads/ prefix"
+          - "only: write own logs, publish to findings-hub, read uploads/ prefix, send failures to the DLQ"
     Properties:
       RoleName: owner-c-profile-parser-role
       AssumeRolePolicyDocument:
@@ -203,7 +249,10 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
               - Effect: Allow
                 Action: s3:GetObject
-                Resource: !Sub "${ArtifactBucket.Arn}/uploads/*"
+                Resource: !Sub "arn:${AWS::Partition}:s3:::owner-c-artifacts-${AWS::AccountId}-${AWS::Region}/uploads/*"
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt ParseDlq.Arn
       Tags:
         - { Key: owner, Value: C }
 
@@ -212,9 +261,10 @@ Resources:
     DependsOn: ProfileParserLogGroup
     Metadata:
       com.aws.cloudformation.Context:
-        why: "parse-only: confirms static candidates with py-spy speedscope / memray stats uploaded by client CI"
+        why: "parse-only: confirms static candidates with artifacts uploaded by client CI; triggered by manifest.json"
         must:
           - "never execute client code or artifacts; JSON parse only, size-capped"
+          - "failed async invocations land in owner-c-parse-dlq"
     Properties:
       FunctionName: owner-c-profile-parser
       Runtime: python3.13
@@ -223,6 +273,8 @@ Resources:
       Role: !GetAtt ProfileParserRole.Arn
       MemorySize: 1024
       Timeout: 120
+      DeadLetterConfig:
+        TargetArn: !GetAtt ParseDlq.Arn
       Code:
         S3Bucket: !Ref CodeBucket
         S3Key: !Ref CodeKey
@@ -234,10 +286,87 @@ Resources:
       Tags:
         - { Key: owner, Value: C }
 
+  ProfileParserInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ProfileParserFunction
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub "arn:${AWS::Partition}:s3:::owner-c-artifacts-${AWS::AccountId}-${AWS::Region}"
+
+  # ---- upload handshake ------------------------------------------------------------------
+  PresignLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-c-presign
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: C }
+
+  PresignRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "signs 15-minute PUT URLs for the client's repo zip, artifacts and manifest"
+        must:
+          - "presigned URLs inherit this role: PutObject on uploads/ only, nothing else"
+    Properties:
+      RoleName: owner-c-presign-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-c-presign
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${PresignLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "arn:${AWS::Partition}:s3:::owner-c-artifacts-${AWS::AccountId}-${AWS::Region}/uploads/*"
+      Tags:
+        - { Key: owner, Value: C }
+
+  PresignFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: PresignLogGroup
+    Properties:
+      FunctionName: owner-c-presign
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: owner_c.aws.presign_handler.lambda_handler
+      Role: !GetAtt PresignRole.Arn
+      MemorySize: 256
+      Timeout: 15
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          ARTIFACT_BUCKET: !Sub "owner-c-artifacts-${AWS::AccountId}-${AWS::Region}"
+      LoggingConfig:
+        LogGroup: !Ref PresignLogGroup
+      Tags:
+        - { Key: owner, Value: C }
+
+  # ---- X-Ray telemetry reader (read-only) ----------------------------------------------------
 Outputs:
-  ProfileParserFunctionArn:
-    Value: !GetAtt ProfileParserFunction.Arn
   StaticScanFunctionArn:
     Value: !GetAtt StaticScanFunction.Arn
+  ProfileParserFunctionArn:
+    Value: !GetAtt ProfileParserFunction.Arn
+  PresignFunctionArn:
+    Value: !GetAtt PresignFunction.Arn
   ArtifactBucketName:
     Value: !Ref ArtifactBucket
+  ParseDlqUrl:
+    Value: !Ref ParseDlq

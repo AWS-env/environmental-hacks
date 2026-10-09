@@ -11,9 +11,13 @@ from helpers import FIXTURES, run_check
 
 
 def _cases():
-    for cases_file in sorted(FIXTURES.glob("py_*/cases.json")):
-        check_id = cases_file.parent.name.upper().replace("_", "-")
-        for case in json.loads(cases_file.read_text()):
+    for cases_file in sorted(FIXTURES.glob("*/cases.json")):
+        data = json.loads(cases_file.read_text())
+        if isinstance(data, dict):  # {"check_id": "CODE-RT.6", "cases": [...]}
+            check_id, cases = data["check_id"], data["cases"]
+        else:  # py_09 -> PY-09
+            check_id, cases = cases_file.parent.name.upper().replace("_", "-"), data
+        for case in cases:
             yield check_id, case
 
 
@@ -51,7 +55,7 @@ class VerificationCases(unittest.TestCase):
         for check_id, cases in by_check.items():
             ids = [c["id"] for c in cases]
             self.assertEqual(len(ids), len(set(ids)), f"duplicate case ids in {check_id}")
-            self.assertTrue(all(i.startswith(check_id + "-") for i in ids), check_id)
+            self.assertTrue(all(i.startswith(check_id.replace(".", "-") + "-") for i in ids), check_id)
             self.assertTrue(any(c["expect"]["findings"] for c in cases), f"{check_id} lacks a positive case")
             self.assertTrue(any(c["expect"]["status"] == "completed" and not c["expect"]["findings"]
                                 for c in cases), f"{check_id} lacks a clean negative case")

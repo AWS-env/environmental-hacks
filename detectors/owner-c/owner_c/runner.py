@@ -1,17 +1,18 @@
-"""Evaluate one contract v1 input payload for one Python check and return the result payload.
+"""Evaluate one contract v1 input payload for one check and return the result payload.
 
-Pure function: it never imports or executes the analysed code (source is only parsed with `ast`)
+Pure function: it never imports or executes the analysed code (source is only parsed, with `ast` or tree-sitter)
 and never calls AWS. Coverage is explicit: a file that cannot be parsed, or that lacks the
 required artifact, is left out of `evaluated_scope` with a limitation, never reported as clean.
 """
 from __future__ import annotations
 
+import datetime
 from collections import Counter
 
 from owner_c.artifact_checks import ARTIFACT_CHECKS
 from owner_c.checks import STATIC_CHECKS
-from owner_c.common import Ctx, is_noqa
 from owner_c.contract import build_result, fingerprint
+from owner_c.langs import make_ctx
 
 
 class EvaluationError(ValueError):
@@ -26,14 +27,25 @@ def check_module(check_id: str):
 
 
 def read_settings(context, spec):
-    """Validate the evaluation-affecting settings an artifact check needs. Returns (settings, error)."""
+    """Validate the evaluation-affecting settings a check needs. Returns (settings, error).
+
+    `spec` maps a setting name to (exclusive minimum, inclusive maximum or None) for numbers,
+    or to "date" for an ISO-8601 date string.
+    """
     if not isinstance(context, dict):
         return None, "context must be an object"
     settings = {}
-    for name, (low, high) in spec.items():
+    for name, bounds in spec.items():
         if name not in context:
             return None, f"missing required context setting: {name}"
         value = context[name]
+        if bounds == "date":
+            try:
+                settings[name] = datetime.date.fromisoformat(value)
+            except (TypeError, ValueError):
+                return None, f"context.{name} must be an ISO date (YYYY-MM-DD)"
+            continue
+        low, high = bounds
         if isinstance(value, bool) or not isinstance(value, (int, float)):
             return None, f"context.{name} must be a number"
         if value <= low or (high is not None and value > high):
@@ -75,7 +87,7 @@ def evaluate(payload: dict) -> dict:
 
     is_artifact = module.KEY in ARTIFACT_CHECKS
     settings = {}
-    if is_artifact:
+    if hasattr(module, "SETTINGS"):
         settings, problem = read_settings(payload.get("context"), module.SETTINGS)
         if problem:
             return build_result(payload, "unavailable", [], [problem, module.LIMITATION], [])
@@ -84,19 +96,20 @@ def evaluate(payload: dict) -> dict:
     for source in payload.get("sources", []):
         if source["kind"] == "static":
             statics[source["scope_id"]] = source
-        elif source["kind"] == "artifact" and source["data"].get("profiler") == getattr(module, "PROFILER", None):
+        elif source["kind"] in ("artifact", "telemetry") \
+                and source["data"].get("profiler") == getattr(module, "PROFILER", None):
             artifacts[source["scope_id"]] = source
 
     evaluated, limitations, findings = [], [], []
     for scope_id in payload["scope"]:
         source = statics.get(scope_id)
         if not scope_id.startswith("file:") or source is None:
-            limitations.append(f"{scope_id}: no Python source supplied for this scope item")
+            limitations.append(f"{scope_id}: no source supplied for this scope item")
             continue
         path = source["locator"]
         try:
-            ctx = Ctx(path, source["content"])
-        except (SyntaxError, ValueError) as error:
+            ctx = make_ctx(module, path, source["content"])
+        except (SyntaxError, ValueError) as error:  # ParseError is a ValueError
             limitations.append(f"{scope_id}: could not be parsed ({type(error).__name__}); not evaluated")
             continue
 
@@ -108,22 +121,25 @@ def evaluate(payload: dict) -> dict:
                     limitations.append(f"{scope_id}: no {module.PROFILER} artifact covers this file; not evaluated")
                     continue
                 for cand in module.find(ctx):
+                    if ctx.is_suppressed(getattr(module, "NOQA", ()), cand.line):
+                        continue
                     conf = module.confirm(cand, artifact["data"], settings)
                     if conf is None:
                         continue
                     line, text = ctx.evidence_lines(cand.node)
+                    observed = [(conf.field, conf.value), *conf.extra]
                     items.append({
                         "anchor": cand.anchor, "line": cand.line, "summary": conf.summary,
                         "confidence": conf.confidence,
-                        "evidence": [
-                            _static_evidence(source, line, text),
-                            {"source_id": artifact["source_id"], "kind": "artifact",
-                             "locator": artifact["locator"], "field": conf.field, "value": conf.value},
-                        ]})
+                        "evidence": [_static_evidence(source, line, text)] + [
+                            {"source_id": artifact["source_id"], "kind": artifact["kind"],
+                             "locator": artifact["locator"], "field": field, "value": value}
+                            for field, value in observed],
+                    })
             else:
-                for hit in module.run(ctx):
-                    line = hit.node.lineno
-                    if line <= len(ctx.lines) and is_noqa(module.NOQA, ctx.lines[line - 1]):
+                for hit in (module.run(ctx, settings) if hasattr(module, "SETTINGS") else module.run(ctx)):
+                    line = ctx.line_of(hit.node)
+                    if ctx.is_suppressed(module.NOQA, line):
                         continue
                     start, text = ctx.evidence_lines(hit.node)
                     items.append({"anchor": hit.anchor, "line": line, "summary": hit.summary,

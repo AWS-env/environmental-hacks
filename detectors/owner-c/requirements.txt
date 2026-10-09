@@ -1,0 +1,5 @@
+# Parser dependencies for the JS/TS detectors (pure-Python detectors need nothing else).
+# Lambda zips bundle the manylinux aarch64 wheels of these; see scripts/build-owner-c-lambda.sh.
+tree-sitter>=0.25,<0.27
+tree-sitter-javascript>=0.25,<0.26
+tree-sitter-typescript>=0.23,<0.24

@@ -2,7 +2,7 @@
 
     PYTHONPATH=detectors/owner-c python -m owner_c evaluate INPUT.json [-o OUT.json]
     PYTHONPATH=detectors/owner-c python -m owner_c scan DIR [--include-tests] [--json]
-        [--artifact speedscope=FILE] [--artifact memray_stats=FILE]
+        [--artifact NAME=FILE ...]   (NAME: an artifact type from owner_c.normalize.NORMALIZERS)
 
 Run from the repository root so `shared.contracts` is importable: every result is validated
 against the shared contract (including its evidence against the input) before it is printed.
@@ -17,8 +17,8 @@ import sys
 import uuid
 from pathlib import Path
 
-from owner_c.connector import SKIP_DIRS, build_inputs
-from owner_c.normalize import normalize_all
+from owner_c.connector import BINARY_SUFFIXES, SKIP_DIRS, build_inputs
+from owner_c.normalize import NORMALIZERS, normalize_all
 from owner_c.runner import EvaluationError, evaluate
 
 
@@ -67,12 +67,15 @@ def _read_files(root: Path):
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
         for name in filenames:
-            if name.endswith(".py"):
-                full = Path(dirpath, name)
-                try:
-                    files.append((full.relative_to(root).as_posix(), full.read_text(encoding="utf-8", errors="replace")))
-                except OSError:
+            if name.lower().endswith(BINARY_SUFFIXES):
+                continue
+            full = Path(dirpath, name)
+            try:
+                if full.stat().st_size > 1_000_000:
                     continue
+                files.append((full.relative_to(root).as_posix(), full.read_text(encoding="utf-8", errors="replace")))
+            except OSError:
+                continue
     return files
 
 
@@ -122,7 +125,7 @@ def main(argv=None) -> int:
     sc.add_argument("--repository-id")
     sc.add_argument("--commit", help="40-character commit SHA (default: git HEAD of the directory)")
     sc.add_argument("--include-tests", action="store_true")
-    sc.add_argument("--artifact", action="append", metavar="NAME=FILE", help="speedscope=FILE or memray_stats=FILE")
+    sc.add_argument("--artifact", action="append", metavar="NAME=FILE", help=f"artifact file; NAME is one of: {', '.join(NORMALIZERS)}")
     sc.add_argument("--json", action="store_true")
     sc.set_defaults(func=_scan_cmd)
     args = parser.parse_args(argv)

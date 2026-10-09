@@ -26,4 +26,5 @@ def lambda_handler(event, context=None):
                                     checks=list(STATIC_CHECKS)):
             results.append(evaluate(payload))
     published = common.publish_if_enabled(event, results)
-    return {"scan_id": scan_id, "published": published, "results": common.summarize(results)}
+    return common.log_summary("static-scan", {"scan_id": scan_id, "published": published,
+                                          "results": common.summarize(results)})
