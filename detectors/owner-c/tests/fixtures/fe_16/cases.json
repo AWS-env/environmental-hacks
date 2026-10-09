@@ -1,0 +1,131 @@
+[
+  {
+    "id": "FE-16-01",
+    "title": "known positive: 2,007 elements (real capture) exceeds the default 1,400",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/index.html": {
+          "profiler": "lighthouse",
+          "dom_total_elements": 2007,
+          "dom_max_depth": 5,
+          "dom_max_children": 500
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "large-dom",
+          "line": 0,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-16-02",
+    "title": "similar negative: 800 elements",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/index.html": {
+          "profiler": "lighthouse",
+          "dom_total_elements": 800,
+          "dom_max_depth": 10,
+          "dom_max_children": 40
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-16-03",
+    "title": "boundary: exactly 1,400 elements is not above the threshold",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/index.html": {
+          "profiler": "lighthouse",
+          "dom_total_elements": 1400,
+          "dom_max_depth": 10,
+          "dom_max_children": 40
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-16-04",
+    "title": "boundary: 1,401 elements is reported",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/index.html": {
+          "profiler": "lighthouse",
+          "dom_total_elements": 1401,
+          "dom_max_depth": 10,
+          "dom_max_children": 40
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "large-dom",
+          "line": 0
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-16-05",
+    "title": "legitimate exception: the team raised max_dom_elements (a data-heavy dashboard)",
+    "files": {},
+    "context": {
+      "max_dom_elements": 5000
+    },
+    "artifacts": {
+      "lighthouse": {
+        "page:/index.html": {
+          "profiler": "lighthouse",
+          "dom_total_elements": 2007,
+          "dom_max_depth": 5,
+          "dom_max_children": 500
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-16-06",
+    "title": "malformed artifact: negative element count -> unavailable, no clean claim",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/index.html": {
+          "profiler": "lighthouse",
+          "dom_total_elements": -1
+        }
+      }
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "dom_total_elements"
+      ]
+    }
+  }
+]
