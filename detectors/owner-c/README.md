@@ -15,6 +15,7 @@ detector (see `owner_c/connector.py` and `owner_c/normalize/`).
 | PY-08 | `open()` / connections without a context manager | static | #252 |
 | PY-07 | Blocking calls inside `async def` | static | #251 |
 | PY-10 | Unused heavy imports (numpy, pandas, torch, ...) | static | #254 |
+| PY-01 | `x in <list>` inside a loop | static candidate + py-spy artifact | #245 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open.
@@ -134,6 +135,13 @@ own package, `import x as x` re-exports, names in `__all__`, string annotations 
 (`cast("pd.DataFrame", x)`), `TYPE_CHECKING` blocks, `try/except ImportError`, `# noqa` (bare/F401).
 Identity: `qualname:import:name`. Confidence: high.
 
+## PY-01 - list membership in loops (py-spy)
+
+Candidate: `x in <name|attr>` inside a loop, not against known sets/dicts, not a string-literal substring
+test. Reported only when the client's py-spy capture (`py-spy record -f speedscope`) shows that line on the
+stack for at least `min_time_share` of sampled time. Identity: `qualname:in:target`. Confidence: high
+at >= 25%, otherwise medium. Limitation: container type is not resolved; only files that appear in the
+profile are evaluated.
 
 
 

@@ -1,6 +1,7 @@
 """Registry of artifact normalizers, keyed by the artifact name clients upload."""
+from owner_c.normalize import speedscope
 
-NORMALIZERS = {}
+NORMALIZERS = {"speedscope": speedscope}
 
 
 def normalize_all(raw_artifacts: dict, files) -> dict:

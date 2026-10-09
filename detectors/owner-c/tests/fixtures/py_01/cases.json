@@ -1,0 +1,234 @@
+[
+  {
+    "id": "PY-01-01",
+    "title": "known positive: hot membership test confirmed by py-spy",
+    "files": {
+      "hot.py": "def slow(items, probes):\n    hits = 0\n    for p in probes:\n        if p in items:\n            hits += 1\n    return hits\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "slow:in:items",
+          "line": 4,
+          "confidence": "high"
+        }
+      ]
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_4": 0.6366
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-01-02",
+    "title": "boundary: share exactly at the threshold is reported",
+    "files": {
+      "hot.py": "def slow(items, probes):\n    hits = 0\n    for p in probes:\n        if p in items:\n            hits += 1\n    return hits\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "slow:in:items",
+          "line": 4,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_4": 0.05
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-01-03",
+    "title": "boundary: just below the threshold is not reported",
+    "files": {
+      "hot.py": "def slow(items, probes):\n    hits = 0\n    for p in probes:\n        if p in items:\n            hits += 1\n    return hits\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_4": 0.0499
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-01-04",
+    "title": "similar negative: hot line is not the membership test",
+    "files": {
+      "hot.py": "def slow(items, probes):\n    hits = 0\n    for p in probes:\n        if p in items:\n            hits += 1\n    return hits\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_5": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-01-05",
+    "title": "legitimate exception: substring test on text",
+    "files": {
+      "hot.py": "def f(texts):\n    for t in texts:\n        if 'x' in t.text:\n            pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_3": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-01-06",
+    "title": "legitimate exception: membership in a set",
+    "files": {
+      "hot.py": "def f(items, probes):\n    s = set(items)\n    for p in probes:\n        if p in s:\n            pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_4": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-01-07",
+    "title": "missing evidence: no py-spy artifact -> unavailable, not clean",
+    "files": {
+      "hot.py": "def slow(items, probes):\n    hits = 0\n    for p in probes:\n        if p in items:\n            hits += 1\n    return hits\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no py-spy artifact"
+      ]
+    }
+  },
+  {
+    "id": "PY-01-08",
+    "title": "missing evidence: artifact covers only one of two files -> partial",
+    "files": {
+      "hot.py": "def slow(items, probes):\n    hits = 0\n    for p in probes:\n        if p in items:\n            hits += 1\n    return hits\n",
+      "cold.py": "x = 1\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "slow:in:items",
+          "line": 4
+        }
+      ],
+      "evaluated": [
+        "hot.py"
+      ],
+      "limitations_contain": [
+        "cold.py",
+        "no py-spy artifact"
+      ]
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_4": 0.6366
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-01-09",
+    "title": "malformed settings: threshold missing -> unavailable",
+    "files": {
+      "hot.py": "def slow(items, probes):\n    hits = 0\n    for p in probes:\n        if p in items:\n            hits += 1\n    return hits\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "context.min_time_share must be a number"
+      ]
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_4": 0.6366
+        }
+      }
+    },
+    "context": {
+      "min_time_share": null
+    }
+  },
+  {
+    "id": "PY-01-10",
+    "title": "malformed settings: threshold out of range -> unavailable",
+    "files": {
+      "hot.py": "def slow(items, probes):\n    hits = 0\n    for p in probes:\n        if p in items:\n            hits += 1\n    return hits\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "context.min_time_share must be in (0, 1]"
+      ]
+    },
+    "artifacts": {
+      "py-spy": {
+        "hot.py": {
+          "profiler": "py-spy",
+          "sampled_seconds": 3.66,
+          "time_share_line_4": 0.6366
+        }
+      }
+    },
+    "context": {
+      "min_time_share": 0
+    }
+  }
+]
