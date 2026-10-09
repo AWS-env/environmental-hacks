@@ -93,6 +93,17 @@
     "unsupported": "Whether the push and PR branches actually overlap when a branch filter exists. Reusable workflows called from elsewhere.",
     "challenge": "Two workflows that both use the same literal group name still cancel each other; groups are only judged inside one file."
   },
+  "CI-12": {
+    "issue": 26,
+    "formats": "GitHub Actions workflow YAML plus the normalized GitHub Actions history artifact for the same workflow path.",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the `schedule:` entry, artifact evidence cites `scheduled_runs_same_sha` (scheduled runs whose head commit equals the previous scheduled run's). Reported only when history confirms; a schedule workflow with no artifact is not evaluated.",
+    "rule": "The workflow has an `on.schedule` trigger and `scheduled_runs_same_sha >= min_repeat_runs`, `scheduled_runs_total >= min_runs`. Confidence medium when at least half the scheduled runs reused a commit, otherwise low. A schedule is legitimate for dependency/security scans; only repeated identical commits are reported.",
+    "identity": "`workflow:schedule:unchanged-commit`.",
+    "context": "`min_repeat_runs` (default 3), `min_runs` (default 5).",
+    "unsupported": "Whether the scheduled job had a purpose independent of code changes (dependency advisories, expiring tokens).",
+    "challenge": "A scheduled security scan that re-checks fresh advisories on an unchanged commit is reported.",
+    "history": true
+  },
   "CI-13": {
     "issue": 27,
     "formats": "GitHub Actions workflow YAML with `strategy.matrix` mappings.",
