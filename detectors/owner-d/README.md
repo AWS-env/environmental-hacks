@@ -892,3 +892,67 @@ never reported clean.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm01/llm01-01-positive-input.json
 ```
+
+## LLM-15 — Tool-definition sprawl (large tool registries in every call)
+
+Flags LLM API calls in Python source that load more tool definitions into the
+context up front than the configured limit, or tool definitions whose
+estimated size exceeds the configured token budget. This v1 is a static proxy:
+it proves the size of a statically known tool list, not that the tools degrade
+accuracy or cost a measured amount. It emits no token counts as measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only) and the context settings below.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_tools_per_call` | Most tools a call may load up front | `20` |
+| `max_tool_definition_tokens` | Largest estimated size of the loaded tool definitions | `10000` |
+
+The thresholds are judgment calls, so they are required. OpenAI suggests
+"fewer than 20 functions available at the start of a turn" (a soft limit).
+Anthropic recommends tool search from 10 tools or 10k tokens of definitions,
+and reports that tool selection degrades past 30–50 tools. The reference
+values are the less aggressive of these. Missing or invalid settings make the
+result `unavailable`.
+
+### Detection rule
+
+A finding is emitted when the number of tools loaded up front is strictly
+greater than `max_tools_per_call`, or the estimated size of fully static
+definitions (compact JSON, 4 characters per token) is strictly greater than
+`max_tool_definition_tokens`.
+
+| Call | Tool list |
+| --- | --- |
+| Anthropic SDK `messages.create/stream/parse` (also `beta.`) | `tools` |
+| OpenAI `chat.completions.*`, `responses.*` | `tools`, legacy `functions` |
+| Bedrock `converse` / `converse_stream` | `toolConfig.tools` |
+| Bedrock `invoke_model` with `body=json.dumps(<static dict>)` | `tools` or `toolConfig.tools` |
+
+Tools are counted from list literals (with `*spread` and `+`),
+single-assignment names, `list(...)`, `dict.values()` and unfiltered
+comprehensions over a static list or dict. Entries with `defer_loading: true`,
+tool-search tools and Bedrock `cachePoint` entries do not count. MCP toolsets
+count as one entry, so counts are lower bounds. The summary notes when the
+same registry is passed to several calls in the file.
+
+Not flagged: tool lists that are parameters, sliced, filtered, mutated
+(`remove`/`insert`) or built from runtime data such as MCP `list_tools()`;
+`**kwargs` and `extra_body`; files that use `defer_loading`, tool search or
+`allowed_tools` anywhere. Other SDK clients (`Groq()`, ...) are not matched.
+`# noqa` or `# noqa: LLM-15` suppresses a call. The identity is
+`<qualified function>:<provider>.<api>` with `#2` for repeats. Missing,
+non-Python or unparseable files are left out of `evaluated_scope`, never
+reported clean.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm15/llm15-01-positive-input.json
+```
