@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parsePythonSource } from "../src/core/parse.js";
 import { checkCodeC35 } from "../src/checks/code-c3-5/index.js";
+import { evaluate } from "../src/contract.js";
+import { staticInput, validatePair, validatorAvailable } from "./helpers/contract.js";
 
 const FIXTURES_DIR = join(__dirname, "fixtures", "code-c3-5");
 
@@ -104,6 +106,33 @@ describe("CODE-C3.5 Missing loop early exit detector", () => {
 
     it("`# noqa: CODE-C3.5` on the flag assignment suppresses", () => {
       expect(run(loop.replace("found = True", "found = True  # noqa: CODE-C3.5"))).toEqual([]);
+    });
+  });
+
+  describe("Contract v1", () => {
+    const read = (f: string) => readFileSync(join(FIXTURES_DIR, f), "utf-8");
+
+    it("positives: completed with line-free identities; syntax error is never certified", () => {
+      const result = evaluate(staticInput("CODE-C3.5", { "positives.py": read("positives.py") }));
+      expect(result.status).toBe("completed");
+      expect(result.findings).toHaveLength(runCheckOnFixture("positives.py").length);
+      expect(result.findings.every((f) => f.identity.includes("missing-early-exit:"))).toBe(true);
+
+      const broken = evaluate(staticInput("CODE-C3.5", { "syntax_error.py": read("syntax_error.py") }));
+      expect(broken.status).toBe("unavailable");
+      expect(broken.findings).toEqual([]);
+    });
+
+    it.skipIf(!validatorAvailable)("positives, negatives and syntax-error pairs pass shared validate_pair", () => {
+      for (const files of [
+        { "positives.py": read("positives.py") },
+        { "negatives.py": read("negatives.py") },
+        { "positives.py": read("positives.py"), "syntax_error.py": read("syntax_error.py") },
+      ]) {
+        const input = staticInput("CODE-C3.5", files);
+        const verdict = validatePair(input, evaluate(input));
+        expect(verdict.ok, verdict.output).toBe(true);
+      }
     });
   });
 });

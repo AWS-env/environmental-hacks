@@ -232,6 +232,7 @@ export function detectMissingEarlyExit(
         filePath,
         `${loopKey}:${ordinal}:${match.symbol}`
       ),
+      identity: `${KIND}:${loopKey}:${ordinal}:${match.symbol}`,
       location: { path: filePath, startLine: loop.startLine, endLine: loop.endLine },
       evidence: {
         snippet: (sourceLines[loop.startLine - 1] ?? "").trim(),
