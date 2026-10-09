@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst12-002",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "TST-12",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_duration_seconds": 10,
+    "max_sleep_seconds": 0,
+    "max_network_calls": 0,
+    "max_fixture_bytes": 10485760,
+    "max_setup_seconds": 2
+  },
+  "scope": [
+    "test:tests/test_models.py::test_validates_user"
+  ],
+  "sources": [
+    {
+      "source_id": "pytest-tests-test-models-test-validates-user",
+      "scope_id": "test:tests/test_models.py::test_validates_user",
+      "kind": "artifact",
+      "locator": "pytest --durations artifact: tests/test_models.py::test_validates_user",
+      "data": {
+        "test_id": "tests/test_models.py::test_validates_user",
+        "framework": "pytest",
+        "duration_seconds": 1.4,
+        "sleep_seconds": 0,
+        "network_call_count": 0,
+        "fixture_bytes": 131072,
+        "setup_seconds": 0.3
+      }
+    }
+  ]
+}

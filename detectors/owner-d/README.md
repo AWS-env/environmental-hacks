@@ -67,3 +67,58 @@ The CLI validates the input against the shared contract, evaluates it,
 validates the result and its evidence against the input, then prints the result
 JSON (`-o FILE` writes to a file instead).
 
+## TST-12 — Heavy fixtures, sleeps and real network calls in unit tests
+
+Flags unit tests whose normalized CI/test-runner artifact shows heavyweight
+work: long duration, explicit sleeps, real network calls, oversized fixture
+materialization or expensive setup. The detector evaluates artifacts already
+produced by the client's CI run; it never executes tests or reaches out to
+external services.
+
+### Input
+
+A contract v1 `input` payload with one `artifact` source per scope item. Scope
+IDs use the form `test:<test_id>`. The artifact `data` object is a normalized
+summary from pytest durations, Jest timing output and optional instrumentation
+for waits/network/fixture setup:
+
+| Field | Meaning |
+| --- | --- |
+| `test_id` | Test identifier; must match the scope (`test:<test_id>`) |
+| `framework` | Test runner family, e.g. `pytest`, `jest` |
+| `duration_seconds` | Observed wall-clock test duration |
+| `sleep_seconds` | Observed or statically detected explicit sleep time |
+| `network_call_count` | Real network calls observed during the unit test |
+| `fixture_bytes` | Approximate bytes materialized by fixtures |
+| `setup_seconds` | Observed setup/fixture time before the assertion body |
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_duration_seconds` | Longest acceptable unit-test duration | `10` |
+| `max_sleep_seconds` | Explicit sleep allowance | `0` |
+| `max_network_calls` | Real network-call allowance | `0` |
+| `max_fixture_bytes` | Largest fixture materialization allowance | `10485760` |
+| `max_setup_seconds` | Longest acceptable setup/fixture duration | `2` |
+
+Missing or invalid settings make the result `unavailable`.
+
+### Detection rule
+
+A finding is emitted when any observed field is strictly greater than its
+matching context maximum. Equality is not flagged. Findings cite the exact
+artifact fields that crossed thresholds, plus `duration_seconds` as the
+baseline timing observation. The fingerprint identity is `heavy-test-work`.
+No energy/emissions measurements are emitted in v1; wall-clock test duration is
+not claimed as CPU time.
+
+### Run
+
+Same environment as the INF-01 example above; the CLI routes on `check_id`:
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst12/tst12-01-positive-input.json
+```
+
