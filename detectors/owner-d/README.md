@@ -4197,3 +4197,80 @@ declined files, never reported clean:
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs15/obs15-01-positive-input.json
 ```
+
+## LLM-16 — No streaming (full response buffered in memory)
+
+Flags LLM API calls in Python request handlers that do not stream, so the
+whole reply is generated and held in memory before anything reaches the
+client. The taxonomy detects this by memory profiling. This v1 is a static
+proxy: it proves that a handler makes a non-streaming call whose output is not
+capped small. It does not measure response length, peak memory or latency, and
+emits no measurements. AWS lists "streaming responses are used for
+user-facing interactions to reduce memory footprint and improve
+time-to-first-token" as a desired outcome
+([AGENTSUS02-BP03](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp03.html)).
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only) and the context setting below.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_buffered_output_tokens` | Largest output cap that may still be returned in one piece | `256` |
+
+No provider documents a size below which streaming stops paying off, so the
+value is required. At about 4 characters per token, 256 tokens is about 1 KB of
+text. Missing or invalid settings make the result `unavailable`.
+
+### Detection rule
+
+A call is checked when it runs while serving a request:
+
+- inside a function decorated as a route of a FastAPI, Starlette, Flask, Quart,
+  Sanic, Litestar, aiohttp, Chalice or Django Ninja app/router created in the
+  same file (`@app.post`, `@router.get`, `@bp.route`, ...), a Litestar `@post`
+  or DRF `@api_view`, or an AgentCore `@app.entrypoint`; or
+- in a module-level function of the same file that such a handler calls
+  directly (one hop, confidence `low`).
+
+It is flagged when it does not stream and its output cap is absent or strictly
+greater than `max_buffered_output_tokens`:
+
+| Call | Output cap | Streaming form |
+| --- | --- | --- |
+| Anthropic SDK `messages.create` (also `beta.`) | `max_tokens` | `messages.stream()` or `stream=True` |
+| OpenAI `chat.completions.create`, `responses.create`, v0 `ChatCompletion.create` | `max_completion_tokens`/`max_tokens`, `max_output_tokens` | `stream=True` |
+| Bedrock `converse` | `inferenceConfig.maxTokens` | `converse_stream` |
+| Bedrock `invoke_model` with `body=json.dumps(<static dict with messages>)` | `max_tokens` (or `inferenceConfig.max_new_tokens`) | `invoke_model_with_response_stream` |
+
+Not flagged: calls that stream (`stream=True` or a non-literal `stream`,
+`.stream()`, `with_streaming_response`, `converse_stream`,
+`invoke_model_with_response_stream`); structured outputs (`.parse`,
+`response_format`, `output_format`, `output_config.format`, `text.format`,
+Bedrock `outputConfig`, instructor `response_model`), forced tool calls
+(`tool_choice` other than `auto`/`none`) and replies parsed as JSON later in
+the same function (`json.loads`, `model_validate_json`, ...; not the raw
+`body.read()` of `invoke_model`), whose reply must be complete before use;
+output caps, request
+bodies or `**kwargs` that are not statically known, `extra_body`, Bedrock
+Prompt management; embedding or prompt-style `invoke_model` bodies; legacy
+`completions.create` (16-token default). Calls outside handlers (scripts,
+batch jobs, workers, Lambda handlers, startup hooks), handlers whose app or
+router is imported from another module and helpers reached through more than
+one call are not checked. `# noqa` or `# noqa: LLM-16` suppresses a call.
+Confidence is `medium` in the handler itself and `low` for one-hop helpers
+and clients known only from the `chat.completions` chain.
+
+The identity is `<qualified function>:<provider>.<api>` with `#2` for repeats.
+Missing, non-Python or unparseable files are left out of `evaluated_scope`,
+never reported clean.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm16/llm16-01-positive-input.json
+```
