@@ -42,3 +42,16 @@ cdk.out/
 # Misc
 .cache/
 .tmp/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local agent tooling (not part of the project)
+.agents/
+.opencode/
+AGENTS.md
+.mcp.json
+opencode.json

@@ -68,9 +68,9 @@ jobs:
           HEAD_REF: ${{ github.head_ref }}
         run: |
           set -euo pipefail
-          re='^[0-9]+-(feat|fix|refactor|docs|test|perf|chore|ci|spike)-[a-z0-9._-]+$'
+          re='^((owner-[abcd])\/)?[0-9]+-(feat|fix|refactor|docs|test|perf|chore|ci|spike)-[a-z0-9._-]+$'
           if [[ ! "$HEAD_REF" =~ $re ]]; then
-            echo "::error::Branch must be <issue>-<type>-<slug>, e.g. 42-feat-aqi-dashboard. Got: $HEAD_REF"
+            echo "::error::Branch must be <issue>-<type>-<slug> or owner-<x>/<issue>-<type>-<slug>, e.g. owner-a/42-feat-aqi-dashboard. Got: $HEAD_REF"
             exit 1
           fi
           echo "Branch name OK."

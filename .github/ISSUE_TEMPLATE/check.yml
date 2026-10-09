@@ -1,0 +1,79 @@
+name: Check
+description: Add or refine one taxonomy check (detector). One check = one issue = one PR.
+title: "[KEY] "
+labels:
+  - "type: check"
+  - "status: triage"
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One check per issue. The taxonomy key goes in the title, e.g. `[CODE-C1.1] Dead code`.
+        Most checks are auto-created by `scripts/taxonomy-sync.mts`; use this form only for new/manual ones.
+  - type: input
+    id: key
+    attributes:
+      label: Taxonomy key
+      description: Stable ID from docs/taxonomy/checks.yaml (e.g. CODE-C1.1, DB-01).
+    validations:
+      required: true
+  - type: dropdown
+    id: owner
+    attributes:
+      label: Owner
+      options:
+        - A
+        - B
+        - C
+        - D
+    validations:
+      required: true
+  - type: input
+    id: layer
+    attributes:
+      label: Layer
+      placeholder: code | database | network | jobs | frontend | ci | test | observability | llm | infrastructure
+    validations:
+      required: true
+  - type: textarea
+    id: wasteful
+    attributes:
+      label: Wasteful behavior
+      description: What the pattern is and why it wastes compute.
+    validations:
+      required: true
+  - type: textarea
+    id: signal
+    attributes:
+      label: Detection signal / method
+      description: The observable that reveals the pattern (AST rule, EXPLAIN, profiler hotspot, metric, log line...).
+    validations:
+      required: true
+  - type: dropdown
+    id: evidence
+    attributes:
+      label: Required evidence source
+      options:
+        - static code/config (our AWS)
+        - existing telemetry (client, read-only)
+        - client-run artifact (their CI)
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      value: |
+        - [ ] Detector implemented under detectors/owner-<x>/
+        - [ ] Emits an evidence-backed finding
+        - [ ] Unit test for the detector
+        - [ ] Detection spec filled (signal, tool, telemetry, report field, FP risk, detectable/measurable)
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Source / reference
+      description: Credible link or taxonomy source ID.
+    validations:
+      required: false

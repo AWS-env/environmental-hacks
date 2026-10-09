@@ -12,19 +12,21 @@ Trunk-based. `main` is the trunk and the only long-lived branch.
 ## Naming
 
 ```
-<issue-number>-<type>-<short-slug>
+[owner-x/]<issue-number>-<type>-<short-slug>
 ```
 
+- `owner-x`: `owner-a` | `owner-b` | `owner-c` | `owner-d` — **required for taxonomy-check
+  work** (optional otherwise). Keeps each owner's branches visually separated.
 - `type`: `feat` | `fix` | `refactor` | `docs` | `test` | `perf` | `chore` | `ci` | `spike`
 - `slug`: lowercase, hyphens, 2–5 words
 
 Examples:
 
 ```
-42-feat-aqi-dashboard
+owner-a/123-feat-code-c1-1-detector
+owner-b/140-feat-db-n-plus-one
 57-fix-empty-sensor-payload
 61-refactor-extract-fetch-hook
-88-docs-setup-guide
 ```
 
 ## Creating one
