@@ -49,7 +49,7 @@ UNITTEST_ARITY = {
                                  "assertNotAlmostEquals", "failUnlessAlmostEqual", "failIfAlmostEqual")},
 }
 PYTEST_ASSERTIONS = frozenset({"pytest.raises", "pytest.warns", "pytest.deprecated_call", "pytest.fail"})
-_MESSAGE_KEYWORDS = ("msg", "err_msg", "message", "msg_prefix")
+MESSAGE_KEYWORDS = ("msg", "err_msg", "message", "msg_prefix")
 _SKIP_DECORATORS = frozenset({"unittest.skip", "pytest.mark.skip", "skip"})
 _SKIP_CALLS = frozenset({"pytest.skip", "self.skipTest"})
 _HELPER_DEPTH = 3
@@ -240,7 +240,7 @@ def is_skipped(ctx, test):
 
 def _message_keyword(call):
     for keyword in call.keywords:
-        if keyword.arg in _MESSAGE_KEYWORDS:
+        if keyword.arg in MESSAGE_KEYWORDS:
             return keyword.value
     return None
 
