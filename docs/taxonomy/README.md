@@ -9,7 +9,7 @@ owner can work their own checks without overlap.
 | --- | --- |
 | `checks.yaml` | Human source of truth. One entry per check. **Generated from the xlsx — edit the xlsx, not this file.** |
 | `checks.json` | Machine mirror of `checks.yaml`, read by the sync script (keeps it dependency-free). |
-| `owners.json` | **The single place to change owners.** Only the `handle` values are meant to change. |
+| `owners.json` | **The single place to change owners.** `handle` is the GitHub username; `aws_user` is the AWS IAM user name. |
 | `mapping.json` | Links each `KEY` to its GitHub issue (`number`, `node_id`, `hash`). Committed so re-runs are idempotent. |
 | `../ARCHITECTURE_FLOWS.md` | The user/our/AWS flow diagrams. |
 
@@ -19,6 +19,15 @@ owner can work their own checks without overlap.
 - **Issue title** = `[KEY] <pattern>` — searchable by key.
 - **content_hash** = `sha1(key|pattern|detection_method|rule|aws_detector)[:8]`; the sync script
   only re-writes an issue when this changes. This is the "hash per check".
+
+## Owners
+
+| Label | GitHub | AWS user |
+| --- | --- | --- |
+| `owner:A` | [@mrpanda](https://github.com/mrpanda) | `shrey` |
+| `owner:B` | [@shreyas](https://github.com/shreyas) | `shreyas` |
+| `owner:C` | [@medhansh](https://github.com/medhansh) | `medhansh` |
+| `owner:D` | [@prXmy](https://github.com/prXmy) | `prakhar` |
 
 ## Regenerate from the source workbook
 
