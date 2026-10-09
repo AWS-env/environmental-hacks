@@ -44,6 +44,7 @@ class CpuProfileTests(unittest.TestCase):
         expected = {
             "JS-02": ("lookup:items.includes", line_of("items.includes")),
             "JS-04": ("readSelf:fs.readFileSync", line_of("fs.readFileSync")),
+            "JS-08": ("format:new Intl.NumberFormat", line_of("new Intl.NumberFormat")),
         }
         for check, (identity, line) in expected.items():
             with self.subTest(check=check):
