@@ -1,0 +1,99 @@
+[
+  {
+    "id": "CI-13-01",
+    "title": "known positive: duplicate value in a matrix axis",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node: [18, 20, 20]\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "job:test:matrix:duplicate-axis:node", "line": 8, "confidence": "high"}]
+    }
+  },
+  {
+    "id": "CI-13-02",
+    "title": "similar negative: distinct values in the axis",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node: [18, 20]\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "CI-13-03",
+    "title": "known positive: include entry repeats an existing combination",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node: [18, 20]\n        include:\n          - node: 20\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "job:test:matrix:redundant-include", "line": 8, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-13-04",
+    "title": "legitimate exception: include adds a new key to an existing combination",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node: [18, 20]\n        include:\n          - node: 20\n            experimental: true\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "CI-13-05",
+    "title": "known positive: duplicate value in the second axis of a two-axis matrix",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        node: [18, 20]\n        os: [ubuntu-latest, ubuntu-latest]\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "job:test:matrix:duplicate-axis:os", "line": 8, "confidence": "high"}]
+    }
+  },
+  {
+    "id": "CI-13-06",
+    "title": "known positive: two-axis include repeats a full existing combination",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        node: [18, 20]\n        os: [ubuntu-latest, windows-latest]\n        include:\n          - os: ubuntu-latest\n            node: 20\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "job:test:matrix:redundant-include", "line": 8, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-13-07",
+    "title": "boundary: include with a value outside the axes adds a new job, not redundant",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix:\n        node: [18, 20]\n        include:\n          - node: 22\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "CI-13-08",
+    "title": "legitimate exception: dynamic matrix from fromJSON cannot be evaluated statically",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    strategy:\n      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {"status": "completed", "findings": [], "limitations_contain": ["dynamic"]}
+  },
+  {
+    "id": "CI-13-09",
+    "title": "legitimate exception: a wide matrix of supported versions is not reported",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        os: [ubuntu-latest, windows-latest, macos-latest]\n        node: [14, 16, 18, 20, 22, 24]\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "CI-13-10",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": ["could not be parsed"]
+    }
+  }
+]

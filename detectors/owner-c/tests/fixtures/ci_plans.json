@@ -48,5 +48,15 @@
     "context": "None.",
     "unsupported": "Whether the push and PR branches actually overlap when a branch filter exists. Reusable workflows called from elsewhere.",
     "challenge": "Two workflows that both use the same literal group name still cancel each other; groups are only judged inside one file."
+  },
+  "CI-13": {
+    "issue": 27,
+    "formats": "GitHub Actions workflow YAML with `strategy.matrix` mappings.",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the `matrix:` entry (first 8 lines).",
+    "rule": "(a) a duplicate value in a matrix axis (high), (b) an `include` entry whose keys are all axis keys with values already in the axes, so it adds no job (medium). Wide matrices are deliberately NOT reported: in real repositories (pandas, next.js) they are intentional support matrices. Dynamic matrices (`fromJSON`) are not evaluated and the limitation is stated. actionlint already reports duplicate matrix values (verified); the no-op `include` rule is ours.",
+    "identity": "`job:<job id>:matrix:duplicate-axis:<axis>`, `job:<job id>:matrix:redundant-include`, `job:<job id>:matrix:wide:<n>`.",
+    "context": "None.",
+    "unsupported": "Matrices built at runtime; whether a combination is actually needed (wide matrices are not reported).",
+    "challenge": "A deliberate duplicate axis value used as a retry slot would be reported."
   }
 }
