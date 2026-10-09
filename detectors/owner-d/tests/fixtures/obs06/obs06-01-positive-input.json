@@ -1,0 +1,160 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs06-001",
+  "commit_sha": "6666666666666666666666666666666666666666",
+  "check_id": "OBS-06",
+  "detector_version": "1.0.0",
+  "context": {
+    "provider": "aws-cloudwatch",
+    "max_dimension_values": 100,
+    "min_identifier_values": 10
+  },
+  "scope": [
+    "resource:metric/OwnerD/Demo/CartEvents",
+    "resource:metric/OwnerD/Demo/Latency",
+    "resource:metric/OwnerD/Demo/Logins",
+    "resource:metric/OwnerD/Demo/PageViews",
+    "resource:metric/OwnerD/Demo/ShardLag"
+  ],
+  "sources": [
+    {
+      "source_id": "cw:0",
+      "scope_id": "resource:metric/OwnerD/Demo/CartEvents",
+      "kind": "telemetry",
+      "locator": "cloudwatch:ListMetrics/OwnerD/Demo/CartEvents",
+      "data": {
+        "namespace": "OwnerD/Demo",
+        "metric_name": "CartEvents",
+        "series_count": 20,
+        "dimension_value_counts": {
+          "CartToken": 20,
+          "Stage": 1
+        },
+        "dimension_value_samples": {
+          "CartToken": [
+            "0a821c85131cfcfb2d91",
+            "24dd1fcb2f2d036dd3ac",
+            "490fa7c0755b2758c0d0",
+            "49ac89ada37b46a955a5",
+            "586108ff3040e0b44719"
+          ],
+          "Stage": [
+            "prod"
+          ]
+        },
+        "window_days": 14,
+        "listing_complete": true
+      }
+    },
+    {
+      "source_id": "cw:1",
+      "scope_id": "resource:metric/OwnerD/Demo/Latency",
+      "kind": "telemetry",
+      "locator": "cloudwatch:ListMetrics/OwnerD/Demo/Latency",
+      "data": {
+        "namespace": "OwnerD/Demo",
+        "metric_name": "Latency",
+        "series_count": 150,
+        "dimension_value_counts": {
+          "RequestId": 150,
+          "Route": 5
+        },
+        "dimension_value_samples": {
+          "RequestId": [
+            "006ca7f2-8a39-5eaf-b421-e257d2d39791",
+            "035e05de-b873-559b-b1ce-bc21acbd7abb",
+            "0aaed1ff-4330-518a-84f0-8a6fcaab1228",
+            "0ef99f67-3cf4-5775-a0c6-458a829b3e5a",
+            "0f92fe26-322e-57bc-bfb1-76384dbc4894"
+          ],
+          "Route": [
+            "/cart",
+            "/checkout",
+            "/login",
+            "/products/{id}",
+            "/search"
+          ]
+        },
+        "window_days": 14,
+        "listing_complete": true
+      }
+    },
+    {
+      "source_id": "cw:2",
+      "scope_id": "resource:metric/OwnerD/Demo/Logins",
+      "kind": "telemetry",
+      "locator": "cloudwatch:ListMetrics/OwnerD/Demo/Logins",
+      "data": {
+        "namespace": "OwnerD/Demo",
+        "metric_name": "Logins",
+        "series_count": 12,
+        "dimension_value_counts": {
+          "UserId": 12
+        },
+        "dimension_value_samples": {
+          "UserId": [
+            "alice",
+            "bob",
+            "carol",
+            "dave",
+            "erin"
+          ]
+        },
+        "window_days": 14,
+        "listing_complete": true
+      }
+    },
+    {
+      "source_id": "cw:3",
+      "scope_id": "resource:metric/OwnerD/Demo/PageViews",
+      "kind": "telemetry",
+      "locator": "cloudwatch:ListMetrics/OwnerD/Demo/PageViews",
+      "data": {
+        "namespace": "OwnerD/Demo",
+        "metric_name": "PageViews",
+        "series_count": 120,
+        "dimension_value_counts": {
+          "Url": 120
+        },
+        "dimension_value_samples": {
+          "Url": [
+            "https://shop.example.com/products/1000",
+            "https://shop.example.com/products/1001",
+            "https://shop.example.com/products/1002",
+            "https://shop.example.com/products/1003",
+            "https://shop.example.com/products/1004"
+          ]
+        },
+        "window_days": 14,
+        "listing_complete": true
+      }
+    },
+    {
+      "source_id": "cw:4",
+      "scope_id": "resource:metric/OwnerD/Demo/ShardLag",
+      "kind": "telemetry",
+      "locator": "cloudwatch:ListMetrics/OwnerD/Demo/ShardLag",
+      "data": {
+        "namespace": "OwnerD/Demo",
+        "metric_name": "ShardLag",
+        "series_count": 130,
+        "dimension_value_counts": {
+          "Shard": 130
+        },
+        "dimension_value_samples": {
+          "Shard": [
+            "shard-0",
+            "shard-1",
+            "shard-10",
+            "shard-100",
+            "shard-101"
+          ]
+        },
+        "window_days": 14,
+        "listing_complete": true
+      }
+    }
+  ]
+}
