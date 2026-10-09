@@ -1,0 +1,59 @@
+[
+  {
+    "id": "FE-13-01",
+    "title": "known positive: 34,943 of 35,085 bytes unused (real Lighthouse capture values)",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "unused_css_bytes": 34943, "unused_css_percent": 99.6, "total_css_bytes": 35085}}},
+    "expect": {"status": "completed", "findings": [{"identity": "unused-css", "line": 0, "confidence": "medium"}], "evaluated": ["style.css"]}
+  },
+  {
+    "id": "FE-13-02",
+    "title": "similar negative: only 5,000 bytes unused, below the default 10 KiB",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "unused_css_bytes": 5000, "unused_css_percent": 40.0, "total_css_bytes": 12500}}},
+    "expect": {"status": "completed", "findings": [], "evaluated": ["style.css"]}
+  },
+  {
+    "id": "FE-13-03",
+    "title": "boundary: exactly 10,240 bytes (the default threshold) is reported",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "unused_css_bytes": 10240, "unused_css_percent": 50.0, "total_css_bytes": 20480}}},
+    "expect": {"status": "completed", "findings": [{"identity": "unused-css", "line": 0}]}
+  },
+  {
+    "id": "FE-13-04",
+    "title": "boundary: 10,239 bytes is below the default threshold",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "unused_css_bytes": 10239, "unused_css_percent": 50.0, "total_css_bytes": 20478}}},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-13-05",
+    "title": "legitimate exception: the team raised min_unused_bytes (a shared stylesheet serves several pages)",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "context": {"min_unused_bytes": 50000},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "unused_css_bytes": 34943, "unused_css_percent": 99.6, "total_css_bytes": 35085}}},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-13-06",
+    "title": "unresolvable stylesheet (hashed build output) is reported on a page: scope",
+    "files": {},
+    "artifacts": {"lighthouse": {"page:/assets/app.3f9a.css": {"profiler": "lighthouse", "unused_css_bytes": 42000, "unused_css_percent": 80.0, "total_css_bytes": 52500}}},
+    "expect": {"status": "completed", "findings": [{"identity": "unused-css", "line": 0}]}
+  },
+  {
+    "id": "FE-13-07",
+    "title": "required evidence missing: a second stylesheet has no coverage data -> partial, not clean",
+    "files": {"style.css": ".a { color: red; }\n", "other.css": ".b { color: blue; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "unused_css_bytes": 34943, "unused_css_percent": 99.6, "total_css_bytes": 35085}}},
+    "expect": {"status": "partial", "findings": [{"identity": "unused-css", "line": 0}], "evaluated": ["style.css"], "limitations_contain": ["other.css", "no lighthouse artifact"]}
+  },
+  {
+    "id": "FE-13-08",
+    "title": "malformed artifact: unused_css_bytes is negative -> unavailable, no clean claim",
+    "files": {"style.css": ".a { color: red; }\n"},
+    "artifacts": {"lighthouse": {"style.css": {"profiler": "lighthouse", "unused_css_bytes": -5, "total_css_bytes": 100}}},
+    "expect": {"status": "unavailable", "findings": [], "limitations_contain": ["style.css", "unused_css_bytes"]}
+  }
+]

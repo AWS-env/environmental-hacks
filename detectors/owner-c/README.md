@@ -331,3 +331,4 @@ Research and decisions: [`category-4-frontend.md`](../../docs/research/category-
 | FE-03 | `<img>` without explicit dimensions (Lighthouse `unsized-images` rule): HTML and JSX | static | good: Lighthouse rule from its source; real-repo hits hand-checked | #151 |
 | FE-17 | CSS `transition` / `@keyframes` on layout or paint properties instead of `transform`/`opacity` | static | good: web.dev guidance; hand-checked on bootstrap.css (3 of 3 layout transitions) | #164 |
 | FE-11 | Render-blocking stylesheet in a Lighthouse 13 report (`render-blocking-insight`) | Lighthouse report (artifact-only) | medium: tested on sample reports, not yet on a client's real CI run | #158 |
+| FE-13 | Unused CSS (`unused-css-rules`, over 10 KiB wasted) | Lighthouse report (artifact-only) | medium: tested on sample reports, not yet on a client's real CI run | #160 |
