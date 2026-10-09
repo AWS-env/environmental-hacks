@@ -45,7 +45,7 @@ class Target:
     repository_id: str
     root: Path
     commit_sha: str
-    commit_source: str  # "git" or "content-hash"
+    commit_source: str  # "git", "content-hash", or (scan API) "github-api" / "tarball-header"
     url: str | None = None
 
 
