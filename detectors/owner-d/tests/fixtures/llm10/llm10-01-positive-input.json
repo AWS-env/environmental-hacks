@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm10-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "LLM-10",
+  "detector_version": "1.0.0",
+  "context": {
+    "min_traces": 3,
+    "max_llm_iterations": 10,
+    "max_identical_tool_calls": 3
+  },
+  "scope": [
+    "entrypoint:support-agent"
+  ],
+  "sources": [
+    {
+      "source_id": "xray:support-agent",
+      "scope_id": "entrypoint:support-agent",
+      "kind": "telemetry",
+      "locator": "aws-xray:BatchGetTraces/support-agent",
+      "data": {
+        "entrypoint": "support-agent",
+        "traces_with_genai_calls": 3,
+        "traces_analyzed": 3,
+        "traces_skipped": 0,
+        "skip_reasons": [],
+        "failed_calls": 0,
+        "tool_calls_without_arguments": 0,
+        "max_llm_iterations": {
+          "trace_id": "1-6ac932a8-5f183e85a91537570955d34d",
+          "agent": "support_agent",
+          "llm_calls": 12,
+          "tool_calls": 11,
+          "duration_seconds": 11.03
+        },
+        "max_identical_tool_calls": {
+          "trace_id": "1-6ac93050-82ae99332e785cf0a4cfbcf5",
+          "agent": "support_agent",
+          "tool": "lookup_order",
+          "arguments_hash": "0dd3a2b2afaa5ee2",
+          "calls": 6,
+          "seconds": 0.72,
+          "duration_seconds": 6.41
+        },
+        "traces": [
+          {
+            "trace_id": "1-6ac93050-82ae99332e785cf0a4cfbcf5",
+            "duration_seconds": 6.41,
+            "agent_runs": 1,
+            "llm_calls": 7,
+            "tool_calls": 6,
+            "failed_calls": 0,
+            "tool_calls_without_arguments": 0,
+            "max_agent_depth": 1,
+            "max_run_iterations": {
+              "agent": "support_agent",
+              "llm_calls": 7,
+              "tool_calls": 6
+            },
+            "max_identical_tool_calls": {
+              "agent": "support_agent",
+              "tool": "lookup_order",
+              "arguments_hash": "0dd3a2b2afaa5ee2",
+              "calls": 6,
+              "seconds": 0.72
+            },
+            "paginated_tools": []
+          },
+          {
+            "trace_id": "1-6ac9317c-feb78a0401362fcd109de0c0",
+            "duration_seconds": 5.483,
+            "agent_runs": 1,
+            "llm_calls": 6,
+            "tool_calls": 5,
+            "failed_calls": 0,
+            "tool_calls_without_arguments": 0,
+            "max_agent_depth": 0,
+            "max_run_iterations": {
+              "agent": "(entrypoint)",
+              "llm_calls": 6,
+              "tool_calls": 5
+            },
+            "max_identical_tool_calls": {
+              "agent": "(entrypoint)",
+              "tool": "lookup_order",
+              "arguments_hash": "bbf9bc69637add42",
+              "calls": 5,
+              "seconds": 0.6
+            },
+            "paginated_tools": []
+          },
+          {
+            "trace_id": "1-6ac932a8-5f183e85a91537570955d34d",
+            "duration_seconds": 11.03,
+            "agent_runs": 1,
+            "llm_calls": 12,
+            "tool_calls": 11,
+            "failed_calls": 0,
+            "tool_calls_without_arguments": 0,
+            "max_agent_depth": 1,
+            "max_run_iterations": {
+              "agent": "support_agent",
+              "llm_calls": 12,
+              "tool_calls": 11
+            },
+            "max_identical_tool_calls": {
+              "agent": "support_agent",
+              "tool": "search_kb",
+              "arguments_hash": "0dfef3b75a1ce5dc",
+              "calls": 1,
+              "seconds": 0.12
+            },
+            "paginated_tools": []
+          }
+        ]
+      }
+    }
+  ]
+}

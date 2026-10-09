@@ -1,0 +1,51 @@
+{
+ "_comment": "SYNTHETIC fixture for LLM-10 tests: hand-built BatchGetTraces response shaped on the AWS X-Ray segment document spec and real Lambda traces (service + function segment). Not production telemetry.",
+ "Traces": [
+  {
+   "Id": "1-6ac9a580-f7b3744cfafdaf9698d8d53b",
+   "Duration": 0.388,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "ae90b048d7bc3582",
+     "Document": "{\"id\":\"ae90b048d7bc3582\",\"name\":\"orders-fn\",\"start_time\":1791600000.001,\"trace_id\":\"1-6ac9a580-f7b3744cfafdaf9698d8d53b\",\"end_time\":1791600000.39,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"45c86406a5136baf981ee6e6232c7ed4\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "8ec0aed5693b29ec",
+     "Document": "{\"id\":\"8ec0aed5693b29ec\",\"name\":\"orders-fn\",\"start_time\":1791600000.04,\"trace_id\":\"1-6ac9a580-f7b3744cfafdaf9698d8d53b\",\"end_time\":1791600000.388,\"parent_id\":\"ae90b048d7bc3582\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/orders-fn\"}],\"resource_names\":[\"orders-fn\"]},\"annotations\":{\"aws:responseLatency\":388.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"b6b64249fdd968df\",\"name\":\"Inventory\",\"start_time\":1791600000.296,\"end_time\":1791600000.376},{\"id\":\"33733f03dbf2cdd7\",\"name\":\"Inventory\",\"start_time\":1791600000.214,\"end_time\":1791600000.294},{\"id\":\"77d923073e1daf1f\",\"name\":\"Inventory\",\"start_time\":1791600000.132,\"end_time\":1791600000.212},{\"id\":\"91943e0e8e126ca8\",\"name\":\"Inventory\",\"start_time\":1791600000.05,\"end_time\":1791600000.13}]}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ac9a6ac-f6915c5a9ff0265f3240a1f5",
+   "Duration": 0.388,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "9b0b683dfabdf01c",
+     "Document": "{\"id\":\"9b0b683dfabdf01c\",\"name\":\"orders-fn\",\"start_time\":1791600300.001,\"trace_id\":\"1-6ac9a6ac-f6915c5a9ff0265f3240a1f5\",\"end_time\":1791600300.39,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"c1c0671ea6dee55ce7126a6b9686584f\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "14bd19220ce2056a",
+     "Document": "{\"id\":\"14bd19220ce2056a\",\"name\":\"orders-fn\",\"start_time\":1791600300.04,\"trace_id\":\"1-6ac9a6ac-f6915c5a9ff0265f3240a1f5\",\"end_time\":1791600300.388,\"parent_id\":\"9b0b683dfabdf01c\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/orders-fn\"}],\"resource_names\":[\"orders-fn\"]},\"annotations\":{\"aws:responseLatency\":388.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"d2e4309dfb8e28fc\",\"name\":\"Inventory\",\"start_time\":1791600300.296,\"end_time\":1791600300.376},{\"id\":\"984426b4c5793def\",\"name\":\"Inventory\",\"start_time\":1791600300.214,\"end_time\":1791600300.294},{\"id\":\"cd02d5901e37d955\",\"name\":\"Inventory\",\"start_time\":1791600300.132,\"end_time\":1791600300.212},{\"id\":\"ed0787bbee56c406\",\"name\":\"Inventory\",\"start_time\":1791600300.05,\"end_time\":1791600300.13}]}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ac9a7d8-e38fef69caf6d0d15ab2105e",
+   "Duration": 0.57,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "9cf7fa694afdebd2",
+     "Document": "{\"id\":\"9cf7fa694afdebd2\",\"name\":\"notes-agent\",\"start_time\":1791600600.001,\"trace_id\":\"1-6ac9a7d8-e38fef69caf6d0d15ab2105e\",\"end_time\":1791600600.572,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"3a4b7b448026299538aab770ef5d7fa6\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "624700615f3b8082",
+     "Document": "{\"id\":\"624700615f3b8082\",\"name\":\"notes-agent\",\"start_time\":1791600600.04,\"trace_id\":\"1-6ac9a7d8-e38fef69caf6d0d15ab2105e\",\"end_time\":1791600600.57,\"parent_id\":\"9cf7fa694afdebd2\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/notes-agent\"}],\"resource_names\":[\"notes-agent\"]},\"annotations\":{\"aws:responseLatency\":570.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"727c083d92f52199\",\"name\":\"execute_tool append_note\",\"start_time\":1791600600.458,\"end_time\":1791600600.558},{\"id\":\"3a5bfa9279710209\",\"name\":\"execute_tool append_note\",\"start_time\":1791600600.356,\"end_time\":1791600600.456},{\"id\":\"89f079c27fba8067\",\"name\":\"execute_tool append_note\",\"start_time\":1791600600.254,\"end_time\":1791600600.354},{\"id\":\"e5b9ab250c5a515e\",\"name\":\"execute_tool append_note\",\"start_time\":1791600600.152,\"end_time\":1791600600.252},{\"id\":\"000284f244e02b06\",\"name\":\"execute_tool append_note\",\"start_time\":1791600600.05,\"end_time\":1791600600.15}]}"
+    }
+   ]
+  }
+ ],
+ "UnprocessedTraceIds": []
+}

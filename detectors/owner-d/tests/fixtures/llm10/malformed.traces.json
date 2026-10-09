@@ -1,0 +1,109 @@
+{
+ "_comment": "SYNTHETIC fixture for LLM-10 tests: hand-built BatchGetTraces response shaped on the AWS X-Ray segment document spec and real Lambda traces (service + function segment). Not production telemetry.",
+ "Traces": [
+  {
+   "Id": "1-6ac9cc90-649dae0648460e967a2b90cb",
+   "Duration": 3.637,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "c587bb86e67cbeb6",
+     "Document": "{\"id\":\"c587bb86e67cbeb6\",\"name\":\"billing-agent\",\"start_time\":1791610000.001,\"trace_id\":\"1-6ac9cc90-649dae0648460e967a2b90cb\",\"end_time\":1791610003.6390002,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"58d407787da9f724d2abe729c67fb891\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "52b2ef094aff5e5c",
+     "Document": "{\"id\":\"52b2ef094aff5e5c\",\"name\":\"billing-agent\",\"start_time\":1791610000.04,\"trace_id\":\"1-6ac9cc90-649dae0648460e967a2b90cb\",\"end_time\":1791610003.637,\"parent_id\":\"c587bb86e67cbeb6\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/billing-agent\"}],\"resource_names\":[\"billing-agent\"]},\"annotations\":{\"aws:responseLatency\":3637.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"120e98ce3e11abcd\",\"name\":\"invoke_agent billing\",\"start_time\":1791610000.05,\"end_time\":1791610003.627,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"billing\"}},\"subsegments\":[{\"id\":\"cfc32f9403ef2422\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610000.053,\"end_time\":1791610000.853,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"9eba60c8b30f27de\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610000.855,\"end_time\":1791610000.975,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_eb067d5e09c3a3b28c117e\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-0\\\"}\"}}},{\"id\":\"a6a91e59afbe7fc9\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610000.977,\"end_time\":1791610001.777,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"2c0d770e1c774d55\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610001.779,\"end_time\":1791610001.899,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_6bd10535440554dda5dfe9\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-1\\\"}\"}}},{\"id\":\"3b033306362cd5bb\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610001.901,\"end_time\":1791610002.701,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"5e484f95916c83ca\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610002.703,\"end_time\":1791610002.823,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_484cc50c8490a85ddcc61d\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-2\\\"}\"}}},{\"id\":\"1de4364fc61a4663\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610002.825,\"end_time\":1791610003.625,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}}]}]}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ac9cdbc-37e4643637b8147b31b6979b",
+   "Duration": 3.637,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "b1b76b409931cfdf",
+     "Document": "{\"id\":\"b1b76b409931cfdf\",\"name\":\"billing-agent\",\"start_time\":1791610300.001,\"trace_id\":\"1-6ac9cdbc-37e4643637b8147b31b6979b\",\"end_time\":1791610303.6390002,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"b9836e811ad605c33bafd84040e400b6\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "96e65ec55ed785ce",
+     "Document": "{\"id\":\"96e65ec55ed785ce\",\"name\":\"billing-agent\",\"start_time\":1791610300.04,\"trace_id\":\"1-6ac9cdbc-37e4643637b8147b31b6979b\",\"end_time\":1791610303.637,\"parent_id\":\"b1b76b409931cfdf\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/billing-agent\"}],\"resource_names\":[\"billing-agent\"]},\"annotations\":{\"aws:responseLatency\":3637.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"e7a2f088f7cf5483\",\"name\":\"invoke_agent billing\",\"start_time\":1791610300.05,\"end_time\":1791610303.627,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"billing\"}},\"subsegments\":[{\"id\":\"49635409be98be7a\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610300.053,\"end_time\":1791610300.853,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"0c882c54818bbb1f\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610300.855,\"end_time\":1791610300.975,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_e1a796a79c8c94680129f1\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-0\\\"}\"}}},{\"id\":\"16bdf8881b0ba63b\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610300.977,\"end_time\":1791610301.777,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"ecaa2d3ad4f18f6d\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610301.779,\"end_time\":1791610301.899,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_18ced7c841a7edf2311f11\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-1\\\"}\"}}},{\"id\":\"dbfc11312e2dfae5\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610301.901,\"end_time\":1791610302.701,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"1546a9d55bf1bfae\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610302.703,\"end_time\":1791610302.823,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_3245abb2530d998f1151e1\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-2\\\"}\"}}},{\"id\":\"2495b89b3201a1f6\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610302.825,\"end_time\":1791610303.625,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}}]}]}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ac9cee8-921a0db4793ea55646565076",
+   "Duration": 3.637,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "d106e1b21cf96809",
+     "Document": "{\"id\":\"d106e1b21cf96809\",\"name\":\"billing-agent\",\"start_time\":1791610600.001,\"trace_id\":\"1-6ac9cee8-921a0db4793ea55646565076\",\"end_time\":1791610603.6390002,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"af07e01c4c17a4cd1a07e087dc9c6c27\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "1994fff33260f280",
+     "Document": "{\"id\":\"1994fff33260f280\",\"name\":\"billing-agent\",\"start_time\":1791610600.04,\"trace_id\":\"1-6ac9cee8-921a0db4793ea55646565076\",\"end_time\":1791610603.637,\"parent_id\":\"d106e1b21cf96809\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/billing-agent\"}],\"resource_names\":[\"billing-agent\"]},\"annotations\":{\"aws:responseLatency\":3637.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"5aaccb946b7402f9\",\"name\":\"invoke_agent billing\",\"start_time\":1791610600.05,\"end_time\":1791610603.627,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"billing\"}},\"subsegments\":[{\"id\":\"4fdafaac0aef30d0\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610600.053,\"end_time\":1791610600.853,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"c99d1e711b6270c4\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610600.855,\"end_time\":1791610600.975,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_232b95d0e6ee864547b78c\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-0\\\"}\"}}},{\"id\":\"f861c48a495e7584\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610600.977,\"end_time\":1791610601.777,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"4103f5e88aa7ef74\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610601.779,\"end_time\":1791610601.899,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_13a760a4434e1a521233d9\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-1\\\"}\"}}},{\"id\":\"6a06887640835e7a\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610601.901,\"end_time\":1791610602.701,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"55498b4de24233a7\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610602.703,\"end_time\":1791610602.823,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_e3c4cb567414be5b99d90e\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-2\\\"}\"}}},{\"id\":\"6527231d56332ee8\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610602.825,\"end_time\":1791610603.625,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":145"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ac9d014-5e9c171ba614a57b0629b53b",
+   "Duration": 3.637,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "bd1c338fe6f26639",
+     "Document": "{\"id\":\"bd1c338fe6f26639\",\"name\":\"billing-agent\",\"start_time\":1791610900.001,\"trace_id\":\"1-6ac9d014-5e9c171ba614a57b0629b53b\",\"end_time\":1791610903.6390002,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"5411037f53bea35f2aa70f01cdb92d75\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "1c924f5e5d3b84bb",
+     "Document": "{\"id\":\"1c924f5e5d3b84bb\",\"name\":\"billing-agent\",\"start_time\":1791610900.04,\"trace_id\":\"1-6ac9d014-5e9c171ba614a57b0629b53b\",\"parent_id\":\"bd1c338fe6f26639\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/billing-agent\"}],\"resource_names\":[\"billing-agent\"]},\"annotations\":{\"aws:responseLatency\":3637.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"2aabbdc887102696\",\"name\":\"invoke_agent billing\",\"start_time\":1791610900.05,\"end_time\":1791610903.627,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"billing\"}},\"subsegments\":[{\"id\":\"876ed5eda2339028\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610900.053,\"end_time\":1791610900.853,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"142d36aa9b198add\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610900.855,\"end_time\":1791610900.975,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_6077d7668ff51401055b26\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-0\\\"}\"}}},{\"id\":\"c4c56c0889aaf237\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610900.977,\"end_time\":1791610901.777,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"37c770e704e21b4e\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610901.779,\"end_time\":1791610901.899,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_9b65a2a0565537e45eabfd\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-1\\\"}\"}}},{\"id\":\"b35b6361f045392b\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610901.901,\"end_time\":1791610902.701,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"dc4a8213728158dd\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791610902.703,\"end_time\":1791610902.823,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_cf4f4c2cf2b8768698901c\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-2\\\"}\"}}},{\"id\":\"bf5932a2a6f284ae\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791610902.825,\"end_time\":1791610903.625,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}}]}],\"in_progress\":true}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ac9d140-dd09d9ef79370fb3ef0896a1",
+   "Duration": 3.637,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "0698944d8b5001b4",
+     "Document": "{\"id\":\"0698944d8b5001b4\",\"name\":\"billing-agent\",\"start_time\":1791611200.001,\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"end_time\":1791611203.6390002,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"fc207d681a4519baf677ab78778ece11\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "285b96f56b335306",
+     "Document": "{\"id\":\"285b96f56b335306\",\"name\":\"billing-agent\",\"start_time\":1791611200.04,\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"end_time\":1791611203.637,\"parent_id\":\"0698944d8b5001b4\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/billing-agent\"}],\"resource_names\":[\"billing-agent\"]},\"annotations\":{\"aws:responseLatency\":3637.0},\"origin\":\"AWS::Lambda::Function\"}"
+    },
+    {
+     "Id": "4847b07a5dca5025",
+     "Document": "{\"id\":\"4847b07a5dca5025\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791611200.053,\"end_time\":1791611200.853,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"parent_id\":\"d612ef07b0dad573\"}"
+    },
+    {
+     "Id": "c8281fb555a6a990",
+     "Document": "{\"id\":\"c8281fb555a6a990\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791611200.855,\"end_time\":1791611200.975,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_954f463094c0cf03860d1c\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-0\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"parent_id\":\"d612ef07b0dad573\"}"
+    },
+    {
+     "Id": "4a8b6a33f14cde13",
+     "Document": "{\"id\":\"4a8b6a33f14cde13\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791611200.977,\"end_time\":1791611201.777,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"parent_id\":\"d612ef07b0dad573\"}"
+    },
+    {
+     "Id": "b3e3ba2fbd9237d5",
+     "Document": "{\"id\":\"b3e3ba2fbd9237d5\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791611201.779,\"end_time\":1791611201.899,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_1ee18defae8114daa18926\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-1\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"parent_id\":\"d612ef07b0dad573\"}"
+    },
+    {
+     "Id": "0aa7ccbe0ec7eeed",
+     "Document": "{\"id\":\"0aa7ccbe0ec7eeed\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791611201.901,\"end_time\":1791611202.701,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"parent_id\":\"d612ef07b0dad573\"}"
+    },
+    {
+     "Id": "09400a821f9ffb9b",
+     "Document": "{\"id\":\"09400a821f9ffb9b\",\"name\":\"execute_tool get_invoice\",\"start_time\":1791611202.703,\"end_time\":1791611202.823,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"get_invoice\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_6d13d1d8e3c44a619e5443\",\"gen_ai.tool.call.arguments\":\"{\\\"invoice\\\": \\\"INV-2\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"parent_id\":\"d612ef07b0dad573\"}"
+    },
+    {
+     "Id": "3ca5fe16620b577e",
+     "Document": "{\"id\":\"3ca5fe16620b577e\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791611202.825,\"end_time\":1791611203.625,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac9d140-dd09d9ef79370fb3ef0896a1\",\"parent_id\":\"d612ef07b0dad573\"}"
+    }
+   ]
+  }
+ ],
+ "UnprocessedTraceIds": []
+}
