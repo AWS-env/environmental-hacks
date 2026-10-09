@@ -69,3 +69,7 @@ Adds extraneous fetching. See checks/net-02/SPEC.md and NETWORK.md for supported
 ## NET-03 registration (#215)
 
 Adds no http response caching. See checks/net-03/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
+
+## NET-04 registration (#216)
+
+Adds improper http client instantiation. See checks/net-04/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.

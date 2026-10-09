@@ -1,0 +1,96 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "route:catalog"
+    ],
+    "limitations": [
+      "Bounded read-only evidence analysis. Client metadata/policy assertions require review; no inferred energy, carbon or savings. Sampled observations are not total workload counts."
+    ]
+  },
+  "findings": [
+    {
+      "identity": "catalog:load:http-agent",
+      "summary": "A request handler creates and uses a fresh explicit Node HTTP Agent instead of reusing its pool.",
+      "recommendation": "Reuse a compatible Agent outside the request handler when reviewed isolation permits. Modern Node globalAgent keep-alive defaults are not themselves a defect.",
+      "evidence": [
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "client_lifecycle",
+          "value": {
+            "handler": "load",
+            "node_version": "22.0.0",
+            "library": "node:http-agent",
+            "per_request_handler": true,
+            "isolation_required": false,
+            "shared_transport": false,
+            "source_locator": "src/client.js"
+          }
+        },
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "connection_observations",
+          "value": {
+            "handler": "load",
+            "new_connections": 100,
+            "requests": 100
+          }
+        },
+        {
+          "source_id": "code",
+          "kind": "static",
+          "locator": "src/client.js",
+          "line_start": 3,
+          "value": " const agent = new https.Agent({keepAlive:true});"
+        }
+      ],
+      "references": [
+        "https://nodejs.org/api/http.html#class-httpagent"
+      ],
+      "confidence": "medium",
+      "scope_id": "route:catalog",
+      "fingerprint": "2c927a4c77d79840651dbea3fff9d8e5e136f804acb90250614efbf6c5f3a329"
+    }
+  ],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-04-1",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-04",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_change_fraction": 0.1,
+    "max_cpu_regression_fraction": 0.1,
+    "max_noise_fraction": 0.1,
+    "max_poll_interval_seconds": 60,
+    "max_small_bytes": 1024,
+    "min_array_elements": 1000,
+    "min_calls": 5,
+    "min_connection_ratio": 0.8,
+    "min_conversion_cpu_ms": 10,
+    "min_duplicate_requests": 2,
+    "min_improvement_fraction": 0.2,
+    "min_payload_bytes": 1024,
+    "min_polls": 100,
+    "min_pressure_fraction": 0.75,
+    "min_repeated_requests": 10,
+    "min_repetitions": 5,
+    "min_response_bytes": 1024,
+    "min_retry_attempts": 3,
+    "min_retry_delay_ms": 100,
+    "min_serial_gap_ms": 0,
+    "min_unused_fraction": 0.5,
+    "mode": "runtime",
+    "objective": "bytes",
+    "rule_version": "network-1"
+  },
+  "scope": [
+    "route:catalog"
+  ]
+}
