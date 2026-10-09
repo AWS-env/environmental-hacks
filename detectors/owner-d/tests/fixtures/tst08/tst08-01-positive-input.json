@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst08-001",
+  "commit_sha": "8888888888888888888888888888888888888888",
+  "check_id": "TST-08",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:tests/test_cart.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_cart.py",
+      "kind": "static",
+      "locator": "tests/test_cart.py",
+      "content": "# Synthetic TST-08 fixture: equality assertions on str()/repr() text. Never executed.\nimport unittest\n\n\nclass CartTest(unittest.TestCase):\n    def test_add_item(self):\n        cart = Cart()\n        cart.add(\"apple\")\n        self.assertEqual(str(cart), \"Cart(items=['apple'])\")\n\n    def test_owner(self):\n        order = Order(owner=\"ana\")\n        self.assertEqual(repr(order.owner), \"<User: ana>\")\n\n    def test_copy(self):\n        cart = Cart([\"apple\"])\n        self.assertEqual(repr(cart.copy()), repr(cart))\n\n    def test_not_empty(self):\n        self.assertNotEqual(Cart([\"pear\"]).__str__(), \"Cart(items=[])\")\n\n\ndef test_total_label():\n    total = Total(5)\n    expected = \"Total: 5.00 EUR\"\n    assert str(total) == expected\n\n\ndef test_receipt():\n    receipt = checkout()\n    assert f\"Receipt #{receipt.id}\" == str(receipt)\n\n\ndef test_reload():\n    assert str(load(\"a\")) == str(load(\"b\"))\n\n\ndef test_build():\n    assert repr(build()) == (\n        \"Build(id=1)\"\n    )\n"
+    }
+  ]
+}
