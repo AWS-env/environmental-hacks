@@ -1,0 +1,21 @@
+# Synthetic fixture for OBS-13: agent collector embedded in a ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent
+data:
+  relay: |
+    receivers:
+      zipkin:
+        endpoint: 0.0.0.0:9411
+    processors:
+      batch:
+    exporters:
+      otlphttp:
+        endpoint: https://traces.example.com:4318
+    service:
+      pipelines:
+        traces:
+          receivers: [zipkin]
+          processors: [batch]
+          exporters: [otlphttp]

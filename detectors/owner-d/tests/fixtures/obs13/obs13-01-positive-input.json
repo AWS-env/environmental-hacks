@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs13-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "OBS-13",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "otel-config+k8s"
+  },
+  "scope": [
+    "file:collector.yaml",
+    "file:workloads.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:collector.yaml",
+      "scope_id": "file:collector.yaml",
+      "kind": "static",
+      "locator": "collector.yaml",
+      "content": "# Synthetic fixture for OBS-13: production gateway collector with no probe filter.\nreceivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 0.0.0.0:4317\n  hostmetrics:\n    scrapers:\n      cpu:\n\nprocessors:\n  memory_limiter:\n    check_interval: 1s\n    limit_percentage: 80\n  batch:\n  filter/redis:\n    error_mode: ignore\n    trace_conditions:\n      - span.attributes[\"db.system\"] == \"redis\"\n\nexporters:\n  otlp/backend:\n    endpoint: tempo.example.com:4317\n  debug:\n\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      processors: [memory_limiter, filter/redis, batch]\n      exporters: [otlp/backend, debug]\n    traces/local:\n      receivers: [otlp]\n      exporters: [debug]\n    metrics:\n      receivers: [hostmetrics, otlp]\n      processors: [batch]\n      exporters: [otlp/backend]\n"
+    },
+    {
+      "source_id": "src:workloads.yaml",
+      "scope_id": "file:workloads.yaml",
+      "kind": "static",
+      "locator": "workloads.yaml",
+      "content": "# Synthetic fixture for OBS-13: OpenTelemetry-instrumented workloads with HTTP probes.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: api\nspec:\n  replicas: 3\n  template:\n    spec:\n      containers:\n        - name: api\n          image: example/api:1.4.2\n          env:\n            - name: OTEL_EXPORTER_OTLP_ENDPOINT\n              value: http://otel-collector:4317\n          livenessProbe:\n            httpGet:\n              path: /healthz\n              port: 8080\n          readinessProbe:\n            httpGet:\n              path: /ready?verbose=0\n              port: 8080\n            periodSeconds: 5\n        - name: envoy\n          image: envoyproxy/envoy:v1.31\n          livenessProbe:\n            httpGet:\n              path: /stats\n              port: 9901\n---\napiVersion: argoproj.io/v1alpha1\nkind: Rollout\nmetadata:\n  name: checkout\nspec:\n  template:\n    metadata:\n      annotations:\n        instrumentation.opentelemetry.io/inject-java: \"true\"\n    spec:\n      containers:\n        - name: checkout\n          image: example/checkout:2.0.0\n          livenessProbe:\n            httpGet:\n              path: /actuator/health/liveness\n              port: 8081\n            periodSeconds: 15\n          startupProbe:\n            httpGet:\n              path: /actuator/health\n              port: 8081\n"
+    }
+  ]
+}
