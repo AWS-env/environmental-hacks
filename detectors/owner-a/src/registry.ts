@@ -6,6 +6,7 @@
 import { Finding } from "./core/finding.js";
 import { ParsedPythonFile } from "./core/parse.js";
 import { checkCodeC11 } from "./checks/code-c1-1/index.js";
+import { checkCodeC12 } from "./checks/code-c1-2/index.js";
 import { checkCodeC31 } from "./checks/code-c3-1/index.js";
 import { checkCodeC32 } from "./checks/code-c3-2/index.js";
 import { checkCodeC33 } from "./checks/code-c3-3/index.js";
@@ -28,6 +29,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC11(parsed),
       limitations: [
         "Python only; JS/TS unused imports are out of scope (bundlers usually elide them).",
+      ],
+    },
+  ],
+  [
+    "CODE-C1.2",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC12(parsed),
+      limitations: [
+        "Dead stores are found for function locals in straight-line code only: module/class stores and overwrites across branches or early exits (CODE-C1.6) are not analysed.",
       ],
     },
   ],
