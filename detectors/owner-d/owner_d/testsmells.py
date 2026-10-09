@@ -281,7 +281,7 @@ def _assertion_from_call(ctx, call, aliases=None):
     if dotted in PYTEST_ASSERTIONS:
         message = args[0] if dotted == "pytest.fail" and args else _message_keyword(call)
         return Assertion(call, "pytest", dotted, args, message)
-    if "assert" in name.lower():
+    if "assert" in name.lower() and not name.endswith(("Error", "Exception", "Warning")):
         return Assertion(call, "call", dotted, args, _message_keyword(call))
     return None
 
