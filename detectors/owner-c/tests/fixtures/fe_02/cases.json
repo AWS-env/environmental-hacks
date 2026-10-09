@@ -1,0 +1,110 @@
+[
+  {
+    "id": "FE-02-01",
+    "title": "known positive: the LCP image carries loading=lazy (real capture: eagerlyLoaded false)",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/lazy.html": {
+          "profiler": "lighthouse",
+          "lcp_eagerly_loaded": false,
+          "lcp_selector": "body > img#hero"
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "lcp-lazy-loaded",
+          "line": 0,
+          "confidence": "high"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-02-02",
+    "title": "similar negative: the LCP image is eagerly loaded",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/lazy.html": {
+          "profiler": "lighthouse",
+          "lcp_eagerly_loaded": true,
+          "lcp_selector": "body > img#hero"
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-02-03",
+    "title": "boundary: not discoverable and not hinted, but eagerly loaded, is not FE-02 (that is FE-10)",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/lazy.html": {
+          "profiler": "lighthouse",
+          "lcp_eagerly_loaded": true,
+          "lcp_request_discoverable": false,
+          "lcp_priority_hinted": false
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-02-04",
+    "title": "malformed artifact: eagerlyLoaded is a string -> unavailable, no clean claim",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/lazy.html": {
+          "profiler": "lighthouse",
+          "lcp_eagerly_loaded": "no"
+        }
+      }
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "lcp_eagerly_loaded"
+      ]
+    }
+  },
+  {
+    "id": "FE-02-05",
+    "title": "two pages: one lazy LCP, one fine -> one finding on the right page",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/a.html": {
+          "profiler": "lighthouse",
+          "lcp_eagerly_loaded": false
+        },
+        "page:/b.html": {
+          "profiler": "lighthouse",
+          "lcp_eagerly_loaded": true
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "lcp-lazy-loaded",
+          "line": 0,
+          "confidence": "high"
+        }
+      ]
+    }
+  }
+]
