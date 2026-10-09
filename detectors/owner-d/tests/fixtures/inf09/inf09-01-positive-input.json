@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf09-001",
+  "commit_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "check_id": "INF-09",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "dockerfile"
+  },
+  "scope": [
+    "file:positive.Dockerfile"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.Dockerfile",
+      "scope_id": "file:positive.Dockerfile",
+      "kind": "static",
+      "locator": "positive.Dockerfile",
+      "content": "# syntax=docker/dockerfile:1\n# Synthetic INF-09 fixture: shipped stages that put avoidable bytes in the image.\nFROM golang:1.22 AS tools\nRUN apt-get update && apt-get install -y git\nRUN go build -o /out/tool ./cmd/tool\n\nFROM python:3.12 AS base\nRUN apt-get update \\\n    && apt-get install -y \\\n       build-essential \\\n       libpq-dev\nRUN python -m pip install --upgrade pip \\\n    && pip3 install -r requirements.txt\n\nFROM base AS runtime\nCOPY --from=tools /out/tool /usr/local/bin/tool\nCMD [\"python\", \"app.py\"]\n"
+    }
+  ]
+}
