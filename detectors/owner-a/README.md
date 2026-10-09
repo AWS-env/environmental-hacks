@@ -13,6 +13,11 @@ This package contains lightweight, read-only static code detectors for **Owner A
 - **`CODE-C1.1`**: Dead code / unused results (#34)
   - `unused-import`: Heavy and light unused module and binding imports in Python.
   - `unreachable-code`: Dead code after terminal statements (`return`, `raise`, `break`, `continue`) and constant-false conditionals (`if False:`, `while 0:`).
+- **`CODE-C3.1`**: Inefficient iteration construct, static half (#60)
+  - `inefficient-iteration-construct`: `range(len())` indexing loops, manual-index `while`
+    loops, append-accumulation loops (gated or ungated) convertible to comprehensions,
+    and dict key loops with `d[k]` lookups convertible to `.items()`. Python only;
+    Low severity, unconfirmed without profiler evidence (R2 follow-up).
 
 ## Shared contract v1
 

@@ -6,6 +6,7 @@
 import { Finding } from "./core/finding.js";
 import { ParsedPythonFile } from "./core/parse.js";
 import { checkCodeC11 } from "./checks/code-c1-1/index.js";
+import { checkCodeC31 } from "./checks/code-c3-1/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -22,6 +23,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC11(parsed),
       limitations: [
         "Python only; JS/TS unused imports are out of scope (bundlers usually elide them).",
+      ],
+    },
+  ],
+  [
+    "CODE-C3.1",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC31(parsed),
+      limitations: [
+        "Static half of R1R2: no profiler evidence that a flagged loop is hot; payoff is engine-dependent (follow-up: OQ-1 profile confirmation).",
       ],
     },
   ],

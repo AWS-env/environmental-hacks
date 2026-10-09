@@ -3,5 +3,6 @@ export * from "./core/parse.js";
 export * from "./core/suppressions.js";
 export * from "./core/python-scope.js";
 export * from "./checks/code-c1-1/index.js";
+export * from "./checks/code-c3-1/index.js";
 export * from "./contract.js";
 export * from "./registry.js";

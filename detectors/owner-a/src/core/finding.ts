@@ -15,6 +15,8 @@ export interface FindingEvidence {
   symbol?: string;
   module?: string;
   costTier?: CostTier;
+  loopType?: "for" | "while";
+  suggested?: string;
 }
 
 export interface FindingImpact {
