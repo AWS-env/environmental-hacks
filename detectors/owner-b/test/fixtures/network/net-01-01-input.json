@@ -1,0 +1,165 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-01-1",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-01",
+  "detector_version": "1.0.0",
+  "context": {
+    "rule_version": "network-1",
+    "mode": "runtime",
+    "min_calls": 5,
+    "max_small_bytes": 1024
+  },
+  "scope": [
+    "route:catalog"
+  ],
+  "sources": [
+    {
+      "source_id": "capture",
+      "scope_id": "route:catalog",
+      "kind": "artifact",
+      "locator": "fixture:network-capture.json",
+      "data": {
+        "format": "network-evidence-v1",
+        "repository_id": "fixture:owner-b/network",
+        "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "route": "catalog",
+        "capture": {
+          "tool": "owner-b-synthetic",
+          "version": "1",
+          "origin": "synthetic"
+        },
+        "acquisition": {
+          "status": "complete",
+          "start": "2026-10-10T00:00:00Z",
+          "end": "2026-10-10T00:01:00Z"
+        },
+        "trace": {
+          "complete": true,
+          "sampled": false
+        },
+        "spans": [
+          {
+            "id": "s0",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 0,
+            "end_ms": 90,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s1",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 100,
+            "end_ms": 190,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s2",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 200,
+            "end_ms": 290,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s3",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 300,
+            "end_ms": 390,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s4",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 400,
+            "end_ms": 490,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s5",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 500,
+            "end_ms": 590,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s6",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 600,
+            "end_ms": 690,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s7",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 700,
+            "end_ms": 790,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "batch_policy": {
+          "supported": true,
+          "required_streaming": false,
+          "documentation": "https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html"
+        }
+      }
+    }
+  ]
+}

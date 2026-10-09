@@ -50,6 +50,9 @@ function ownerB() {
   } catch (error) {
     return { unavailable: `owner B could not be loaded; run \`npm ci\` at the repository root (${message(error)})` };
   }
+  if (action === "list") {
+    return { checks: Object.keys(detector.checks || {}).sort() };
+  }
   // The legacy scanSource() suppresses parse errors, so a strict parse decides whether a file
   // was really evaluated; without it an unparseable file would look clean.
   const strict = new Engine({ parser: { extractDoc: false, suppressErrors: false }, ast: { withPositions: false } });

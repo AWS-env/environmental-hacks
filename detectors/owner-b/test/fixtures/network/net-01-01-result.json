@@ -1,0 +1,185 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "route:catalog"
+    ],
+    "limitations": [
+      "Bounded read-only evidence analysis. Client metadata/policy assertions require review; no inferred energy, carbon or savings. Sampled observations are not total workload counts."
+    ]
+  },
+  "findings": [
+    {
+      "identity": "catalog:inventory:get-item:batch",
+      "summary": "Many independent small remote calls incur observed setup work.",
+      "recommendation": "Use the documented bounded batch operation; preserve authorization, error isolation and payload limits.",
+      "evidence": [
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "spans",
+          "value": [
+            {
+              "id": "s0",
+              "parent_id": null,
+              "request_group": "r1",
+              "destination": "inventory",
+              "operation": "get-item",
+              "role": "outbound",
+              "start_ms": 0,
+              "end_ms": 90,
+              "bytes": 100,
+              "setup_ms": 20,
+              "dependencies": [],
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "id": "s1",
+              "parent_id": null,
+              "request_group": "r1",
+              "destination": "inventory",
+              "operation": "get-item",
+              "role": "outbound",
+              "start_ms": 100,
+              "end_ms": 190,
+              "bytes": 100,
+              "setup_ms": 20,
+              "dependencies": [],
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "id": "s2",
+              "parent_id": null,
+              "request_group": "r1",
+              "destination": "inventory",
+              "operation": "get-item",
+              "role": "outbound",
+              "start_ms": 200,
+              "end_ms": 290,
+              "bytes": 100,
+              "setup_ms": 20,
+              "dependencies": [],
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "id": "s3",
+              "parent_id": null,
+              "request_group": "r1",
+              "destination": "inventory",
+              "operation": "get-item",
+              "role": "outbound",
+              "start_ms": 300,
+              "end_ms": 390,
+              "bytes": 100,
+              "setup_ms": 20,
+              "dependencies": [],
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "id": "s4",
+              "parent_id": null,
+              "request_group": "r1",
+              "destination": "inventory",
+              "operation": "get-item",
+              "role": "outbound",
+              "start_ms": 400,
+              "end_ms": 490,
+              "bytes": 100,
+              "setup_ms": 20,
+              "dependencies": [],
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "id": "s5",
+              "parent_id": null,
+              "request_group": "r1",
+              "destination": "inventory",
+              "operation": "get-item",
+              "role": "outbound",
+              "start_ms": 500,
+              "end_ms": 590,
+              "bytes": 100,
+              "setup_ms": 20,
+              "dependencies": [],
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "id": "s6",
+              "parent_id": null,
+              "request_group": "r1",
+              "destination": "inventory",
+              "operation": "get-item",
+              "role": "outbound",
+              "start_ms": 600,
+              "end_ms": 690,
+              "bytes": 100,
+              "setup_ms": 20,
+              "dependencies": [],
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            {
+              "id": "s7",
+              "parent_id": null,
+              "request_group": "r1",
+              "destination": "inventory",
+              "operation": "get-item",
+              "role": "outbound",
+              "start_ms": 700,
+              "end_ms": 790,
+              "bytes": 100,
+              "setup_ms": 20,
+              "dependencies": [],
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            }
+          ]
+        },
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "trace",
+          "value": {
+            "complete": true,
+            "sampled": false
+          }
+        },
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "batch_policy",
+          "value": {
+            "supported": true,
+            "required_streaming": false,
+            "documentation": "https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html"
+          }
+        }
+      ],
+      "references": [
+        "https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html",
+        "https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html"
+      ],
+      "confidence": "medium",
+      "scope_id": "route:catalog",
+      "fingerprint": "e0f4371cd9362b60c698ed8b7bf4e7ff6ba00a17fe59077d0d32c9ed21ba8adc"
+    }
+  ],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-01-1",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-01",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_small_bytes": 1024,
+    "min_calls": 5,
+    "mode": "runtime",
+    "rule_version": "network-1"
+  },
+  "scope": [
+    "route:catalog"
+  ]
+}

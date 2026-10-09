@@ -1,0 +1,112 @@
+{
+  "check_id": "NET-01",
+  "issue": 213,
+  "region": "ap-south-1",
+  "integration_build": {
+    "source_commit": "bdf10d2aa1b00a86b62726649a2c8d071b66d867",
+    "source_tree": "1fa273e5a2f52c0973b5d700e347925a33707535",
+    "archive_sha256": "e3b265bf82bc6f5fe4cf0d63acb61716d010fe2565cf413f8b1f37a3ae03e48f",
+    "code_sha256_base64": "47Jlv4K8b1/kzw1jrLYXFtAQ/iVlz0E/ix83o64D5I8=",
+    "package_lock_sha256": "157c77be469ec044a593fe2e2bd53a60ee04c19b91288f86d1de1f38e1a34582",
+    "source_state": "clean-committed"
+  },
+  "build_reference": "owner-b-network-build-v3-2026-10-10",
+  "transport": "authenticated signer -> conditional S3 PUT -> versioned S3 event -> published Lambda -> EventBridge -> hub -> DynamoDB readback",
+  "synthetic_case_count": 6,
+  "production_workload_confirmed": false,
+  "hub_verified_means": "Contract validation and persistence only; capture origin is retained.",
+  "cases": [
+    {
+      "check_id": "NET-01",
+      "scan_id": "aws-network-2026-10-10-net-01-01-ready-v3",
+      "status": "completed",
+      "finding_count": 1,
+      "input_sha256": "c3c699d8d8c68994efc5a27b13774db9246dfb8d55a6f555444f05f167b32925",
+      "pair_sha256": "daba9b969305b80da3fd5b8f98cd3bb74731361561f7bd61eafd0613880a9fb2",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-01",
+      "scan_id": "aws-network-2026-10-10-net-01-02-ready-v3",
+      "status": "completed",
+      "finding_count": 0,
+      "input_sha256": "5717686cd7aa53dcf238c14555a1cac8bbb52bd086d8f9243e9c975977930589",
+      "pair_sha256": "19cb99bccd34ec08952bd7798dcbe1d14d21b39fbe4f86f1c61622e84b11fdbc",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-01",
+      "scan_id": "aws-network-2026-10-10-net-01-03-ready-v3",
+      "status": "completed",
+      "finding_count": 0,
+      "input_sha256": "b09499c73a8b1d725e5da5c04571e9bd958ed6df38086cc430c51b205ad200de",
+      "pair_sha256": "d0c661400de30bf260eb84b37ee740d4d6272df46e9553b0b02f94e593389f38",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-01",
+      "scan_id": "aws-network-2026-10-10-net-01-04-ready-v3",
+      "status": "unavailable",
+      "finding_count": 0,
+      "input_sha256": "0311577f6ccf2d22039a3421edca2a1e90996ba80f7df3171c9989f768339750",
+      "pair_sha256": "a41fbb5fae0dbbc81f4a5d0adad474832c47fee2ca444a4d354959515ea42405",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-01",
+      "scan_id": "aws-network-2026-10-10-net-01-05-ready-v3",
+      "status": "unavailable",
+      "finding_count": 0,
+      "input_sha256": "09b880f779e00179613b384e8c54734708b036c6af2ba9b685247da5cc8212ed",
+      "pair_sha256": "1a75d73b5788cbaf1187fd1fc68cb1fb67f91bcda4125ca88b0b8fac09dc652d",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-01",
+      "scan_id": "aws-network-2026-10-10-net-01-06-ready-v3",
+      "status": "completed",
+      "finding_count": 0,
+      "input_sha256": "9503a47330f12fa4c4fc9984f1f39cb0041223d2b0cf66b27a33c581226993a2",
+      "pair_sha256": "41ad09aed67ae7cdd66917abe2b244c72a1351b4cb0282450af95c6173e110e1",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    }
+  ],
+  "live_acquisition": [
+    {
+      "provider": "xray",
+      "check_id": "NET-01",
+      "status": "unavailable",
+      "finding_count": 0,
+      "persisted": true,
+      "reason": "route:catalog: Acquisition incomplete or unavailable: No snapshot-correlated owner_b trace metadata",
+      "pair_sha256": "48870aac0df46a66852f4889cdd0d5e037202734e496659c229b8534279452f7",
+      "production_workload_confirmed": false
+    }
+  ],
+  "initial_transport_attempt": "Uploads immediately after notification update had no readback. Fresh uploads after propagation passed; failed attempt is not acceptance evidence.",
+  "duplicate_replay": {
+    "same_pair": true,
+    "result_commit_markers": 1,
+    "findings": 1,
+    "persisted": true,
+    "production_workload_confirmed": false
+  }
+}
