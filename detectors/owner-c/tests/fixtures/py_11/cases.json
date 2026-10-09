@@ -1,0 +1,184 @@
+[
+  {
+    "id": "PY-11-01",
+    "title": "known positive: deepcopy confirmed through copy.py internals",
+    "files": {
+      "cp.py": "import copy\n\n\ndef step(data):\n    c = copy.deepcopy(data)\n    return c\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "step:copy.deepcopy",
+          "line": 5,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "cp.py": {
+          "profiler": "memray",
+          "allocated_bytes_deepcopy_internals": 526611840
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-11-02",
+    "title": "deepcopy confirmed on its own line",
+    "files": {
+      "cp.py": "import copy\n\n\ndef step(data):\n    c = copy.deepcopy(data)\n    return c\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "step:copy.deepcopy",
+          "line": 5
+        }
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "cp.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_5": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-11-03",
+    "title": "similar negative: small allocations",
+    "files": {
+      "cp.py": "import copy\n\n\ndef step(data):\n    c = copy.deepcopy(data)\n    return c\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "memray": {
+        "cp.py": {
+          "profiler": "memray",
+          "allocated_bytes_deepcopy_internals": 1000
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-11-04",
+    "title": ".copy() of a frame inside a loop",
+    "files": {
+      "cp.py": "def f(frames):\n    for fr in frames:\n        c = fr.copy()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:fr.copy",
+          "line": 3
+        }
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "cp.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_3": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-11-05",
+    "title": "legitimate exception: .copy() outside any loop",
+    "files": {
+      "cp.py": "def f(fr):\n    return fr.copy()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "memray": {
+        "cp.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-11-06",
+    "title": "missing evidence: no memray artifact -> unavailable",
+    "files": {
+      "cp.py": "import copy\n\n\ndef step(data):\n    c = copy.deepcopy(data)\n    return c\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no memray artifact"
+      ]
+    }
+  },
+  {
+    "id": "PY-11-07",
+    "title": "missing evidence: artifact covers one of two files -> partial",
+    "files": {
+      "cp.py": "import copy\n\n\ndef step(data):\n    c = copy.deepcopy(data)\n    return c\n",
+      "cold.py": "x = 1\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "step:copy.deepcopy",
+          "line": 5
+        }
+      ],
+      "evaluated": [
+        "cp.py"
+      ],
+      "limitations_contain": [
+        "cold.py"
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "cp.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_5": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-11-08",
+    "title": "malformed settings: threshold out of range -> unavailable",
+    "files": {
+      "cp.py": "import copy\n\n\ndef step(data):\n    c = copy.deepcopy(data)\n    return c\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "context.min_alloc_bytes must be > 0"
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "cp.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_5": 20971520
+        }
+      }
+    },
+    "context": {
+      "min_alloc_bytes": 0
+    }
+  }
+]
