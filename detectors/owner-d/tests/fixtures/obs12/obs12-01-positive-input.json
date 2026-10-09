@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs12-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "OBS-12",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "auto-instrumentation"
+  },
+  "scope": [
+    "file:deployment.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:deployment.yaml",
+      "scope_id": "file:deployment.yaml",
+      "kind": "static",
+      "locator": "deployment.yaml",
+      "content": "# Synthetic fixture for OBS-12: zero-code auto-instrumentation with the default selection.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: orders\nspec:\n  template:\n    spec:\n      containers:\n        - name: orders\n          image: example/orders:1.4.2\n          command: [\"opentelemetry-instrument\", \"python\", \"app.py\"]\n          env:\n            - name: OTEL_SERVICE_NAME\n              value: orders\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: orders\nspec:\n  ports:\n    - port: 80\n---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\nspec:\n  template:\n    spec:\n      containers:\n        - name: web\n          image: example/web:2.0.0\n          env:\n            - name: NODE_OPTIONS\n              value: --require @opentelemetry/auto-instrumentations-node/register\n"
+    }
+  ]
+}

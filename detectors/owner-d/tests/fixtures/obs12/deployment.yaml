@@ -1,0 +1,37 @@
+# Synthetic fixture for OBS-12: zero-code auto-instrumentation with the default selection.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: orders
+spec:
+  template:
+    spec:
+      containers:
+        - name: orders
+          image: example/orders:1.4.2
+          command: ["opentelemetry-instrument", "python", "app.py"]
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: orders
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: orders
+spec:
+  ports:
+    - port: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  template:
+    spec:
+      containers:
+        - name: web
+          image: example/web:2.0.0
+          env:
+            - name: NODE_OPTIONS
+              value: --require @opentelemetry/auto-instrumentations-node/register

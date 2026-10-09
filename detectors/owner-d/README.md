@@ -2413,3 +2413,110 @@ checks. Telling noise from an audit trail there needs runtime volume data.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs13/obs13-01-positive-input.json
 ```
+
+## OBS-12 — Unused default integrations enabled (zero-code auto-instrumentation)
+
+Flags OpenTelemetry zero-code auto-instrumentation that is started with its
+default "instrument everything" selection while the same deployment unit sets
+no instrumentation selection. The check is static and uses the `textstatic.py`
+runner. Files are read as text and are never run, rendered or resolved. v1 is a
+proxy: it proves that "everything on" is the default selection in this file. It
+does not prove that a given instrumentation's telemetry goes unused, so it
+emits no measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Supported files:
+
+- **Deployment YAML** (`.yaml`/`.yml`): Kubernetes manifests, Compose files
+  and other YAML. Read with `owner_d/miniyaml.py`, one document (`---`) at a
+  time.
+- **Dockerfiles**: the shipped stages, meaning the final stage and the stages
+  it is built `FROM`. Read with `owner_d/dockerfile.py`.
+- **`package.json` scripts**. Development scripts (names with `dev`, `test`,
+  `debug`, `watch`, `lint`, `e2e`, `local`) are skipped.
+- **Node.js setup code** (`.js`/`.mjs`/`.cjs`/`.ts`/`.mts`/`.cts`) that
+  imports `@opentelemetry/auto-instrumentations-node`.
+
+No context settings are required.
+
+### Detection rule
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `[<Kind>/<name>:\|service/<name>:]python:opentelemetry-instrument` | A YAML document starts the `opentelemetry-instrument` launcher (also as a path, e.g. `/app/.venv/bin/opentelemetry-instrument`) and does not mention `OTEL_PYTHON_DISABLED_INSTRUMENTATIONS` or `--python_disabled_instrumentations` | medium for a Kubernetes object or Compose service; low for other YAML |
+| `[...]node:auto-instrumentations-node/register` | A YAML document loads `@opentelemetry/auto-instrumentations-node/register` (via `--require`/`-r`/`--import` or `NODE_OPTIONS`) and sets neither `OTEL_NODE_ENABLED_INSTRUMENTATIONS` nor `OTEL_NODE_DISABLED_INSTRUMENTATIONS` | medium for a Kubernetes object or Compose service; low for other YAML |
+| `<CMD\|ENTRYPOINT\|ENV>:python:...` / `...:node:...` | The same launchers appear in an `ENV` of the shipped stages or in the effective (last) `CMD`/`ENTRYPOINT`. No shipped instruction and no global `ARG` mentions the selection | low: `docker run -e` or the orchestrator can still add the selection |
+| `scripts/<name>:node:...` / `scripts/<name>:python:...` | A `package.json` script runs one of the launchers and the file does not mention the selection | low |
+| `node:getNodeAutoInstrumentations()` | `getNodeAutoInstrumentations()` or `getNodeAutoInstrumentations({})` is called and the file does not mention `OTEL_NODE_*_INSTRUMENTATIONS` | low: the function reads those variables at runtime |
+
+A repeated identity gets `#n`.
+
+Defaults, from the official docs:
+
+- Python: "The Python agent by default will detect a Python program's packages
+  and instrument any packages it can. This makes instrumentation easy, but can
+  result in too much or unwanted data."
+- Node.js: "By default, all supported instrumentation libraries are enabled."
+  That is about 45. `getNodeAutoInstrumentations()` leaves out only
+  `instrumentation-fs` and `instrumentation-host-metrics`. A per-instrumentation
+  `{ enabled: false }` takes precedence over the environment variables.
+
+Not flagged:
+
+- a selection anywhere in the same YAML document, in the shipped Dockerfile
+  stages or in the JS file (an unresolved value counts as a selection)
+- YAML documents with `envFrom:`, `env_file:` or `environmentFiles:`, because
+  the selection may be in that external env source
+- `getNodeAutoInstrumentations(<config>)` with any other argument
+- package names (`opentelemetry-instrumentation-*`), `opentelemetry-bootstrap`,
+  comments, JS strings, `RUN` lines and stages that do not ship
+- hits with `# noqa` / `# noqa: OBS-12` (YAML, Dockerfile) or
+  `// noqa: OBS-12` (JS) on the hit line or on the comment lines directly
+  above it
+
+Researched and deliberately not flagged:
+
+- Collector components that are defined but not referenced by a pipeline.
+  "Configuring a receiver does not enable it", and the same holds for the other
+  component types, so they are never started.
+- The Java agent's `otel.instrumentation.common.default-enabled=false`. The
+  docs call it advanced usage, "not recommended for most users".
+- CloudWatch agent JSON, which collects only the sections it lists.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- Helm/Go templates and YAML outside the `miniyaml` subset
+- Dockerfiles `dockerfile.py` cannot read
+- a `getNodeAutoInstrumentations(` call with unbalanced parentheses
+- development/test/CI files: the OBS-09 path tokens, also inside directory
+  names (`contract-tests/`), plus `.github/`
+
+Files without a launcher are out of scope (`Unsupported`), so the scan worker
+passes only auto-instrumentation launches to the check.
+
+### Limitations
+
+The check reads one file at a time. It cannot see:
+
+- kustomize overlays
+- Helm values merged into templates
+- env added by `docker run`
+- which libraries are installed
+- how much telemetry each instrumentation produces
+
+Not covered in v1:
+
+- Java and vendor agents (`ddtrace-run`, New Relic)
+- the ADOT/OpenTelemetry Lambda layer wrappers
+- the OpenTelemetry Operator `Instrumentation` resource
+- JSON task definitions
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs12/obs12-01-positive-input.json
+```

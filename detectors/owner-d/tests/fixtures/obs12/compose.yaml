@@ -1,0 +1,10 @@
+# Synthetic fixture for OBS-12: Compose services.
+services:
+  api:
+    image: example/api:3.1.0
+    environment:
+      - NODE_OPTIONS=--require @opentelemetry/auto-instrumentations-node/register
+      - OTEL_SERVICE_NAME=api
+  worker:
+    image: example/worker:3.1.0
+    command: /app/.venv/bin/opentelemetry-instrument celery -A tasks worker

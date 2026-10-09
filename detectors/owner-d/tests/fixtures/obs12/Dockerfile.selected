@@ -1,0 +1,8 @@
+# Synthetic fixture for OBS-12: the selection is set in the parent stage of the shipped image.
+FROM node:20-slim AS base
+ENV NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register" \
+    OTEL_NODE_ENABLED_INSTRUMENTATIONS="http,express,pg"
+
+FROM base
+COPY server.js /app/server.js
+CMD ["node", "/app/server.js"]

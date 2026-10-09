@@ -1,0 +1,38 @@
+# Synthetic fixture for OBS-12: a selection covers only its own document.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: selected
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1.0.0
+          args: ["opentelemetry-instrument", "python", "app.py"]
+          env:
+            - name: OTEL_PYTHON_DISABLED_INSTRUMENTATIONS
+              value: ${DISABLED_INSTRUMENTATIONS}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: unselected
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1.0.0
+          args:
+            - /usr/local/bin/opentelemetry-instrument
+            - python
+            - app.py
+        - name: sidecar
+          image: example/sidecar:1.0.0
+          command:
+            - sh
+            - -c
+            - |
+              pip install opentelemetry-instrumentation
+              exec opentelemetry-instrument python sidecar.py
