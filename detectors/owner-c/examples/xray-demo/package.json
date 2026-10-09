@@ -1,0 +1,10 @@
+{
+  "name": "owner-c-xray-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Traced demo workload for the owner C JS-01 detector (serial vs parallel awaits)",
+  "main": "index.js",
+  "dependencies": {
+    "aws-xray-sdk-core": "^3.10.3"
+  }
+}

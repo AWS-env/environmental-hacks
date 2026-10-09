@@ -1,0 +1,629 @@
+[
+  {
+    "id": "JS-01-01",
+    "title": "known positive: serial awaits in a loop confirmed by back-to-back X-Ray calls of the same service",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "load:await:inventory.get",
+          "line": 4,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-02",
+    "title": "trace does not name the awaited service: low confidence",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "load:await:inventory.get",
+          "line": 4,
+          "confidence": "low"
+        }
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "S3"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-03",
+    "title": "boundary: exactly min_serial_calls (3) is reported",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "load:await:inventory.get",
+          "line": 4
+        }
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 3,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-04",
+    "title": "boundary: one call fewer is not reported",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 2,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-05",
+    "title": "boundary: exactly min_serial_seconds (0.05) is reported",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "load:await:inventory.get",
+          "line": 4
+        }
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.05,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-06",
+    "title": "boundary: just under min_serial_seconds is not reported",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.0499,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-07",
+    "title": "while loop that awaits per item",
+    "files": {
+      "app.js": "async function drain(queue) {\n  while (queue.length) {\n    await inventory.process(queue.shift());\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "drain:await:inventory.process",
+          "line": 3,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-08",
+    "title": "TypeScript file",
+    "files": {
+      "app.ts": "async function load(ids: string[]): Promise<number[]> {\n  const out: number[] = [];\n  for (let i = 0; i < ids.length; i++) {\n    out.push(await inventory.get(ids[i]));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "load:await:inventory.get",
+          "line": 4,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.ts": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-09",
+    "title": "legitimate exception: retry loop",
+    "files": {
+      "app.js": "async function call(fn) {\n  for (let attempt = 0; attempt < 3; attempt++) {\n    try {\n      return await fn();\n    } catch (e) {}\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-10",
+    "title": "legitimate exception: backoff/sleep between calls (rate limiting)",
+    "files": {
+      "app.js": "async function slow(ids) {\n  for (const id of ids) {\n    await api.send(id);\n    await sleep(200);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-11",
+    "title": "legitimate exception: pagination, each page needs the previous cursor",
+    "files": {
+      "app.js": "async function all(cursor) {\n  while (cursor) {\n    cursor = await page(cursor);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-12",
+    "title": "legitimate exception: early exit once a result is found",
+    "files": {
+      "app.js": "async function find(ids) {\n  for (const id of ids) {\n    const r = await inventory.get(id);\n    if (r.ok) return r;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-13",
+    "title": "legitimate exception: for await consumes an async iterator",
+    "files": {
+      "app.js": "async function eat(source) {\n  for await (const x of source) {\n    await handle(x);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-14",
+    "title": "recommended form: Promise.all",
+    "files": {
+      "app.js": "async function load(ids) {\n  return Promise.all(ids.map((id) => inventory.get(id)));\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-15",
+    "title": "similar negative: await outside any loop",
+    "files": {
+      "app.js": "async function one(id) {\n  return await inventory.get(id);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-16",
+    "title": "similar negative: async callback is not a loop of awaits in this function",
+    "files": {
+      "app.js": "async function load(ids) {\n  ids.forEach(async (id) => {\n    await inventory.get(id);\n  });\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-17",
+    "title": "legitimate exception: author suppressed it (eslint-disable-next-line)",
+    "files": {
+      "app.js": "async function load(ids) {\n  for (const id of ids) {\n    // eslint-disable-next-line no-await-in-loop\n    await inventory.get(id);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-18",
+    "title": "two serial awaits in one loop get unique identities",
+    "files": {
+      "app.js": "async function load(ids) {\n  for (const id of ids) {\n    await inventory.get(id);\n    await inventory.get(id + 1);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "load:await:inventory.get",
+          "line": 3,
+          "confidence": "medium"
+        },
+        {
+          "identity": "load:await:inventory.get#2",
+          "line": 4,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-19",
+    "title": "missing evidence: no X-Ray telemetry -> unavailable, not clean",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no xray artifact"
+      ]
+    }
+  },
+  {
+    "id": "JS-01-20",
+    "title": "missing evidence: traces cover only one of two files -> partial",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n",
+      "cold.js": "let x = 1;\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "load:await:inventory.get",
+          "line": 4
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ],
+      "limitations_contain": [
+        "cold.js",
+        "no xray artifact"
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-01-21",
+    "title": "malformed settings: min_serial_calls must exceed 1 -> unavailable",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_serial_calls must be > 1"
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    },
+    "context": {
+      "min_serial_calls": 1
+    }
+  },
+  {
+    "id": "JS-01-22",
+    "title": "malformed settings: min_serial_seconds missing -> unavailable",
+    "files": {
+      "app.js": "async function load(ids) {\n  const out = [];\n  for (const id of ids) {\n    out.push(await inventory.get(id));\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_serial_seconds must be a number"
+      ]
+    },
+    "artifacts": {
+      "xray": {
+        "app.js": {
+          "profiler": "xray",
+          "function": "orders-fn",
+          "traces_analyzed": 3,
+          "max_serial_calls": 8,
+          "serial_wall_seconds": 0.9,
+          "serial_services": [
+            "Inventory"
+          ]
+        }
+      }
+    },
+    "context": {
+      "min_serial_seconds": null
+    }
+  },
+  {
+    "id": "JS-01-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  }
+]
