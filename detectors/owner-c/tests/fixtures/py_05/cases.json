@@ -1,0 +1,208 @@
+[
+  {
+    "id": "PY-05-01",
+    "title": "known positive: sum([...]) with big allocations",
+    "files": {
+      "rpt.py": "def total(rows):\n    return sum([r.value for r in rows])\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "total:sum(listcomp)",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "rpt.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 592115200
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-05-02",
+    "title": "boundary: exactly 10 MiB is reported",
+    "files": {
+      "rpt.py": "def total(rows):\n    return sum([r.value for r in rows])\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "total:sum(listcomp)",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "rpt.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 10485760
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-05-03",
+    "title": "boundary: one byte under 10 MiB is not reported",
+    "files": {
+      "rpt.py": "def total(rows):\n    return sum([r.value for r in rows])\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "memray": {
+        "rpt.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 10485759
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-05-04",
+    "title": "recommended form: generator expression",
+    "files": {
+      "rpt.py": "def total(rows):\n    return sum(r.value for r in rows)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "memray": {
+        "rpt.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 592115200
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-05-05",
+    "title": "max(list(map(...)))",
+    "files": {
+      "rpt.py": "def total(rows):\n    return max(list(map(f, rows)))\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "total:max(list(map))",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "rpt.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 592115200
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-05-06",
+    "title": "list(map(...)) materialized only to iterate",
+    "files": {
+      "rpt.py": "def f(rows):\n    for x in list(map(g, rows)):\n        pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:for-list(map)",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "rpt.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 592115200
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-05-07",
+    "title": "missing evidence: no memray artifact -> unavailable",
+    "files": {
+      "rpt.py": "def total(rows):\n    return sum([r.value for r in rows])\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no memray artifact"
+      ]
+    }
+  },
+  {
+    "id": "PY-05-08",
+    "title": "missing evidence: artifact covers one of two files -> partial",
+    "files": {
+      "rpt.py": "def total(rows):\n    return sum([r.value for r in rows])\n",
+      "cold.py": "x = 1\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "total:sum(listcomp)",
+          "line": 2
+        }
+      ],
+      "evaluated": [
+        "rpt.py"
+      ],
+      "limitations_contain": [
+        "cold.py"
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "rpt.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 592115200
+        }
+      }
+    }
+  },
+  {
+    "id": "PY-05-09",
+    "title": "malformed settings: threshold missing -> unavailable",
+    "files": {
+      "rpt.py": "def total(rows):\n    return sum([r.value for r in rows])\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "context.min_alloc_bytes must be a number"
+      ]
+    },
+    "artifacts": {
+      "memray": {
+        "rpt.py": {
+          "profiler": "memray",
+          "allocated_bytes_line_2": 592115200
+        }
+      }
+    },
+    "context": {
+      "min_alloc_bytes": null
+    }
+  }
+]
