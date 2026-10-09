@@ -16,5 +16,6 @@ export * from "./checks/code-c1-3/index.js";
 export * from "./checks/code-c5-1/index.js";
 export * from "./checks/code-c10-4/index.js";
 export * from "./checks/code-c6-7/index.js";
+export * from "./checks/code-c6-6/index.js";
 export * from "./contract.js";
 export * from "./registry.js";

@@ -44,6 +44,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
   - `string-concat-in-loop`: `s += x` / `s = s + x` on a string accumulator that the loop only appends to. Skipped when the loop reads the string (it is consumed every iteration anyway) or runs at most once. Low severity; local-name targets are low confidence because CPython can sometimes resize a string in place (unverified).
 - **`CODE-C6.7`**: Leaking mutable defaults (#85)
   - `mutable-default-mutated`: a list/dict/set default argument that the function body mutates, so state persists across calls. Narrower than Ruff B006 / Pylint W0102: a default that is never mutated is not reported.
+- **`CODE-C6.6`**: Leaked resource handles (#84)
+  - `unclosed-handle`: a file/socket/connection opened into a local name that is neither context-managed, closed in `finally`, nor handed on. Reliability finding with low energy weight.
 
 ## Shared contract v1
 
