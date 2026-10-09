@@ -67,6 +67,182 @@ The CLI validates the input against the shared contract, evaluates it,
 validates the result and its evidence against the input, then prints the result
 JSON (`-o FILE` writes to a file instead).
 
+## AWS telemetry route
+
+This route implements the read-only telemetry path in
+[`docs/ARCHITECTURE_FLOWS.md`](../../docs/ARCHITECTURE_FLOWS.md) §3. Three
+Lambdas read existing telemetry. Each can read through a read-only role using
+STS AssumeRole (session `owner-d-telemetry-reader`, 15 minutes). They
+normalize the data per check, evaluate the contract v1 detectors and publish
+one `detector.result.v1` event per result to the `findings-hub` bus. The
+`owner-d-findings-writer` ([`hub/`](../../hub/README.md)) validates each event
+again and stores it with `evidence: unverified`. The detectors themselves stay
+pure and never call AWS.
+
+| Lambda | Code | Reads | Checks |
+| --- | --- | --- | --- |
+| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01 (OBS-06 ready to wire) |
+| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07 ready to wire |
+| `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10 ready to wire |
+
+Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
+(plain CloudFormation). Build: `scripts/build-owner-d-telemetry.sh` (pure
+Python; boto3 comes from the runtime).
+
+### Event formats
+
+All analyzers take `repository_id`, a full 40-character `commit_sha`, an
+optional `scan_id` (default: a new UUID), `role_arn` and `external_id`
+(optional; without them the execution role reads its own project), `checks`
+(default: every registered check for that Lambda), `settings` keyed by check
+ID, `scope_per_payload` (1-200, default 50) and `dry_run`.
+
+```json
+{"repository_id": "github:AWS-env/example", "commit_sha": "<40 hex>", "scan_id": "telemetry-2026-10-10",
+ "role_arn": "<ReadOnlyRoleArn stack output>",
+ "resources": [{"type": "ec2", "id": "i-0abc12345678def00", "provisioned_capacity": 2, "capacity_unit": "vcpu"},
+               {"type": "ecs", "cluster": "web", "service": "api"}, {"type": "lambda", "name": "orders"}],
+ "discover": {"types": ["ec2", "ecs", "lambda"], "max_resources": 50, "recently_active": true, "max_pages": 5},
+ "window": {"lookback_days": 15, "period_seconds": 3600},
+ "settings": {"INF-01": {"min_window_days": 14, "min_sample_count": 100,
+                         "average_utilization_threshold": 0.1, "peak_utilization_threshold": 0.5}},
+ "dry_run": true}
+```
+
+- Telemetry analyzer. INF-01 needs `resources`, `discover`, or both. `window`
+  accepts `lookback_days` (default 15, at most 30) or `start`/`end`, plus
+  `period_seconds` (default 3600). `list_metrics` (`namespace`,
+  `metric_name`, `max_pages` ≤ 20) feeds ListMetrics checks.
+- Log analyzer. `log_groups` takes `prefix`, `max_pages` (≤ 20) and
+  `include_tags` (≤ 100 lookups). `logs` takes `log_groups` (exact names, at
+  most 50, each must match the allowlist), `prefix`, `lookback_hours`
+  (default 24, at most 168) or `start`/`end`, `limit` (default 1000) and
+  `timeout_seconds` (default 60, at most 240).
+- Trace analyzer. `xray` takes `filter_expression`, `lookback_minutes`
+  (default 60; X-Ray caps the window at 24 hours) or `start`/`end`,
+  `max_traces` (default 50, at most 100, leaving room above LLM-10's
+  `min_traces` of 10) and `max_pages`. Point `filter_expression` at the agent
+  entrypoint, e.g. `service("agent-fn")`, so the traces read are the ones
+  LLM-10 can analyze.
+- `{"probe": ["cpu_metrics" | "metrics" | "log_groups" | "logs_insights" | "traces"], "role_arn": ...}`
+  only collects. It returns counts and publishes nothing, so you can check
+  IAM and the role before any check is wired.
+
+The response, and one JSON log line per invocation, contains a per-result
+summary, collection counts (including Logs Insights `bytes_scanned`),
+`published` and `assumed_role`. It never contains the role ARN or raw
+telemetry. A `dry_run` response also includes the full `result_payloads`.
+
+### INF-01 normalization
+
+`metrics.normalize_cpu_metrics` reads `CPUUtilization` Average and Maximum per
+period. `AWS/EC2` uses `InstanceId`. `AWS/ECS` uses `ClusterName` +
+`ServiceName`, measured as a percent of the service's CPU reservation. It
+produces the INF-01 data:
+
+- `average_utilization` is the mean of the period averages. `peak_utilization`
+  is the highest period maximum. Both are fractions, capped at 1.0 with a
+  limitation when ECS exceeds its reservation.
+- `window_days` is the observed span of datapoints (not the requested
+  window). `sample_count` is the number of periods with data.
+
+Scope IDs are `resource:ec2/<instance>`, `resource:ecs/<cluster>/<service>`
+and `resource:lambda/<function>`. `provisioned_capacity` defaults to `1`
+instance/service unless the event supplies it. The following stay in scope
+without a source and get a limitation, so INF-01 reports them as not evaluated
+rather than clean:
+
+- Lambda functions, which publish no CPU utilization metric.
+- Resources without datapoints.
+- Resources whose GetMetricData pages were cut off.
+
+The default 15-day lookback leaves one day of headroom over INF-01's 14-day
+minimum.
+
+### Wiring OBS-06, OBS-07 and LLM-10 (one line each)
+
+`owner_d/aws/registry.py` lists the checks each Lambda runs. A detector module
+plugs in through a normalizer, by default `normalize_<source>(raw, *,
+settings)`. It returns contract `telemetry` sources, or `{"scope", "sources",
+"limitations"}`. Normalizers that take raw API pages use an adapter. The adapter
+builds the sources with account-free locators and drops `log_group_arn`. The
+lines are already in `CHECKS`, commented out. Uncomment each one once its
+detector is merged:
+
+```python
+TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:normalize_list_metrics", adapter="list_metrics", defaults=OBS06_DEFAULTS),
+TelemetryCheck("OBS-07", "owner_d.obs07", "log_groups", normalizer="owner_d.obs07:normalize_describe_log_groups", adapter="describe_log_groups", defaults=OBS07_DEFAULTS),
+TelemetryCheck("LLM-10", "owner_d.llm10", "traces", normalizer="owner_d.llm10:normalize_xray_traces", adapter="xray_traces", defaults=LLM10_DEFAULTS),
+```
+
+Raw shapes:
+
+- `metrics`: `{"pages": [ListMetrics responses]}`. The last page keeps
+  `NextToken` when the listing was truncated.
+- `log_groups`: `{"pages": [DescribeLogGroups responses], "logGroups": [...],
+  "tags": {name: tags} | None}`.
+- `logs_insights`: `{"rows", "statistics", "log_groups", "query"}`. The check
+  module defines `LOGS_INSIGHTS_QUERY`.
+- `traces`: `{"TraceSummaries", "Traces", "UnprocessedTraceIds"}`. The check
+  module may define `XRAY_FILTER_EXPRESSION`. The `xray_traces` adapter calls
+  `normalize_xray_traces(Traces)` and then the module's `telemetry_sources`.
+  It notes when fewer traces were read than `min_traces`.
+
+Every raw dict also has `window`, `truncated`, `collection` and
+`limitations`. `collection` holds the stable collection parameters and is
+copied into the contract `context`. `limitations` are appended to each
+result.
+
+### Deploy (ap-south-1 only)
+
+The template's `ProjectRegionOnly` rule refuses every Region except
+ap-south-1. The handlers also refuse to run anywhere else (`ALLOWED_REGION`).
+These commands are a proposal; review them before running them with your own
+profile:
+
+```bash
+export AWS_PROFILE=<your profile> AWS_REGION=ap-south-1 AWS_DEFAULT_REGION=ap-south-1
+./scripts/build-owner-d-telemetry.sh      # prints cdk/owner-d/build/owner-d-telemetry-<sha>.zip
+aws s3 cp cdk/owner-d/build/owner-d-telemetry-<sha>.zip s3://owner-d-deploy-<account>-ap-south-1/
+aws cloudformation deploy --stack-name owner-d-telemetry \
+  --template-file cdk/owner-d/telemetry.yaml --capabilities CAPABILITY_NAMED_IAM \
+  --tags owner=D project=environmental-hacks \
+  --parameter-overrides CodeBucket=owner-d-deploy-<account>-ap-south-1 CodeKey=owner-d-telemetry-<sha>.zip
+# smoke test through the simulated client role (read only, publishes nothing)
+aws lambda invoke --function-name owner-d-log-analyzer --cli-binary-format raw-in-base64-out \
+  --payload '{"probe": ["log_groups"], "role_arn": "<ReadOnlyRoleArn output>"}' /tmp/probe.json
+# INF-01 against this project's own resources, then prove persistence
+aws lambda invoke --function-name owner-d-telemetry-analyzer --cli-binary-format raw-in-base64-out \
+  --payload '{"repository_id": "<repo>", "commit_sha": "<sha>", "scan_id": "<scan>", "discover": {}, "role_arn": "<ReadOnlyRoleArn output>"}' /tmp/inf01.json
+PYTHONPATH=hub python -m findings_hub.readback --repository-id <repo> --scan-id <scan>
+```
+
+`LogQueryPattern` (default `/aws/lambda/owner-d-*`) is the only log group
+pattern that Logs Insights may query. It is the `logs:StartQuery` resource in
+both roles and the code-level allowlist. `owner-d-telemetry-readonly` trusts
+only the three analyzer roles and grants read-only actions. A real client
+role would grant the same actions, and it should require an `ExternalId`.
+
+### Cost and limits
+
+- Logs Insights bills per GB of log data scanned. Queries need an allowlisted
+  group and a bounded window (24 hours by default, at most 7 days). They run
+  one at a time, are stopped (`StopQuery`) on timeout, and report
+  `bytes_scanned`. Async invocations are not retried
+  (`MaximumRetryAttempts: 0`), so a failure never re-runs a query. Failed
+  events go to `owner-d-telemetry-dlq`, and the
+  `owner-d-telemetry-dlq-not-empty` alarm goes off.
+- GetMetricData bills per metric requested. INF-01 requests 2 metrics per
+  EC2/ECS resource, at most 200 resources, at most 10 pages per 250 resources.
+  ListMetrics, DescribeLogGroups and X-Ray reads are bounded by page and trace
+  limits.
+- Lambdas run on demand only: arm64, 256 MB, no VPC, NAT or schedule. Their
+  log groups keep 7 days.
+- This project's Lambda concurrent-executions quota is 10. Lambda refuses any
+  reserved concurrency at that quota, so `ReservedConcurrency` defaults to 0
+  (no reservation). Each handler bounds its own work: one Logs Insights query
+  in flight, fixed page, trace and resource caps.
+
 ## TST-12 — Heavy fixtures, sleeps and real network calls in unit tests
 
 Flags unit tests that do more work than their assertions need: real waits,
