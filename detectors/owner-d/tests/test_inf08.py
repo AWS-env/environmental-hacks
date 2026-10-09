@@ -287,3 +287,18 @@ class Inf08CliTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Inf08FlowParserTerminationTests(unittest.TestCase):
+    """Issue #358: tagged quoted values in flow collections must parse, malformed ones must fail fast."""
+
+    def test_tagged_quoted_flow_items_parse(self):
+        from owner_d import miniyaml
+        node, _ = miniyaml._Flow('[MyCondition, !Sub "${Deployment}", !Ref Custom]', 1, {}).parse(0)
+        self.assertEqual(miniyaml.to_python(node), ["MyCondition", "${Deployment}", "Custom"])
+
+    def test_malformed_flow_collections_raise_instead_of_looping(self):
+        from owner_d import miniyaml
+        for text in ("[a b }", "{a: 1 ]"):
+            with self.subTest(text=text), self.assertRaises(miniyaml.YamlError):
+                miniyaml._Flow(text, 1, {}).parse(0)
