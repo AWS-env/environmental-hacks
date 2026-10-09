@@ -1,0 +1,330 @@
+[
+  {
+    "id": "JS-07-01",
+    "title": "known positive: array spread of the reduce accumulator",
+    "files": {
+      "app.js": "function ids(rows) {\n  return rows.reduce((acc, r) => [...acc, r.id], []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "ids.<anonymous>:reduce-spread",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-02",
+    "title": "object spread of the accumulator",
+    "files": {
+      "app.js": "function byId(rows) {\n  return rows.reduce((acc, r) => ({ ...acc, [r.id]: r }), {});\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "byId.<anonymous>:reduce-spread",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-03",
+    "title": "acc.concat copies the accumulator",
+    "files": {
+      "app.js": "function all(rows) {\n  return rows.reduce((acc, r) => acc.concat(r.items), []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "all.<anonymous>:reduce-copy",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-04",
+    "title": "Object.assign into a fresh object copies the accumulator",
+    "files": {
+      "app.js": "function merge(rows) {\n  return rows.reduce((acc, r) => Object.assign({}, acc, r), {});\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "merge.<anonymous>:reduce-copy",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-05",
+    "title": "reassigning a spread copy inside a loop",
+    "files": {
+      "app.js": "function build(rows) {\n  let out = [];\n  for (const r of rows) {\n    out = [...out, r];\n  }\n  return out;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "build:loop-spread:out",
+          "line": 4
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-06",
+    "title": "boundary: exactly 10 MiB is reported",
+    "files": {
+      "app.js": "function ids(rows) {\n  return rows.reduce((acc, r) => [...acc, r.id], []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "ids.<anonymous>:reduce-spread",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 10485760
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-07",
+    "title": "boundary: one byte under 10 MiB is not reported",
+    "files": {
+      "app.js": "function ids(rows) {\n  return rows.reduce((acc, r) => [...acc, r.id], []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 10485759
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-08",
+    "title": "recommended form: mutate the accumulator",
+    "files": {
+      "app.js": "function ids(rows) {\n  return rows.reduce((acc, r) => {\n    acc.push(r.id);\n    return acc;\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-09",
+    "title": "similar negative: spreading something other than the accumulator",
+    "files": {
+      "app.js": "function f(rows) {\n  return rows.reduce((acc, r) => acc + [...r.items, 1].length, 0);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-10",
+    "title": "similar negative: copying inside a loop into a different variable",
+    "files": {
+      "app.js": "function f(rows) {\n  let out = [];\n  for (const r of rows) {\n    const copy = [...out];\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-11",
+    "title": "legitimate exception: author suppressed it",
+    "files": {
+      "app.js": "function ids(rows) {\n  // eslint-disable-next-line no-accumulating-spread\n  return rows.reduce((acc, r) => [...acc, r.id], []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_3": 52428800
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-07-12",
+    "title": "malformed settings: threshold out of range -> unavailable",
+    "files": {
+      "app.js": "function ids(rows) {\n  return rows.reduce((acc, r) => [...acc, r.id], []);\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_alloc_bytes must be > 0"
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 52428800
+        }
+      }
+    },
+    "context": {
+      "min_alloc_bytes": 0
+    }
+  },
+  {
+    "id": "JS-07-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "JS-07-91",
+    "title": "no profiler artifact -> unavailable, not clean",
+    "files": {
+      "app.js": "function ids(rows) {\n  return rows.reduce((acc, r) => [...acc, r.id], []);\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no node-heap artifact"
+      ]
+    }
+  },
+  {
+    "id": "JS-07-92",
+    "title": "artifact covers only one of two files -> partial",
+    "files": {
+      "app.js": "function ids(rows) {\n  return rows.reduce((acc, r) => [...acc, r.id], []);\n}\n",
+      "cold.js": "let x = 1;\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "ids.<anonymous>:reduce-spread",
+          "line": 2
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ],
+      "limitations_contain": [
+        "cold.js",
+        "no node-heap artifact"
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 52428800
+        }
+      }
+    }
+  }
+]

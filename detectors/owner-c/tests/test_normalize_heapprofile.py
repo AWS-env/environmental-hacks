@@ -28,6 +28,7 @@ class HeapProfileTests(unittest.TestCase):
         expected = {
             "JS-03": ("cloneRows.<anonymous>:JSON.parse(JSON.stringify)", line_of("JSON.stringify")),
             "JS-05": ("names:filter.map.map", line_of("rows.filter")),
+            "JS-07": ("ids.<anonymous>:reduce-spread", line_of("[...acc")),
         }
         for check, (identity, line) in expected.items():
             with self.subTest(check=check):
