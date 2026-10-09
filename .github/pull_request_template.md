@@ -33,6 +33,7 @@ Closes #
 - [ ] CI is green
 - [ ] Tests added/updated where behaviour changed
 - [ ] Docs updated (if user-facing)
+- [ ] AWS CLI/MCP access followed `docs/AWS_AGENT_WORKFLOW.md` (if applicable)
 - [ ] No secrets, credentials, or large binaries committed
 - [ ] Scope kept small (< ~400 changed lines)
 

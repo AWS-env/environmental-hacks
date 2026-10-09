@@ -38,6 +38,8 @@ See [`docs/WORKFLOW.md`](docs/WORKFLOW.md) for the full loop and [`CONTRIBUTING.
 
 Open decisions (idea, track, stack) live in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
+For agent-assisted AWS work, use the shared handshake in [`docs/AWS_AGENT_WORKFLOW.md`](docs/AWS_AGENT_WORKFLOW.md): agents ask before using AWS CLI/MCP, then verify local profile identity and selected Region before inspecting service state.
+
 ## Repo layout
 
 ```
