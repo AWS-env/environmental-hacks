@@ -1,0 +1,371 @@
+[
+  {
+    "id": "JS-04-01",
+    "title": "known positive: readFileSync in a hot function",
+    "files": {
+      "app.js": "const fs = require('node:fs');\nfunction readConfig(p) {\n  return fs.readFileSync(p, 'utf8');\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "readConfig:fs.readFileSync",
+          "line": 3,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.5
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-02",
+    "title": "line self time on the call raises confidence",
+    "files": {
+      "app.js": "const fs = require('node:fs');\nfunction readConfig(p) {\n  return fs.readFileSync(p, 'utf8');\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "readConfig:fs.readFileSync",
+          "line": 3,
+          "confidence": "high"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.5,
+          "time_share_line_3": 0.45
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-03",
+    "title": "named ES import of a sync function",
+    "files": {
+      "app.js": "import { readFileSync } from 'node:fs';\nexport function load(p) {\n  return readFileSync(p);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "load:fs.readFileSync",
+          "line": 3
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.3
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-04",
+    "title": "child_process execSync",
+    "files": {
+      "app.js": "const cp = require('child_process');\nfunction run(c) {\n  return cp.execSync(c);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "run:child_process.execSync",
+          "line": 3
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.3
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-05",
+    "title": "destructured require of a crypto sync function",
+    "files": {
+      "app.js": "const { pbkdf2Sync } = require('crypto');\nfunction hash(pw) {\n  return pbkdf2Sync(pw, 's', 1e5, 64, 'sha512');\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "hash:crypto.pbkdf2Sync",
+          "line": 3
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.3
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-06",
+    "title": "boundary: share exactly at the threshold is reported",
+    "files": {
+      "app.js": "const fs = require('node:fs');\nfunction readConfig(p) {\n  return fs.readFileSync(p, 'utf8');\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "readConfig:fs.readFileSync",
+          "line": 3
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.05
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-07",
+    "title": "boundary: just below the threshold is not reported",
+    "files": {
+      "app.js": "const fs = require('node:fs');\nfunction readConfig(p) {\n  return fs.readFileSync(p, 'utf8');\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.0499
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-08",
+    "title": "legitimate exception: start-up read at module top level",
+    "files": {
+      "app.js": "const fs = require('fs');\nconst cfg = fs.readFileSync('config.json', 'utf8');\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-09",
+    "title": "recommended form: async fs.promises",
+    "files": {
+      "app.js": "const fsp = require('node:fs/promises');\nasync function readConfig(p) {\n  return fsp.readFile(p, 'utf8');\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-10",
+    "title": "similar negative: a method that merely ends in Sync on another object",
+    "files": {
+      "app.js": "function f(cache) {\n  return cache.readFileSync('x');\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-11",
+    "title": "legitimate exception: author suppressed it",
+    "files": {
+      "app.js": "const fs = require('fs');\nfunction f(p) {\n  // eslint-disable-next-line n/no-sync\n  return fs.readFileSync(p);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-12",
+    "title": "malformed settings: threshold out of range -> unavailable",
+    "files": {
+      "app.js": "const fs = require('node:fs');\nfunction readConfig(p) {\n  return fs.readFileSync(p, 'utf8');\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_time_share must be in (0, 1]"
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.5
+        }
+      }
+    },
+    "context": {
+      "min_time_share": 0
+    }
+  },
+  {
+    "id": "JS-04-13",
+    "title": "known positive: realpathSync (a sync fs call beyond the common read/write set) in a hot function",
+    "files": {
+      "app.js": "const fs = require('node:fs');\nfunction resolveRoot(p) {\n  return fs.realpathSync(p);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "resolveRoot:fs.realpathSync",
+          "line": 3,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.5
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-04-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "JS-04-91",
+    "title": "no profiler artifact -> unavailable, not clean",
+    "files": {
+      "app.js": "const fs = require('node:fs');\nfunction readConfig(p) {\n  return fs.readFileSync(p, 'utf8');\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no node-cpu artifact"
+      ]
+    }
+  },
+  {
+    "id": "JS-04-92",
+    "title": "artifact covers only one of two files -> partial",
+    "files": {
+      "app.js": "const fs = require('node:fs');\nfunction readConfig(p) {\n  return fs.readFileSync(p, 'utf8');\n}\n",
+      "cold.js": "let x = 1;\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "readConfig:fs.readFileSync",
+          "line": 3
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ],
+      "limitations_contain": [
+        "cold.js",
+        "no node-cpu artifact"
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.5
+        }
+      }
+    }
+  }
+]

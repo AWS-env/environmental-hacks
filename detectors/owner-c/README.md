@@ -23,6 +23,7 @@ stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`)
 | CODE-RT.2 | Thread/executor hop awaited around trivial work (Python asyncio) | static | #99 |
 | JS-06 | Listeners, timers, subscriptions without cleanup | static | #190 |
 | JS-02 | `includes`/`indexOf`/`find`/`some` inside loops | static candidate + V8 CPU profile | #186 |
+| JS-04 | Synchronous `fs` / `child_process` / `crypto` / `zlib` calls | static candidate + V8 CPU profile | #188 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
@@ -84,7 +85,7 @@ declares every exclusion in `context`, so a file left out is a documented choice
 | `exclude_tests` | Test files (`tests/`, `test_*.py`, `conftest.py`) are out of scope; test-suite waste belongs to the TST checks | `true` |
 | `max_file_bytes` | Larger files are out of scope | `1000000` |
 | `excluded_dirs` | Vendored/build directories out of scope | `.git`, `node_modules`, `venv`, ... |
-| `min_time_share` (PY-01, JS-02) | Fraction of sampled time a line/function must be on the stack | `0.05` |
+| `min_time_share` (PY-01, JS-02, JS-04) | Fraction of sampled time a line/function must be on the stack | `0.05` |
 | `min_alloc_bytes` (PY-05, PY-11) | Bytes allocated at a line/function that count as significant | `10485760` |
 | `reference_date` (CODE-RT.6) | "As of" date for end-of-life comparisons | today (ISO date) |
 
@@ -218,6 +219,11 @@ Limitation: handler identity and capture flags are not compared; one-shot `setTi
 Loop-nested (including `forEach`/`map`/... callbacks) lookups on non-string receivers, confirmed when the enclosing function
 holds at least `min_time_share` of busy CPU samples. Identity: `qualname:method`. Confidence: medium, high when a profiled line
 inside the call is itself on the stack.
+
+### JS-04 - synchronous `fs` / `child_process` / `crypto` / `zlib` calls
+
+Calls resolved through `require`/`import` to a known sync API (`readFileSync`, `execSync`, `pbkdf2Sync`, `gzipSync`, ...)
+inside a function, confirmed by the CPU profile. Module top level (start-up) is ignored. Identity: `qualname:module.function`.
 
 ## AWS deployment (Free Plan, project Region)
 

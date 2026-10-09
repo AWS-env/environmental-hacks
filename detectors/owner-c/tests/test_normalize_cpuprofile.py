@@ -43,6 +43,7 @@ class CpuProfileTests(unittest.TestCase):
         artifacts = normalize_all({"cpuprofile": CPU}, [("app.js", APP)])
         expected = {
             "JS-02": ("lookup:items.includes", line_of("items.includes")),
+            "JS-04": ("readSelf:fs.readFileSync", line_of("fs.readFileSync")),
         }
         for check, (identity, line) in expected.items():
             with self.subTest(check=check):
