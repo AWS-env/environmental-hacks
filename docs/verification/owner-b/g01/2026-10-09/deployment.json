@@ -1,0 +1,469 @@
+{
+  "group": "G01",
+  "date": "2026-10-09",
+  "profile": "shreyasdookie",
+  "region": "eu-north-1",
+  "identity": {
+    "UserId": "AIDA3F6AT3JPVA6RMQUZM",
+    "Account": "768666229343",
+    "Arn": "arn:aws:iam::768666229343:user/shreyas"
+  },
+  "base_git_commit": "bfc72f95bb21a41218688d4ebeffae6fd85c28eb",
+  "working_tree_uncommitted": true,
+  "detector_version": "1.0.0",
+  "rule_version": "g01-1",
+  "package_lock_sha256": "eb4998392cca510898771306353ecd12f276ec8295152aee40f8f1886465d65b",
+  "code_archive_sha256": "956226a7f22d1332524983a4a0ca7fc42a2bb00febb7ddb587e4a92f8b987c49",
+  "lambda_code_sha256_base64": "lWImp/ItEzJSSYOkoMp/xCorsA/rt921h+SpL4uYfEk=",
+  "code_object": {
+    "AcceptRanges": "bytes",
+    "LastModified": "2026-10-09T16:49:37+00:00",
+    "ContentLength": 2051966,
+    "ETag": "\"134472c588504d1d644c76449477d1b6\"",
+    "VersionId": "SFjHJeXWf0z7nr1x7xopW_29gWaWOTXu",
+    "ContentType": "binary/octet-stream",
+    "ServerSideEncryption": "AES256",
+    "Metadata": {}
+  },
+  "code_key": "code/956226a7f22d1332524983a4a0ca7fc42a2bb00febb7ddb587e4a92f8b987c49.zip",
+  "artifact_bucket": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq",
+  "artifact_stack": {
+    "StackId": "arn:aws:cloudformation:eu-north-1:768666229343:stack/owner-b-artifacts/359e4e40-c3ff-11f1-94e1-0e0743f7d047",
+    "StackName": "owner-b-artifacts",
+    "ChangeSetId": "arn:aws:cloudformation:eu-north-1:768666229343:changeSet/g01-artifacts-create/15233879-9f18-4e92-b591-9f2a45e3fc6d",
+    "CreationTime": "2026-10-09T16:33:50.949000+00:00",
+    "LastUpdatedTime": "2026-10-09T16:34:38.630000+00:00",
+    "RollbackConfiguration": {},
+    "StackStatus": "CREATE_COMPLETE",
+    "DisableRollback": false,
+    "DeploymentConfig": {
+      "Mode": "STANDARD",
+      "DisableRollback": false
+    },
+    "NotificationARNs": [],
+    "Outputs": [
+      {
+        "OutputKey": "ArtifactBucket",
+        "OutputValue": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq"
+      }
+    ],
+    "Tags": [
+      {
+        "Key": "owner",
+        "Value": "B"
+      }
+    ],
+    "EnableTerminationProtection": false,
+    "DriftInformation": {
+      "StackDriftStatus": "NOT_CHECKED"
+    },
+    "LastOperations": [
+      {
+        "OperationType": "CREATE_STACK",
+        "OperationId": "b5729f12-bcb2-492b-9c21-0b0d6502fbf7"
+      }
+    ]
+  },
+  "function_stack": {
+    "StackId": "arn:aws:cloudformation:eu-north-1:768666229343:stack/owner-b-g01/3bc18b60-c400-11f1-9d6b-0effdeedc6b3",
+    "StackName": "owner-b-g01",
+    "ChangeSetId": "arn:aws:cloudformation:eu-north-1:768666229343:changeSet/g01-final-code/f7cb41bd-5d1d-46ff-8229-4a19f2779dfd",
+    "CreationTime": "2026-10-09T16:41:10.734000+00:00",
+    "LastUpdatedTime": "2026-10-09T16:51:22.759000+00:00",
+    "RollbackConfiguration": {},
+    "StackStatus": "UPDATE_COMPLETE",
+    "DisableRollback": false,
+    "DeploymentConfig": {
+      "Mode": "STANDARD",
+      "DisableRollback": false
+    },
+    "NotificationARNs": [],
+    "Capabilities": [
+      "CAPABILITY_IAM"
+    ],
+    "Outputs": [
+      {
+        "OutputKey": "staticVersionArn",
+        "OutputValue": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-static-scan:2"
+      },
+      {
+        "OutputKey": "logVersionArn",
+        "OutputValue": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-log-analyzer:2"
+      },
+      {
+        "OutputKey": "staticArn",
+        "OutputValue": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-static-scan"
+      },
+      {
+        "OutputKey": "RealLogsStatus",
+        "OutputValue": "Allowlist configured; real client acquisition NOT certified"
+      },
+      {
+        "OutputKey": "HubStatus",
+        "OutputValue": "BLOCKED: Owner D hub missing"
+      },
+      {
+        "OutputKey": "logArn",
+        "OutputValue": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-log-analyzer"
+      }
+    ],
+    "Tags": [
+      {
+        "Key": "owner",
+        "Value": "B"
+      }
+    ],
+    "EnableTerminationProtection": false,
+    "DriftInformation": {
+      "StackDriftStatus": "NOT_CHECKED"
+    },
+    "LastOperations": [
+      {
+        "OperationType": "UPDATE_STACK",
+        "OperationId": "6d2767fe-65cb-4dd7-aff0-f30fd8c5c990"
+      }
+    ]
+  },
+  "functions": [
+    {
+      "FunctionName": "owner-b-static-scan",
+      "FunctionArn": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-static-scan:2",
+      "Runtime": "nodejs22.x",
+      "Role": "arn:aws:iam::768666229343:role/owner-b-g01-staticExecutionRoleD660F62F-gR1HJxugOKj1",
+      "Handler": "static.handler",
+      "CodeSize": 2051966,
+      "Description": "",
+      "Timeout": 90,
+      "MemorySize": 512,
+      "LastModified": "2026-10-09T16:51:27.000+0000",
+      "CodeSha256": "lWImp/ItEzJSSYOkoMp/xCorsA/rt921h+SpL4uYfEk=",
+      "Version": "2",
+      "DeadLetterConfig": {
+        "TargetArn": "arn:aws:sqs:eu-north-1:768666229343:owner-b-g01-staticFailures758E4391-cG865Xz40CA0"
+      },
+      "Environment": {
+        "Variables": {
+          "QUERY_LOG_GROUPS": "[\"/aws/lambda/owner-b-static-scan\"]",
+          "ARTIFACT_BUCKET": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq",
+          "FINDINGS_HUB_ARN": ""
+        }
+      },
+      "TracingConfig": {
+        "Mode": "PassThrough"
+      },
+      "RevisionId": "9b646b8c-ab3b-4b22-8ed5-d3a862dc7afd",
+      "State": "Active",
+      "LastUpdateStatus": "Successful",
+      "PackageType": "Zip",
+      "Architectures": [
+        "arm64"
+      ],
+      "EphemeralStorage": {
+        "Size": 512
+      },
+      "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:eu-north-1::runtime:775dab0d220a0b97f3ec34fe1692d7a07b5d13049153b00f03204c9543bd69e4"
+      },
+      "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/owner-b-static-scan"
+      }
+    },
+    {
+      "FunctionName": "owner-b-log-analyzer",
+      "FunctionArn": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-log-analyzer:2",
+      "Runtime": "nodejs22.x",
+      "Role": "arn:aws:iam::768666229343:role/owner-b-g01-logExecutionRole2BB26242-1SYyC1DWyNef",
+      "Handler": "log.handler",
+      "CodeSize": 2051966,
+      "Description": "",
+      "Timeout": 90,
+      "MemorySize": 512,
+      "LastModified": "2026-10-09T16:51:28.000+0000",
+      "CodeSha256": "lWImp/ItEzJSSYOkoMp/xCorsA/rt921h+SpL4uYfEk=",
+      "Version": "2",
+      "DeadLetterConfig": {
+        "TargetArn": "arn:aws:sqs:eu-north-1:768666229343:owner-b-g01-logFailuresB48E287C-mWaiyuLsdrAl"
+      },
+      "Environment": {
+        "Variables": {
+          "QUERY_LOG_GROUPS": "[\"/aws/lambda/owner-b-static-scan\"]",
+          "ARTIFACT_BUCKET": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq",
+          "FINDINGS_HUB_ARN": ""
+        }
+      },
+      "TracingConfig": {
+        "Mode": "PassThrough"
+      },
+      "RevisionId": "233c6e91-a519-4d4b-8a10-594309f8db05",
+      "State": "Active",
+      "LastUpdateStatus": "Successful",
+      "PackageType": "Zip",
+      "Architectures": [
+        "arm64"
+      ],
+      "EphemeralStorage": {
+        "Size": 512
+      },
+      "SnapStart": {
+        "ApplyOn": "None",
+        "OptimizationStatus": "Off"
+      },
+      "RuntimeVersionConfig": {
+        "RuntimeVersionArn": "arn:aws:lambda:eu-north-1::runtime:775dab0d220a0b97f3ec34fe1692d7a07b5d13049153b00f03204c9543bd69e4"
+      },
+      "LoggingConfig": {
+        "LogFormat": "Text",
+        "LogGroup": "/aws/lambda/owner-b-log-analyzer"
+      }
+    }
+  ],
+  "change_sets": {
+    "artifacts": "arn:aws:cloudformation:eu-north-1:768666229343:changeSet/g01-artifacts-create/15233879-9f18-4e92-b591-9f2a45e3fc6d",
+    "functions": "arn:aws:cloudformation:eu-north-1:768666229343:changeSet/g01-functions-create/7ab8c16f-3fda-4c66-a5c7-7db190f91f41",
+    "final_update": "arn:aws:cloudformation:eu-north-1:768666229343:changeSet/g01-final-code/f7cb41bd-5d1d-46ff-8229-4a19f2779dfd"
+  },
+  "verification": {
+    "node_tests": 55,
+    "python_contract_tests": 20,
+    "lint": "passed",
+    "typecheck": "passed",
+    "npm_ci": "passed",
+    "cdk_strict_synth": "passed",
+    "cloudformation": "CREATE_COMPLETE artifacts; UPDATE_COMPLETE functions",
+    "deployed_smoke_cases": 12,
+    "real_operational_log_queries": 2,
+    "duplicate_same_artifact": true
+  },
+  "blockers": [
+    "Owner D findings-hub bus, ingestion target and report persistence are absent in eu-north-1.",
+    "No authorized real client query logs/source mapping; operational smoke queries returned zero matching events.",
+    "Independent reviewer reproduction is not performed."
+  ],
+  "resource_retention": "User asked for a recommendation; recommended keep for next groups. No cleanup authorized or performed.",
+  "api_verification": {
+    "initial_discovery": [
+      {
+        "service": "sts",
+        "operation": "GetCallerIdentity",
+        "status": "success"
+      },
+      {
+        "service": "cloudformation",
+        "operation": "DescribeStacks",
+        "status": "success",
+        "n_items": {
+          "Stacks": 0
+        }
+      },
+      {
+        "service": "lambda",
+        "operation": "ListFunctions",
+        "status": "success",
+        "n_items": {
+          "Functions": 0
+        }
+      },
+      {
+        "service": "logs",
+        "operation": "DescribeLogGroups",
+        "status": "success",
+        "n_items": {
+          "logGroups": 0
+        }
+      },
+      {
+        "service": "events",
+        "operation": "ListEventBuses",
+        "status": "success",
+        "n_items": {
+          "EventBuses": 1
+        }
+      },
+      {
+        "service": "dynamodb",
+        "operation": "ListTables",
+        "status": "success",
+        "n_items": {
+          "TableNames": 0
+        }
+      }
+    ],
+    "final_invocations": [
+      {
+        "service": "lambda",
+        "operation": "GetFunctionConfiguration",
+        "status": "success",
+        "n_items": {
+          "Architectures": 1
+        }
+      },
+      {
+        "service": "lambda",
+        "operation": "GetFunctionConfiguration",
+        "status": "success",
+        "n_items": {
+          "Architectures": 1
+        }
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      },
+      {
+        "service": "lambda",
+        "operation": "Invoke",
+        "status": "success"
+      }
+    ],
+    "readbacks": [
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      }
+    ],
+    "query_result_recheck": [
+      {
+        "service": "s3",
+        "operation": "GetObject",
+        "status": "success"
+      },
+      {
+        "service": "logs",
+        "operation": "GetQueryResults",
+        "status": "success",
+        "n_items": {
+          "results": 0
+        }
+      },
+      {
+        "service": "logs",
+        "operation": "DescribeLogStreams",
+        "status": "success",
+        "n_items": {
+          "logStreams": 2
+        }
+      }
+    ]
+  },
+  "duplicate_invocation": {
+    "request_id": "ce1d2d7a-1e71-4954-b3dc-6186d3b0e41a",
+    "artifact": {
+      "bucket": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq",
+      "key": "results/d72584c579080ecffee6012d0606b730/35f997a5dcacefe767ccbe77c9483cec4ffc9ccb3462fe83be9f0ac55fb5b7a2.json",
+      "sha256": "35f997a5dcacefe767ccbe77c9483cec4ffc9ccb3462fe83be9f0ac55fb5b7a2"
+    },
+    "version": "2"
+  }
+}
