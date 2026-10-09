@@ -131,14 +131,16 @@ export function analyzePythonScope(
   const importedSymbols: ImportedSymbol[] = [];
   const allReferencedIdentifiers = new Set<string>();
   const stringLiteralsList: string[] = [];
-  const importNodes = new Set<Parser.SyntaxNode>();
+  // Node ids, not wrapper objects: node-tree-sitter returns a new wrapper per access,
+  // so Set membership by object identity fails nondeterministically.
+  const importNodeIds = new Set<number>();
 
   const allExportedSymbols = extractAllExports(rootNode);
 
   // First pass: find imports and identify import statement nodes
   function collectImports(node: Parser.SyntaxNode) {
     if (node.type === "import_statement") {
-      importNodes.add(node);
+      importNodeIds.add(node.id);
       const startLine = node.startPosition.row + 1;
       const endLine = node.endPosition.row + 1;
       const snippet = sourceLines[node.startPosition.row]?.trim() || node.text;
@@ -187,7 +189,7 @@ export function analyzePythonScope(
         }
       }
     } else if (node.type === "import_from_statement") {
-      importNodes.add(node);
+      importNodeIds.add(node.id);
       const startLine = node.startPosition.row + 1;
       const endLine = node.endPosition.row + 1;
       const snippet = sourceLines[node.startPosition.row]?.trim() || node.text;
@@ -263,7 +265,7 @@ export function analyzePythonScope(
   function isInsideImport(node: Parser.SyntaxNode): boolean {
     let curr: Parser.SyntaxNode | null = node;
     while (curr) {
-      if (importNodes.has(curr)) {
+      if (importNodeIds.has(curr.id)) {
         return true;
       }
       curr = curr.parent;
