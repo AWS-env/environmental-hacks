@@ -1010,3 +1010,59 @@ measurements are emitted. The JS proxy (`no-magic-numbers`) is out of scope.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst04/tst04-01-positive-input.json
 ```
+
+## TST-07 — Verbose Test
+
+Flags tests whose body has more statements than a configured limit, following
+the size rule of JNose's
+[Verbose Test](https://github.com/arieslab/jnose-core/blob/main/src/main/java/io/github/arieslab/core/testsmelldetector/testsmell/smell/VerboseTest.java)
+("if a test method contains statements that exceed a certain threshold, the
+method is marked as smelly"; `MAX_STATEMENTS = 30`). Meszaros lists Verbose
+Test as another name for
+[Obscure Test](http://xunitpatterns.com/Obscure%20Test.html). It is static
+(`ast` only) and uses the same input, test recognition and per-file "nothing to
+flag" note as TST-06.
+
+### Context settings (required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_test_statements` | Most statements a test body may have | `30` |
+
+The limit is a judgment call, so it is required. `30` is JNose's default.
+A missing or invalid setting makes the result `unavailable`.
+
+### Detection rule
+
+A test is flagged when its body has strictly more than `max_test_statements`
+statements. JNose compares the line span of the body; this check counts
+statements instead, so it flags fewer tests than the line rule (only
+semicolon-joined statements can make the count exceed the line count):
+
+- statements in nested blocks (`if`, `for`, `with`, `try`) and in nested
+  functions and classes count;
+- the docstring, comments, blank lines and the extra lines of a multi-line
+  statement (a large expected literal, a call with many arguments) do not.
+
+`setUp`, fixtures and helpers called by the test are not counted, and
+unconditionally skipped tests are not flagged. One finding per test; evidence
+starts at the `def` line. The summary gives the statement count, the code line
+count and how many statements come before the first assertion (in-line setup).
+Confidence:
+
+- `medium` above twice the limit;
+- `low` otherwise.
+
+`# noqa: TST-07` on the `def` line suppresses a finding. The identity is the
+qualified test name, with `#n` for a redefined name.
+
+The taxonomy cites a moderate energy association for this smell (Kendall tau
+0.246, SRC-15). That evidence comes from JUnit/Maven projects and is not shown
+to transfer to Python, so no measurements are emitted.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst07/tst07-01-positive-input.json
+```
