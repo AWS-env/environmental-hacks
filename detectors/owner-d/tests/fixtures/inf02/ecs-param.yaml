@@ -1,0 +1,12 @@
+# Synthetic INF-02 fixture: DesiredCount is a stack parameter, so the count is set at deploy time.
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  DesiredCount:
+    Type: Number
+    Default: 3
+Resources:
+  Api:
+    Type: AWS::ECS::Service
+    Properties:
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref ApiTask

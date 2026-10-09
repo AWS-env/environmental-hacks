@@ -1,0 +1,8 @@
+# Synthetic INF-02 fixture: valid YAML that is not a deployment manifest.
+name: ci
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "${{ github.sha }}"
