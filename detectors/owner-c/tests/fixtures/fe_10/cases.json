@@ -1,0 +1,82 @@
+[
+  {
+    "id": "FE-10-01",
+    "title": "known positive: the LCP image is not discoverable in the initial HTML (client-side rendered; real capture)",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/csr.html": {
+          "profiler": "lighthouse",
+          "lcp_request_discoverable": false,
+          "lcp_selector": "body > div#root > img#hero"
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "lcp-not-discoverable",
+          "line": 0,
+          "confidence": "high"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-10-02",
+    "title": "similar negative: the LCP request is discoverable in the document",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/csr.html": {
+          "profiler": "lighthouse",
+          "lcp_request_discoverable": true,
+          "lcp_selector": "body > img#hero"
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-10-03",
+    "title": "boundary: lazy-loaded but discoverable is FE-02, not FE-10",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/csr.html": {
+          "profiler": "lighthouse",
+          "lcp_request_discoverable": true,
+          "lcp_eagerly_loaded": false
+        }
+      }
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-10-04",
+    "title": "malformed artifact: requestDiscoverable is a number -> unavailable, no clean claim",
+    "files": {},
+    "artifacts": {
+      "lighthouse": {
+        "page:/csr.html": {
+          "profiler": "lighthouse",
+          "lcp_request_discoverable": 0
+        }
+      }
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "lcp_request_discoverable"
+      ]
+    }
+  }
+]

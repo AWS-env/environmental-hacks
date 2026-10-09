@@ -335,3 +335,4 @@ Research and decisions: [`category-4-frontend.md`](../../docs/research/category-
 | FE-15 | Forced synchronous layout per script (`forced-reflow-insight`, at least `min_reflow_ms`) | Lighthouse report (artifact-only) | medium: tested on sample reports; threshold is ours (30 ms) | #162 |
 | FE-16 | Large DOM (`dom-size-insight`, more than `max_dom_elements` elements) | Lighthouse report (artifact-only) | medium: tested on sample reports; threshold is ours (1400) | #163 |
 | FE-02 | Lazy-loaded Largest Contentful Paint image (`lcp-discovery-insight` `eagerlyLoaded`) | Lighthouse report (artifact-only) | medium: real captures of our own test pages | #150 |
+| FE-10 | LCP image not discoverable in the initial HTML (`lcp-discovery-insight` `requestDiscoverable`) | Lighthouse report (artifact-only) | medium: real captures of our own test pages | #157 |
