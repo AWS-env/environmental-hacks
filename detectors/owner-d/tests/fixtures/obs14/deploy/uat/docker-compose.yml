@@ -1,0 +1,22 @@
+# Synthetic OBS-14 fixture (not production data): exceptions in a UAT compose file.
+services:
+  suppressed:
+    image: example/api:1.0
+    environment:
+      # noqa: OBS-14
+      OTEL_EXPORTER_OTLP_ENDPOINT: https://api.honeycomb.io
+  other-rule:
+    image: example/api:1.0
+    environment:
+      # noqa: E501
+      OTEL_EXPORTER_OTLP_ENDPOINT: https://api.honeycomb.io
+  declared:
+    image: example/api:1.0
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: https://api.honeycomb.io
+      OTEL_RESOURCE_ATTRIBUTES: service.name=api,deployment.environment=production
+  disabled:
+    image: example/api:1.0
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: https://api.honeycomb.io
+      OTEL_SDK_DISABLED: "true"

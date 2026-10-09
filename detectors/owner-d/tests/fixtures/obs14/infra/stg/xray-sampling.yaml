@@ -1,0 +1,33 @@
+# Synthetic OBS-14 fixture (not production data): X-Ray sampling rules for the stg account.
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  CatchAllRule:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: catch-all
+        Priority: 100
+        ReservoirSize: 1
+        FixedRate: 1
+        ServiceName: "*"
+        ServiceType: "*"
+        Host: "*"
+        HTTPMethod: "*"
+        URLPath: "*"
+        ResourceARN: "*"
+        Version: 1
+  CheckoutRule:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: checkout-sampled
+        Priority: 10
+        ReservoirSize: 1
+        FixedRate: 0.05
+        ServiceName: checkout
+        ServiceType: "*"
+        Host: "*"
+        HTTPMethod: "*"
+        URLPath: "*"
+        ResourceARN: "*"
+        Version: 1

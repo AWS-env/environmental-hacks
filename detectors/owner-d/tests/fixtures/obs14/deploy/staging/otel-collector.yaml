@@ -1,0 +1,39 @@
+# Synthetic OBS-14 fixture (not production data): a staging collector that samples and filters.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+processors:
+  batch:
+  probabilistic_sampler:
+    sampling_percentage: 10
+  filter/drop-debug:
+    logs:
+      log_record:
+        - severity_number < SEVERITY_NUMBER_INFO
+exporters:
+  awsxray:
+    region: ap-south-1
+  datadog:
+    api:
+      key: ${env:DD_API_KEY}
+  otlp/jaeger:
+    endpoint: jaeger:4317
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [probabilistic_sampler, batch]
+      exporters: [awsxray]
+    traces/local:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/jaeger]
+    logs:
+      receivers: [otlp]
+      processors: [filter/drop-debug, batch]
+      exporters: [datadog]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [datadog]

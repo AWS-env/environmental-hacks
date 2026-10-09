@@ -1,0 +1,17 @@
+# Synthetic OBS-14 fixture (not production data): a staging X-Ray rule that samples 5%.
+Resources:
+  DefaultRule:
+    Type: AWS::XRay::SamplingRule
+    Properties:
+      SamplingRule:
+        RuleName: staging-default
+        Priority: 100
+        ReservoirSize: 1
+        FixedRate: 0.05
+        ServiceName: "*"
+        ServiceType: "*"
+        Host: "*"
+        HTTPMethod: "*"
+        URLPath: "*"
+        ResourceARN: "*"
+        Version: 1

@@ -1,0 +1,28 @@
+# Synthetic OBS-14 fixture (not production data): collector exceptions in UAT.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+connectors:
+  spanmetrics:
+exporters:
+  awsxray:
+    endpoint: http://localhost:4566
+    region: us-east-1
+  datadog:
+    api:
+      key: ${env:DD_API_KEY}
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [awsxray, spanmetrics]
+    traces/derived:
+      receivers: [spanmetrics]
+      exporters: [datadog]
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp/elsewhere]
+    logs/suppressed:  # noqa: OBS-14
+      receivers: [otlp]
+      exporters: [datadog]

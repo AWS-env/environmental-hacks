@@ -1,0 +1,15 @@
+# Synthetic OBS-14 fixture (not production data): QA compose file shipping to New Relic.
+services:
+  api:
+    image: example/api:1.0
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: https://otlp.nr-data.net:4317
+      OTEL_RESOURCE_ATTRIBUTES: service.name=api
+      OTEL_SERVICE_NAME: api
+  worker:
+    image: example/worker:1.0
+    environment:
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://otlp.eu01.nr-data.net/v1/traces
+      - OTEL_TRACES_SAMPLER=parentbased_traceidratio
+      - OTEL_TRACES_SAMPLER_ARG=1.0
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=worker,deployment.environment.name=qa

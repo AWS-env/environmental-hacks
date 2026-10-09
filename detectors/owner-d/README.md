@@ -2520,3 +2520,126 @@ Not covered in v1:
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs12/obs12-01-positive-input.json
 ```
+
+## OBS-14 — Dev/QA/staging telemetry ingested by default
+
+Flags non-production telemetry that is shipped to a managed (paid) backend
+with no volume reduction. The check is static and uses the `textstatic.py`
+runner. Settings are read with the OBS-05 entry reader and collector configs
+with `otelconfig.py`; nothing is run, rendered or resolved. It is the
+non-production counterpart of OBS-05 and OBS-01, which skip non-production
+files.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Supported files:
+
+- configuration with OpenTelemetry SDK settings (`OTEL_EXPORTER_OTLP_*ENDPOINT`,
+  `OTEL_TRACES_SAMPLER[_ARG]`, `OTEL_TRACES_EXPORTER`, `OTEL_LOGS_EXPORTER`,
+  `OTEL_SDK_DISABLED`, `OTEL_RESOURCE_ATTRIBUTES`, or their `otel.*` forms):
+  YAML/JSON (Kubernetes `env`, Compose `environment`, SAM/serverless
+  variables, Helm values), `.env`, `.properties`, TOML, INI and Dockerfile `ENV`
+- OpenTelemetry Collector configs (plain, `OpenTelemetryCollector`,
+  ConfigMap; ADOT uses the same format)
+- AWS X-Ray sampling rules: `FixedRate` (API/CloudFormation) and X-Ray SDK
+  local rule files (`default`/`rules` with `rate`)
+
+Optional context: `context.environment`. A non-production value (for example
+`"staging"`) marks files with no marker of their own as non-production. Any
+other value has no effect. A value that is not a string is rejected.
+
+### Detection rule
+
+A finding needs a non-production environment, a managed destination and no
+reduction.
+
+The environment comes from, in order:
+
+1. a literal `deployment.environment.name` (or `deployment.environment`)
+   attribute in the same block (`OTEL_RESOURCE_ATTRIBUTES`, or a collector
+   `resource`/`attributes` processor in the pipeline). When present, it
+   decides, so `production` is never flagged.
+2. key names (Compose service, Dockerfile stage, CR/ConfigMap name, X-Ray
+   rule/service name)
+3. the file path
+4. `context.environment`
+
+Non-production tokens: `dev`, `develop`, `development`, `local`, `staging`,
+`stage` (path only), `stg`, `qa`, `uat`, `test`, `testing`, `sandbox`,
+`preprod`/`pre-prod`, `nonprod`/`non-prod`. Names that also carry `prod`,
+`production`, `prd` or `live` are ambiguous and are not used.
+
+Managed destinations:
+
+- OTLP endpoints on known ingest domains: `amazonaws.com`, Honeycomb, New
+  Relic, Datadog, Grafana Cloud, Lightstep, Splunk (`signalfx.com`),
+  Dynatrace, Elastic Cloud, Google Cloud, Coralogix, Logz.io, Sumo Logic,
+  Axiom, Uptrace, SigNoz Cloud, OneUptime
+- vendor-only collector exporters: `awsxray`, `awscloudwatchlogs`,
+  `datadog`, `googlecloud`, `azuremonitor`, `coralogix`, `logzio`,
+  `sumologic`, `sapm`, `alibabacloud_logservice`
+- X-Ray itself
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `nonprod-traces:<endpoint key path>` | Traces go over OTLP (`OTEL_TRACES_EXPORTER` unset or containing `otlp`, SDK not disabled) to a managed endpoint (the traces endpoint wins over the generic one), and the sampler keeps every trace. Explicit: `always_on`/`parentbased_always_on`, or `*traceidratio` with arg 1. Default: no sampler (spec default `parentbased_always_on`), or `*traceidratio` without an arg (spec default 1.0). | medium if explicit; low if default |
+| `nonprod-logs:<exporter key path>` | `OTEL_LOGS_EXPORTER` contains `otlp`, and the logs (or generic) endpoint is managed. The SDK does not sample logs. | medium if a DEBUG/TRACE level (OBS-01 key rules) is set in the same block; low otherwise |
+| `[<resource>:]pipeline/<id>:nonprod-export` | A collector traces/logs pipeline exports to a managed destination with no `probabilistic_sampler`, `tail_sampling`, `filter` or `logdedup` processor | low, because SDK sampling upstream is not visible |
+| `xray-sampling-rule:<name>` | An X-Ray rule has `FixedRate`/`rate` = 1, so every matching request beyond the reservoir is traced | medium |
+
+Confidence is always `low` for `dev`, `development` and `local`: a single
+developer produces little volume, and full sampling there is a common choice.
+Confidence is never `high`, because the environment is inferred from names.
+If an env-var hit's block sets no `deployment.environment[.name]`, the
+summary says so: the backend then cannot drop or sample the data by
+environment, which is the taxonomy's candidate optimization.
+
+Not flagged:
+
+- loopback, in-cluster or Compose service endpoints (`otel-collector:4317`),
+  unknown hosts, unresolved `${...}`/`$(...)` values and unset endpoints (the
+  SDK default is `localhost`)
+- a ratio below 1, `always_off`, and remote/other samplers (`xray`,
+  `jaeger_remote`)
+- `OTEL_SDK_DISABLED=true`, and `OTEL_TRACES_EXPORTER=none`/`console`
+- collector pipelines with a reduction processor, connector-fed pipelines,
+  metrics/profiles pipelines, exporters not defined in the file, and vendor
+  exporters with a loopback endpoint (LocalStack)
+- Lambda/API Gateway `Tracing: Active` with no custom rule, because the X-Ray
+  default rule already samples (1 request/second plus 5%)
+- hits with `# noqa` / `# noqa: OBS-14` on the hit line or directly above it
+
+The following are not evaluated. They are listed as limitations or as
+declined files, never reported clean:
+
+- files with no non-production marker, including production files
+- test/docs/example material: directory tokens `tests`, `testdata`,
+  `fixture(s)`, `e2e`, `mock(s)`, `doc(s)`, `example(s)`, `sample(s)`,
+  `tutorial(s)`, `spec(s)`, file names with `example`/`sample`/`template`/
+  `dist`, and CI directories
+- Helm templates, YAML outside the `miniyaml` subset, invalid JSON/TOML/INI,
+  and TOML inline tables holding OTel keys
+
+Python and other file types are `Unsupported`, so the scan worker sends only
+telemetry configs.
+
+### Limitations
+
+The check reads one file at a time. It cannot see:
+
+- runtime overrides, `env_file`/`envFrom`/Secrets
+- samplers set in code or remotely
+- `--config` merges
+- where a self-hosted collector forwards data
+- probabilistic sampler percentages
+
+No measurements are emitted, because ingest volume and cost need backend
+usage data broken down by `deployment.environment.name`.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs14/obs14-01-positive-input.json
+```
