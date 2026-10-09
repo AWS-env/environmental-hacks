@@ -138,6 +138,18 @@ jobs:
         if: steps.detect.outputs.exists == 'true'
         run: npm test --if-present
 
+      # Owner A detectors ship their own package (native tree-sitter). Run their
+      # typecheck and behavioural tests, and validate their contract v1
+      # input/result pairs with the shared Python validator installed above.
+      - name: Owner A detectors
+        if: steps.detect.outputs.exists == 'true' && hashFiles('detectors/owner-a/package-lock.json') != ''
+        env:
+          REQUIRE_CONTRACT_VALIDATOR: '1'
+        run: |
+          npm --prefix detectors/owner-a ci
+          npm --prefix detectors/owner-a run typecheck
+          npm --prefix detectors/owner-a test
+
       - name: No manifest yet
         if: steps.detect.outputs.exists == 'false'
         run: echo "No package.json yet - contract verification completed; application checks skipped."

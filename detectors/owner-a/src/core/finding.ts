@@ -37,6 +37,12 @@ export interface Finding {
   check: string;
   kind: string;
   fingerprint: string;
+  /**
+   * Line-free semantic anchor for the shared contract v1 fingerprint
+   * (`sha256([repository_id, check_id, scope_id, identity])`). Optional so a
+   * check without one still adapts: the adapter then uses kind + snippet.
+   */
+  identity?: string;
   location: FindingLocation;
   evidence: FindingEvidence;
   why: string;
