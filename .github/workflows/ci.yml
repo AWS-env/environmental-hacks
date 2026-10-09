@@ -126,6 +126,9 @@ jobs:
           PYTHONPATH: hub
         run: python -m unittest discover -s hub/tests -t hub
 
+      - name: Scan runner
+        run: python -m unittest discover -s tests/scanner
+
       - name: Detect project manifest
         id: detect
         run: |

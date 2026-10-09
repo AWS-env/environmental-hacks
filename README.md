@@ -40,6 +40,43 @@ Detector owners: start with the [shared detector contract](docs/DETECTOR_CONTRAC
 and [per-issue verification plan](docs/VERIFICATION_PLAN.md). They define common
 inputs, evidence-backed outputs, measurement provenance, and scan comparison.
 
+## Scan a repository
+
+`scanner/` runs every detector over one repository and writes a single `report.json`. It
+reads files as text only and never executes, installs, builds or imports the scanned code.
+
+```bash
+python3 -m venv .venv && .venv/bin/pip install -r shared/contracts/requirements.txt
+npm ci                                                                      # owner B (php-parser)
+npm --prefix detectors/owner-a ci && npm --prefix detectors/owner-a run build  # owner A (tree-sitter)
+
+.venv/bin/python -m scanner scan https://github.com/aws/aws-sam-cli -o report.json
+.venv/bin/python -m scanner scan path/to/local/repo -o report.json --owners C,D
+```
+
+- **Input:** a public `https://github.com/<owner>/<repo>` URL (shallow `git clone --depth 1` into a
+  temporary directory, deleted afterwards) or a local directory. The report records the full commit SHA.
+- **Collection limits:** skips `.git`, vendored/build directories (`node_modules`, `vendor`, `venv`,
+  `dist`, ...), symlinks, lock files, binaries and files over 1 MB, and stops at 5,000 files. Every skip
+  is counted in `report.files`.
+- **Detectors:** owner A (Python CODE-C\* checks, via Node), owner B (DB-34 for PHP, via Node),
+  owner C (PY-\* checks) and owner D (every module in `owner_d`). Every result passes
+  `shared.contracts.validation.validate_pair` before it is reported.
+- **Statuses:** `completed`/`partial`/`unavailable`/`error` come from the detector contract.
+  `not_applicable` means the repository has no files that the check examines. A crash or an invalid
+  result becomes `error`. A check that needs telemetry or profiler artifacts stays `unavailable`.
+  None of these count as a pass.
+- **report.json:** repository and commit, file counts, adapter status, one entry per check (status,
+  coverage, limitations), findings (exact evidence lines, confidence, recommendation, references and a
+  copyable `agent_prompt` for your coding agent) and summary counts.
+
+**Limitations:** the analysis is static, so a finding proves the pattern at the cited line, not what
+it costs at runtime. Impact is reported as `not_quantified`, and no energy, CO2 or water figures are
+estimated (`report.impact` holds a placeholder for a later SCI-based estimate engine). Only the checks
+implemented in this repository run, which is a small share of the taxonomy. Owner A and owner C skip
+test files. Owner B runs through its pre-contract `scanSource` entry point, translated by the scanner.
+If Node.js or the owner A build is missing, that owner is reported as `unavailable`.
+
 Open decisions (idea, track, stack) live in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 For agent-assisted AWS work, use the shared handshake in [`docs/AWS_AGENT_WORKFLOW.md`](docs/AWS_AGENT_WORKFLOW.md): agents ask before using AWS CLI/MCP, then verify local profile identity and selected Region before inspecting service state.
@@ -49,6 +86,8 @@ For agent-assisted AWS work, use the shared handshake in [`docs/AWS_AGENT_WORKFL
 ```
 .github/            issue forms, PR template, CI, CODEOWNERS, dependabot
 docs/               workflow, branching, and label docs
+detectors/          per-owner detectors (contract v1)
+scanner/            repository scan runner -> report.json
 scripts/            helper scripts (branch + label setup)
 ```
 
