@@ -412,6 +412,7 @@ export function detectLoopInvariants(
             check: "CODE-C3.2",
             kind: "loop-invariant-recomputation",
             fingerprint,
+            identity: `loop-invariant-recomputation:${fingerprintId}`,
             location: {
               path: filePath,
               startLine,

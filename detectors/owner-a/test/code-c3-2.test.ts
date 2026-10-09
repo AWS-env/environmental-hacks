@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { parsePythonSource } from "../src/core/parse.js";
 import { checkCodeC32 } from "../src/checks/code-c3-2/index.js";
+import { evaluate } from "../src/contract.js";
+import { staticInput, validatePair, validatorAvailable } from "./helpers/contract.js";
 
 const FIXTURES_DIR = join(__dirname, "fixtures", "code-c3-2");
 
@@ -183,6 +185,32 @@ def calc(items, cfg):
       expect(findings2).toHaveLength(1);
       expect(findings1[0].fingerprint).toHaveLength(16);
       expect(findings1[0].fingerprint).toBe(findings2[0].fingerprint);
+    });
+  });
+
+  describe("Contract v1 (C32-08)", () => {
+    const read = (f: string) => readFileSync(join(FIXTURES_DIR, f), "utf-8");
+
+    it("positives: completed with line-free identities; syntax error is never certified", () => {
+      const result = evaluate(staticInput("CODE-C3.2", { "positives.py": read("positives.py") }));
+      expect(result.status).toBe("completed");
+      expect(result.findings.length).toBe(checkCodeC32(parsePythonSource("positives.py", read("positives.py"))).length);
+      expect(result.findings.every((f) => f.identity.includes("loop-invariant-recomputation:"))).toBe(true);
+
+      const broken = evaluate(staticInput("CODE-C3.2", { "syntax_error.py": read("syntax_error.py") }));
+      expect(broken.status).toBe("unavailable");
+    });
+
+    it.skipIf(!validatorAvailable)("positives, negatives and syntax-error pairs pass shared validate_pair", () => {
+      for (const files of [
+        { "positives.py": read("positives.py") },
+        { "negatives.py": read("negatives.py") },
+        { "positives.py": read("positives.py"), "syntax_error.py": read("syntax_error.py") },
+      ]) {
+        const input = staticInput("CODE-C3.2", files);
+        const verdict = validatePair(input, evaluate(input));
+        expect(verdict.ok, verdict.output).toBe(true);
+      }
     });
   });
 });
