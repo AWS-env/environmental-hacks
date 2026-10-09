@@ -40,6 +40,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
   - `empty-branch`: `if` statements whose arms are all `pass`/`...`, and empty trailing `elif` arms, so a condition is evaluated with nothing depending on it.
 - **`CODE-C5.1`**: Inefficient structure choice (#75)
   - `list-membership-in-loop`: `x in NAME` / `x not in NAME` inside a loop or comprehension where `NAME` is visibly bound to a list or tuple, so every test scans the list (O(n*m)). Skipped when the loop is statically small (8 or fewer items), the collection is mutated in the loop, or the binding is unknown. Medium severity; a set built once before the loop is the usual fix.
+- **`CODE-C10.4`**: Inefficient string concatenation (#45)
+  - `string-concat-in-loop`: `s += x` / `s = s + x` on a string accumulator that the loop only appends to. Skipped when the loop reads the string (it is consumed every iteration anyway) or runs at most once. Low severity; local-name targets are low confidence because CPython can sometimes resize a string in place (unverified).
 
 ## Shared contract v1
 
