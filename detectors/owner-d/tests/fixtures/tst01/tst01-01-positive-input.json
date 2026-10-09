@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst01-001",
+  "commit_sha": "1111111111111111111111111111111111111111",
+  "check_id": "TST-01",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:tests/test_users.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_users.py",
+      "kind": "static",
+      "locator": "tests/test_users.py",
+      "content": "# Synthetic TST-01 fixture: several assertions without messages. Never executed.\nimport unittest\n\nimport numpy as np\n\n\nclass UserTest(unittest.TestCase):\n    def test_flags(self):\n        user = make_user()\n        self.assertTrue(user.active)\n        self.assertFalse(user.banned)\n        self.assertTrue(user.verified)\n\n    def test_fields(self):\n        user = make_user()\n        self.assertEqual(user.name, \"ada\")\n        self.assertEqual(user.age, 36)\n\n    def test_mixed(self):\n        user = make_user()\n        self.assertTrue(user.active, \"new users start active\")\n        self.assertIn(\"admin\", user.roles)\n        self.assertIsNone(user.deleted_at)\n\n\ndef test_bare_asserts():\n    user = make_user()\n    assert user.name == \"ada\"\n    assert user.age == 36\n\n\ndef test_numpy_truthiness():\n    scores = load_scores()\n    np.testing.assert_(scores.min() >= 0)\n    np.testing.assert_(scores.max() <= 1)\n"
+    }
+  ]
+}
