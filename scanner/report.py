@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import uuid
 from collections import Counter
@@ -15,7 +16,8 @@ from shared.contracts.validation import ContractError, validate_pair
 REPORT_VERSION = "1.0"
 STATUSES = ("completed", "partial", "unavailable", "error", "not_applicable")
 CONFIDENCES = ("high", "medium", "low")
-MAX_LIMITATIONS = 12  # per check; per-file omissions can number in the thousands
+MAX_LIMITATIONS = 12  # per check, after grouping per-file omissions by reason
+FILE_LIMITATION = re.compile(r"^file:(?P<path>[^:]+): (?P<reason>.+)$")
 TAXONOMY = {c["key"]: c for c in json.loads((REPO_ROOT / "docs/taxonomy/checks.json").read_text())}
 
 IMPACT = {
@@ -100,6 +102,20 @@ def agent_prompt(finding, meta):
     return "\n".join(lines)
 
 
+def summarize_limitations(items):
+    """Group per-file omissions ("file:<path>: <reason>") by reason; keep check-wide notes verbatim."""
+    grouped, general = {}, []
+    for text in items:
+        match = FILE_LIMITATION.match(text)
+        if match:
+            grouped.setdefault(match["reason"].replace(match["path"], "<file>"), []).append(match["path"])
+        else:
+            general.append(text)
+    files = [f"{paths[0]}: {reason.replace('<file>', paths[0])}" if len(paths) == 1
+             else f"{len(paths)} files: {reason} (e.g. {paths[0]})" for reason, paths in grouped.items()]
+    return (files + general)[:MAX_LIMITATIONS]
+
+
 def _check_entry(run):
     meta = TAXONOMY.get(run.check_id, {})
     entry = {
@@ -129,7 +145,7 @@ def _check_entry(run):
         entry["status"], entry["status_source"] = result["status"], "detector"
         entry["evaluated_size"] = len(result["coverage"]["evaluated_scope"])
         limitations = result["coverage"]["limitations"]
-        entry["limitations"], entry["limitations_total"] = limitations[:MAX_LIMITATIONS], len(limitations)
+        entry["limitations"], entry["limitations_total"] = summarize_limitations(limitations), len(limitations)
         measurements = [{"check_id": run.check_id, **m} for m in result["measurements"]]
         for item in result["findings"]:
             file, line = _primary(item["evidence"])
