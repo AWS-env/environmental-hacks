@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { THEME_BOOT_SCRIPT } from "@/components/theme/boot";
 import "./globals.css";
 import "./glass.css";
-import Sidebar from "../components/Sidebar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -28,16 +28,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-screen overflow-hidden antialiased dark`}
+      suppressHydrationWarning
+      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="h-screen w-screen overflow-hidden flex bg-[#0a0d0e] text-zinc-100 selection:bg-white selection:text-black relative font-sans">
-        {/* Global Sleek Floating Capsule Sidebar */}
-        <Sidebar />
-
-        {/* Main Content Area Offset for Sidebar */}
-        <div className="flex-1 h-screen overflow-hidden pl-[72px] relative z-10">
-          {children}
-        </div>
+      <body className="min-h-full flex flex-col" suppressHydrationWarning>
+        {/* Sets <html data-theme> before anything paints, so the page never flashes the other theme. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        {children}
       </body>
     </html>
   );
