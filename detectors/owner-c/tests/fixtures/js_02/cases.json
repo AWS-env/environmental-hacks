@@ -1,0 +1,366 @@
+[
+  {
+    "id": "JS-02-01",
+    "title": "known positive: includes() in a loop inside a hot function",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "slow:items.includes",
+          "line": 4,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.6
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-02",
+    "title": "line-level self time on the lookup raises confidence to high",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "slow:items.includes",
+          "line": 4,
+          "confidence": "high"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.6,
+          "time_share_line_4": 0.5
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-03",
+    "title": "indexOf, in a for loop, in a TypeScript file",
+    "files": {
+      "app.ts": "function pos(items: number[], wanted: number[]): number {\n  let n = 0;\n  for (let i = 0; i < wanted.length; i++) {\n    n += items.indexOf(wanted[i]);\n  }\n  return n;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "pos:items.indexOf",
+          "line": 4
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.ts": {
+          "profiler": "node-cpu",
+          "function_time_share_line_1": 0.3
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-04",
+    "title": "lookup inside an array callback counts as a loop",
+    "files": {
+      "app.js": "function pick(items, wanted) {\n  return wanted.filter((p) => items.includes(p));\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "pick.<anonymous>:items.includes",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.4
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-05",
+    "title": "boundary: share exactly at the threshold is reported",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "slow:items.includes",
+          "line": 4
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.05
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-06",
+    "title": "boundary: just below the threshold is not reported",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.0499
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-07",
+    "title": "similar negative: the hot function is a different one",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_20": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-08",
+    "title": "legitimate exception: includes() on a string literal",
+    "files": {
+      "app.js": "function f(words) {\n  for (const w of words) {\n    if ('abc'.includes(w)) return w;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-09",
+    "title": "similar negative: lookup outside any loop",
+    "files": {
+      "app.js": "function has(items, x) {\n  return items.includes(x);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-10",
+    "title": "boundary: a loop at module level has no enclosing function to match",
+    "files": {
+      "app.js": "for (const p of wanted) {\n  if (items.includes(p)) hits++;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-11",
+    "title": "legitimate exception: author suppressed it (eslint-disable-next-line)",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  for (const p of wanted) {\n    // eslint-disable-next-line unicorn/prefer-set-has\n    if (items.includes(p)) return p;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-02-12",
+    "title": "malformed settings: threshold missing -> unavailable",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_time_share must be a number"
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.6
+        }
+      }
+    },
+    "context": {
+      "min_time_share": null
+    }
+  },
+  {
+    "id": "JS-02-13",
+    "title": "malformed settings: threshold out of range -> unavailable",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_time_share must be in (0, 1]"
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.6
+        }
+      }
+    },
+    "context": {
+      "min_time_share": 2
+    }
+  },
+  {
+    "id": "JS-02-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "JS-02-91",
+    "title": "no profiler artifact -> unavailable, not clean",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no node-cpu artifact"
+      ]
+    }
+  },
+  {
+    "id": "JS-02-92",
+    "title": "artifact covers only one of two files -> partial",
+    "files": {
+      "app.js": "function slow(items, wanted) {\n  let hits = 0;\n  for (const p of wanted) {\n    if (items.includes(p)) hits++;\n  }\n  return hits;\n}\n",
+      "cold.js": "let x = 1;\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "slow:items.includes",
+          "line": 4
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ],
+      "limitations_contain": [
+        "cold.js",
+        "no node-cpu artifact"
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.6
+        }
+      }
+    }
+  }
+]
