@@ -1,0 +1,144 @@
+[
+  {
+    "id": "PY-02-01",
+    "title": "known positive: pop(0) as a queue",
+    "files": {
+      "app.py": "def drain(q):\n    while q:\n        x = q.pop(0)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "drain:q.pop(0)",
+          "line": 3,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-02-02",
+    "title": "insert(0, x) in a loop",
+    "files": {
+      "app.py": "def f(items):\n    for i in range(9):\n        items.insert(0, i)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:items.insert(0)",
+          "line": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-02-03",
+    "title": "boundary: repeated anchor gets an ordinal",
+    "files": {
+      "app.py": "def f(q):\n    while q:\n        a = q.pop(0)\n        b = q.pop(0)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:q.pop(0)",
+          "line": 3
+        },
+        {
+          "identity": "f:q.pop(0)#2",
+          "line": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-02-04",
+    "title": "similar negative: not in a loop",
+    "files": {
+      "app.py": "def f(q):\n    return q.pop(0)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-02-05",
+    "title": "similar negative: pop() from the end",
+    "files": {
+      "app.py": "def f(q):\n    while q:\n        x = q.pop()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-02-06",
+    "title": "recommended form: deque.popleft",
+    "files": {
+      "app.py": "def f(q):\n    while q:\n        x = q.popleft()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-02-07",
+    "title": "legitimate exception: dict.pop with a default",
+    "files": {
+      "app.py": "def f(d):\n    for k in d:\n        d.pop(0, None)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-02-08",
+    "title": "legitimate exception: DataFrame.insert takes three arguments",
+    "files": {
+      "app.py": "def f(df):\n    for k in range(3):\n        df.insert(0, 'c', k)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-02-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "PY-02-91",
+    "title": "unparsable file next to a good one -> partial coverage",
+    "files": {
+      "ok.py": "x = 1\n",
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [],
+      "evaluated": [
+        "ok.py"
+      ],
+      "limitations_contain": [
+        "broken.py",
+        "could not be parsed"
+      ]
+    }
+  }
+]
