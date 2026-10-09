@@ -78,5 +78,15 @@
     "context": "None.",
     "unsupported": "Cache hit rate (not exposed by run/job objects); keys longer than 512 characters; `restore-keys` specificity.",
     "challenge": "A constant key on a package store that is rebuilt by a nightly job and restored read-only elsewhere is valid."
+  },
+  "CI-19": {
+    "issue": 33,
+    "formats": "GitHub Actions workflow YAML with `actions/upload-artifact` steps. IaC lifecycle rules and live storage inventory are out of scope (decision D2).",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the upload step.",
+    "rule": "An upload step with `retention-days` greater than `max_retention_days` is reported at medium confidence, once per job (the first upload step is quoted; a job with 20 uploads is one finding). An unset value (or `0`, the repository default, 90 days unless changed) is deliberately **not** reported (decision D20: it is not 'forever' and organization policy may already shorten it; 50 such hits on 5 real repositories were noise). Exceptions: expression values. Organization policy sets the default and maximum (default 90 days; public 1-90, private up to 400). Compliance may require long retention (taxonomy `not_wasteful_when`).",
+    "identity": "`job:<job id>:artifact:<artifact name>:retention-long`.",
+    "context": "`max_retention_days` (default 30, > 0).",
+    "unsupported": "Repository/org retention settings, actual artifact sizes, `actions/cache` or ECR/S3 retention.",
+    "challenge": "An explicit long value may be required by a compliance rule that the workflow does not state."
   }
 }

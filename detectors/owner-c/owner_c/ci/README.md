@@ -82,6 +82,8 @@ python -m shared.contracts.verify
 - **CI-16** a package-manager cache (npm/pnpm/pip/Maven/Gradle/cargo/go stores, node_modules) whose `actions/cache` key never
   changes (no `hashFiles`, sha, run id, version number), or that lacks an OS part in an OS matrix for platform-specific
   content. Tool and data caches (Sonar, AVD, fonts, binaries) and portable stores (`~/.m2`) are not judged.
+- **CI-19** `actions/upload-artifact` with `retention-days` above `max_retention_days` (30). An unset value is not
+  reported (D20: the 90-day default is not "forever" and was pure noise on real repositories).
 
 ## History checks
 

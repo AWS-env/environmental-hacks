@@ -1,0 +1,134 @@
+[
+  {
+    "id": "CI-19-01",
+    "title": "similar negative: no retention-days is the repository default (90 days), not reported (D20)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n      - uses: actions/upload-artifact@v4\n        with:\n          name: dist\n          path: dist/\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-19-02",
+    "title": "similar negative: retention-days 7",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n      - uses: actions/upload-artifact@v4\n        with:\n          name: dist\n          path: dist/\n          retention-days: 7\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-19-03",
+    "title": "known positive: retention-days 90 exceeds the default limit of 30",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n      - uses: actions/upload-artifact@v4\n        with:\n          name: dist\n          path: dist/\n          retention-days: 90\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:artifact:dist:retention-long",
+          "line": 9,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-19-04",
+    "title": "boundary: retention-days 30 equals the limit, not reported",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n      - uses: actions/upload-artifact@v4\n        with:\n          name: dist\n          path: dist/\n          retention-days: 30\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-19-05",
+    "title": "boundary: retention-days 31 is one over the limit",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n      - uses: actions/upload-artifact@v4\n        with:\n          name: dist\n          path: dist/\n          retention-days: 31\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:artifact:dist:retention-long",
+          "line": 9,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-19-06",
+    "title": "legitimate exception: retention-days is an expression, value unknown statically",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n      - uses: actions/upload-artifact@v4\n        with:\n          name: dist\n          path: dist/\n          retention-days: ${{ vars.ARTIFACT_RETENTION }}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-19-07",
+    "title": "boundary: retention-days 0 means the repository default, not reported (D20)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n      - uses: actions/upload-artifact@v4\n        with:\n          name: dist\n          path: dist/\n          retention-days: 0\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-19-08",
+    "title": "similar negative: workflow uploads no artifacts",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-19-09",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "CI-19-10",
+    "title": "boundary: three uploads kept 31 days in one job give one finding for the job (n8n jscpd had 20)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  b:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/upload-artifact@v4\n        with:\n          name: r-1\n          path: out/\n          retention-days: 31\n      - uses: actions/upload-artifact@v4\n        with:\n          name: r-2\n          path: out/\n          retention-days: 31\n      - uses: actions/upload-artifact@v4\n        with:\n          name: r-3\n          path: out/\n          retention-days: 31\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:b:artifact:r-1:retention-long",
+          "line": 8,
+          "confidence": "medium"
+        }
+      ]
+    }
+  }
+]
