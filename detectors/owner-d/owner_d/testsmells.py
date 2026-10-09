@@ -17,7 +17,9 @@ adapted from the PyCharm PSI to the standard `ast` module:
 from __future__ import annotations
 
 import ast
+import io
 import re
+import tokenize
 from dataclasses import dataclass
 from types import SimpleNamespace
 
@@ -398,6 +400,22 @@ def delegated_assertion(ctx, test):
                 nxt.append(helper)
         frontier = nxt
     return None
+
+
+_SKIP_TOKENS = {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT,
+                tokenize.ENDMARKER}
+
+
+def source_tokens(ctx, node):
+    """The node's source tokens, so whitespace and comments are ignored but spelling is not
+    (PyNose compares source text; `f'..'` vs `fr'..'` or `p[:4]` vs `p[:4:]` stay different)."""
+    source = ctx.__dict__.setdefault("_tst_source", "\n".join(ctx.lines))
+    segment = ast.get_source_segment(source, node) or ""
+    try:
+        tokens = tokenize.generate_tokens(io.StringIO(segment).readline)
+        return " ".join(tok.string for tok in tokens if tok.type not in _SKIP_TOKENS)
+    except (tokenize.TokenError, SyntaxError):
+        return " ".join(segment.split())
 
 
 _CHECK_FIELDS = ("CHECK_ID", "DETECTOR_VERSION", "NOQA", "REFERENCES", "RECOMMENDATION", "LIMITATION")
