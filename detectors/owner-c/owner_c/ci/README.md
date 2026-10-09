@@ -67,6 +67,9 @@ python -m shared.contracts.verify
 - **CI-07** `docker/build-push-action` or `docker build` without layer cache flags; `docker compose build`/`up --build`
   and `docker/bake-action` without a cache in the step (low: the compose and bake files are not read). Not flagged:
   `no-cache`, cache flags via a variable, a second build of the same context/file in one job.
+- **CI-08** a build that runs `clean` right after restoring a build-output cache (target/build/dist/out). Explicit
+  `--no-build-cache`/`--rerun-tasks` are not reported (deliberate on every real file checked); a cache keyed per run is a
+  hand-off between jobs; `.gradle` is not removed by `clean`; release/deploy jobs and tag workflows are exempt.
 - **CI-11** push+pull_request double runs; pull request workflows with no `concurrency`; `concurrency` without
   `cancel-in-progress`; a cancelling group made only of context expressions without the workflow name (for example
   `${{ github.ref }}`). Not flagged: `workflow_call`, `pull_request_target`, `pull_request` types without
