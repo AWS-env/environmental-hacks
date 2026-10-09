@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 from shared.contracts.validation import ContractError, validate, validate_pair
 
-from findings_hub.store import canonical, repo_pk, scan_pk, sha256
+from findings_hub.store import canonical, persist, repo_pk, scan_pk, sha256
 
 RESULT_TYPE = "detector.result.v1"
 POINTER_TYPE = "DetectorResultPointer.v1"
@@ -61,13 +61,20 @@ def load_pointer(detail: dict, s3, allowed_buckets: set[str]):
     body = obj["Body"].read(MAX_ARTIFACT_BYTES + 1)
     _require(len(body) <= MAX_ARTIFACT_BYTES, "Pointer object is too large")
     text = body.decode("utf-8")
-    _require(sha256(text) == digest, "Pointer object checksum mismatch")
+    result = verify_pair(text, digest, detail)
+    return result, {k: v for k, v in artifact.items() if k in ("bucket", "key", "sha256", "version_id")}
+
+
+def verify_pair(text: str, digest: str, identity: dict):
+    """Shared integrity, contract and identity checks for S3 pointers and local imports."""
+    _require(len(text.encode("utf-8")) <= MAX_ARTIFACT_BYTES, "Pair object is too large")
+    _require(sha256(text) == digest, "Pair object checksum mismatch")
     pair = json.loads(text)
     _require(isinstance(pair, dict) and {"input", "result"} <= pair.keys(), "Pointer object is not an input/result pair")
     validate_pair(pair["input"], pair["result"])
     result = pair["result"]
-    _require(all(detail.get(f) == result[f] for f in POINTER_FIELDS), "Pointer identity does not match its result")
-    return result, {k: v for k, v in artifact.items() if k in ("bucket", "key", "sha256", "version_id")}
+    _require(all(identity.get(f) == result[f] for f in POINTER_FIELDS), "Pair identity does not match its result")
+    return result
 
 
 def build_items(result: dict, *, evidence: str, source: str, event_id: str, received_at: str, artifact=None):
@@ -119,19 +126,6 @@ def build_items(result: dict, *, evidence: str, source: str, event_id: str, rece
         item["artifact"] = artifact
     _require("result_json" in item or artifact, "Result is too large to store without an artifact pointer")
     return item, findings
-
-
-def persist(table, item, findings) -> str:
-    with table.batch_writer() as batch:
-        for finding in findings:
-            batch.put_item(Item=finding)
-    try:
-        table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
-    except Exception as exc:  # botocore ClientError
-        if getattr(exc, "response", {}).get("Error", {}).get("Code") == "ConditionalCheckFailedException":
-            return "duplicate"  # identical result already persisted (redelivery)
-        raise
-    return "stored"
 
 
 def ingest(event: dict, *, s3, table, allowed_buckets: set[str], now=None) -> dict:
