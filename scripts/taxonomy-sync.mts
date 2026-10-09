@@ -38,10 +38,11 @@ const opt = (name: string, fallback = "") => {
 
 const APPLY = flag("--apply");
 const DRY = !APPLY;
-const DELAY = Number(opt("--delay", "1100"));
+const DELAY = Number(opt("--delay", "500"));
 const LIMIT = Number(opt("--limit", "0")) || 0;
 const ONLY = opt("--only", "");
 const EPICS_ONLY = flag("--epics-only");
+const NO_SUB = flag("--no-subissues");
 
 const load = (p: string) => JSON.parse(readFileSync(p, "utf8"));
 const owners = load(join(TAX, "owners.json"));
@@ -254,38 +255,64 @@ function epicBody(letter: string): string {
   ].join("\n");
 }
 
-async function findExisting(title: string): Promise<any | null> {
-  const q = encodeURIComponent(`repo:${REPO} in:title "${title}" type:issue`);
-  const r = await withRetry(() => api("GET", `/search/issues?q=${q}&per_page=5`), `search ${title}`);
-  return (r.items || []).find((i: any) => i.title === title) || null;
+// Fetch every issue once and index by title. Used to adopt issues that already
+// exist (e.g. created by a previous run after the last mapping checkpoint), so
+// re-running is always safe and never duplicates.
+async function listIssuesByTitle(): Promise<Map<string, any>> {
+  const map = new Map<string, any>();
+  for (let page = 1; ; page++) {
+    const arr = await withRetry(
+      () => api("GET", `/repos/${REPO}/issues?state=all&per_page=100&page=${page}`),
+      `list issues p${page}`,
+    );
+    for (const i of arr) if (!i.pull_request) map.set(i.title, i);
+    if (arr.length < 100) break;
+  }
+  return map;
 }
 
 async function sync() {
   console.log(`\nSYNC (${DRY ? "dry-run" : "APPLY"})  repo=${REPO}`);
   if (APPLY && !TOKEN) throw new Error("GITHUB_TOKEN not set - required for --apply");
 
+  // adopt existing issues by title (safe resume)
+  let existing = new Map<string, any>();
+  if (TOKEN) {
+    existing = await listIssuesByTitle();
+    console.log(`\nFound ${existing.size} existing issues (adopt-by-title enabled).`);
+  }
+
   // 1. epics
   console.log("\nEpics:");
   const epicNumbers: Record<string, number> = {};
   for (const letter of ["A", "B", "C", "D"]) {
     const title = mapping.epics[letter].title;
-    const n = mapping.epics[letter].number;
-    console.log(`  [${letter}] ${title}  -> ${n ? "#" + n : "(create)"}`);
-    if (DRY) continue;
-    let issue = n ? await withRetry(() => api("GET", `/repos/${REPO}/issues/${n}`), title) : null;
-    if (!issue) {
-      issue = await withRetry(
-        () => api("POST", `/repos/${REPO}/issues`, {
-          title, body: epicBody(letter),
-          labels: ["type: feature", "status: ready", owners.owners[letter].label],
-        }),
-        title,
-      );
-      mapping.epics[letter].number = issue.number;
-      mapping.epics[letter].node_id = issue.node_id;
-      await sleep(DELAY);
+    if (mapping.epics[letter].number) {
+      epicNumbers[letter] = mapping.epics[letter].number;
+      console.log(`  [${letter}] ${title}  -> #${epicNumbers[letter]}`);
+      continue;
     }
+    const found = existing.get(title);
+    if (found) {
+      mapping.epics[letter].number = found.number;
+      mapping.epics[letter].node_id = found.node_id;
+      epicNumbers[letter] = found.number;
+      console.log(`  [${letter}] ${title}  -> adopted #${found.number}`);
+      continue;
+    }
+    console.log(`  [${letter}] ${title}  -> (create)`);
+    if (DRY) continue;
+    const issue = await withRetry(
+      () => api("POST", `/repos/${REPO}/issues`, {
+        title, body: epicBody(letter),
+        labels: ["type: feature", "status: ready", owners.owners[letter].label],
+      }),
+      title,
+    );
+    mapping.epics[letter].number = issue.number;
+    mapping.epics[letter].node_id = issue.node_id;
     epicNumbers[letter] = issue.number;
+    await sleep(DELAY);
   }
 
   // 2. checks
@@ -294,7 +321,7 @@ async function sync() {
   if (LIMIT) list = list.slice(0, LIMIT);
   console.log(`\nChecks: ${list.length}${ONLY || LIMIT ? ` (filtered from ${checks.length})` : ""}`);
 
-  let created = 0, updated = 0, skipped = 0;
+  let created = 0, updated = 0, skipped = 0, adopted = 0;
   for (const c of list) {
     const m = mapping.checks[c.key];
     const labels = ["type: check", "status: ready", `owner:${c.owner}`, `layer:${c.layer_label}`];
@@ -315,6 +342,23 @@ async function sync() {
       continue;
     }
 
+    // adopt an existing issue with the same title (resume / recovered mapping)
+    if (!m.number) {
+      const found = existing.get(m.title);
+      if (found) {
+        m.number = found.number;
+        m.node_id = found.node_id;
+        m.id = found.id;
+        m.hash = c.content_hash;
+        adopted++;
+        if (epicNumbers[c.owner] && !NO_SUB) {
+          try { await api("POST", `/repos/${REPO}/issues/${epicNumbers[c.owner]}/sub_issues`, { sub_issue_id: found.id }); } catch {}
+        }
+        if (adopted % 50 === 0) console.log(`    ...adopted ${adopted}`);
+        continue;
+      }
+    }
+
     console.log(`  + ${c.key}  ${m.title}`);
     if (DRY) continue;
     const issue = await withRetry(
@@ -327,7 +371,7 @@ async function sync() {
     m.hash = c.content_hash;
     created++;
     // attach as sub-issue of the owner epic (best effort)
-    if (epicNumbers[c.owner]) {
+    if (epicNumbers[c.owner] && !NO_SUB) {
       try {
         await api("POST", `/repos/${REPO}/issues/${epicNumbers[c.owner]}/sub_issues`, { sub_issue_id: issue.id });
       } catch (e: any) { /* sub-issues optional; ignore */ }
@@ -339,7 +383,7 @@ async function sync() {
     }
   }
 
-  console.log(`\nSummary: created=${created} updated=${updated} unchanged=${skipped}`);
+  console.log(`\nSummary: created=${created} adopted=${adopted} updated=${updated} unchanged=${skipped}`);
   if (DRY) return console.log("(dry-run) nothing written. Re-run with --apply.");
 
   mapping.generated_at = new Date().toISOString();
