@@ -70,6 +70,12 @@ npm --prefix detectors/owner-a ci && npm --prefix detectors/owner-a run build  #
   coverage, limitations), findings (exact evidence lines, confidence, recommendation, references and a
   copyable `agent_prompt` for your coding agent) and summary counts.
 
+**Dashboard:** open `dashboard/index.html` in a browser. It shows a bundled sample report from a
+real scan of `aws/aws-sam-cli` (`dashboard/sample-report.js`). Use **Load report.json** to open your own
+report. Alternatively, serve the repository root (`python3 -m http.server`) and open
+`/dashboard/?report=/report.json`. The page has no build step and loads nothing from a CDN. To refresh
+the sample, run `python -m scanner scan https://github.com/aws/aws-sam-cli -o dashboard/sample-report.js`.
+
 **Limitations:** the analysis is static, so a finding proves the pattern at the cited line, not what
 it costs at runtime. Impact is reported as `not_quantified`, and no energy, CO2 or water figures are
 estimated (`report.impact` holds a placeholder for a later SCI-based estimate engine). Only the checks
