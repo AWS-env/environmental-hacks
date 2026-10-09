@@ -30,6 +30,9 @@ This package contains lightweight, read-only static code detectors for **Owner A
 - **`CODE-C3.7`**: Inefficient array mutation (#66)
   - `mutate-during-iteration`: A `for` loop that removes from (S1), grows (S3, Low) or clears / slice-stores (S4) the collection it iterates.
   - `front-reindex-in-loop`: `pop(0)` / `insert(0, …)` / `del x[0]` on a list inside any loop (S2, O(n²)); `collections.deque` bindings are skipped.
+- **`CODE-C1.3`**: Redundant control flow (#36)
+  - `identical-branches`: `if`/`elif`/`else` chains whose arms all run the same code, and `v if c else v`.
+  - `empty-branch`: `if` statements whose arms are all `pass`/`...`, and empty trailing `elif` arms, so a condition is evaluated with nothing depending on it.
 
 ## Shared contract v1
 
