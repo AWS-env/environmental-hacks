@@ -1,0 +1,74 @@
+[
+  {
+    "id": "FE-04-01",
+    "title": "known positive: lazysizes listed in package.json dependencies",
+    "files": {"package.json": "{\n  \"name\": \"site\",\n  \"dependencies\": {\n    \"lazysizes\": \"^5.3.2\",\n    \"react\": \"^18.0.0\"\n  }\n}\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "dep:lazysizes", "line": 4, "confidence": "low"}]}
+  },
+  {
+    "id": "FE-04-02",
+    "title": "similar negative: package.json without a lazy-load library (lazy-import is a different package)",
+    "files": {"package.json": "{\n  \"name\": \"site\",\n  \"dependencies\": {\n    \"lazy-import\": \"^1.0.0\",\n    \"react\": \"^18.0.0\"\n  }\n}\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-04-03",
+    "title": "devDependencies also count (library still ships to the page through the bundler)",
+    "files": {"package.json": "{\n  \"devDependencies\": {\n    \"vanilla-lazyload\": \"^17.0.0\"\n  }\n}\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "dep:vanilla-lazyload", "line": 3, "confidence": "low"}]}
+  },
+  {
+    "id": "FE-04-04",
+    "title": "known positive: HTML img lazy-loaded by a library (class lazyload + data-src)",
+    "files": {"index.html": "<html><body>\n<img class=\"lazyload\" data-src=\"a.jpg\" alt=\"\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "markup:img:a.jpg", "line": 2, "confidence": "medium"}]}
+  },
+  {
+    "id": "FE-04-05",
+    "title": "similar negative: native loading=lazy",
+    "files": {"index.html": "<html><body>\n<img loading=\"lazy\" src=\"a.jpg\" width=\"1\" height=\"1\" alt=\"\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-04-06",
+    "title": "legitimate exception: lazy background via data-bg on a div (native loading only works on img/iframe)",
+    "files": {"index.html": "<html><body>\n<div class=\"lazyload\" data-bg=\"a.jpg\"></div>\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-04-07",
+    "title": "legitimate exception: library markup that already carries native loading=lazy",
+    "files": {"index.html": "<html><body>\n<img class=\"lazyload\" data-src=\"a.jpg\" loading=\"lazy\" alt=\"\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-04-08",
+    "title": "boundary: the library name only appears in a script string, not in a dependency section",
+    "files": {"package.json": "{\n  \"scripts\": {\n    \"note\": \"echo lazysizes\"\n  }\n}\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-04-09",
+    "title": "known positive: JSX img with className lazyload and data-src",
+    "files": {"App.jsx": "export const A = () => <img className=\"lazyload\" data-src=\"a.jpg\" alt=\"\" />;\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "markup:img:a.jpg", "line": 1, "confidence": "medium"}]}
+  },
+  {
+    "id": "FE-04-10",
+    "title": "identity boundary: two identical lazy images get distinct identities",
+    "files": {"index.html": "<html><body>\n<img class=\"lozad\" data-src=\"a.jpg\">\n<img class=\"lozad\" data-src=\"a.jpg\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "markup:img:a.jpg", "line": 2, "confidence": "medium"}, {"identity": "markup:img:a.jpg#2", "line": 3, "confidence": "medium"}]}
+  },
+  {
+    "id": "FE-04-90",
+    "title": "malformed input: only an invalid package.json -> unavailable, no clean claim",
+    "files": {"package.json": "{\n  \"dependencies\": {\n    \"lazysizes\": \n"},
+    "expect": {"status": "unavailable", "findings": [], "limitations_contain": ["package.json", "could not be parsed"]}
+  },
+  {
+    "id": "FE-04-91",
+    "title": "invalid package.json next to a good HTML file -> partial coverage",
+    "files": {"index.html": "<html><body>\n<img src=\"a.jpg\" loading=\"lazy\" width=\"1\" height=\"1\">\n</body></html>\n", "package.json": "{\n  \"dependencies\": {\n    \"lazysizes\": \n"},
+    "expect": {"status": "partial", "findings": [], "evaluated": ["index.html"], "limitations_contain": ["package.json", "could not be parsed"]}
+  }
+]
