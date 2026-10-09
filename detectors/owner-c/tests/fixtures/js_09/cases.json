@@ -1,0 +1,189 @@
+[
+  {
+    "id": "JS-09-01",
+    "title": "known positive: a throw caught in the same function",
+    "files": {
+      "app.js": "function load(s) {\n  try {\n    if (!s) throw new Error('empty');\n    return s;\n  } catch (e) {\n    return null;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "load:throw-in-try",
+          "line": 3,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-09-02",
+    "title": "try/catch in a loop that only skips failures",
+    "files": {
+      "app.js": "function parseAll(xs) {\n  for (const x of xs) {\n    try {\n      JSON.parse(x);\n    } catch (e) {\n      continue;\n    }\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "parseAll:try-skip-in-loop",
+          "line": 3,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-09-03",
+    "title": "similar negative: empty catch in a loop isolating a callback (real undici pattern) is not control flow",
+    "files": {
+      "app.js": "function f(xs) {\n  while (xs.length) {\n    try {\n      g(xs.pop());\n    } catch (e) {}\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-04",
+    "title": "legitimate exception: the catch rethrows",
+    "files": {
+      "app.js": "function f(s) {\n  try {\n    if (!s) throw new Error('empty');\n  } catch (e) {\n    throw new Error('wrapped', { cause: e });\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-05",
+    "title": "similar negative: throw outside any try",
+    "files": {
+      "app.js": "function f(s) {\n  if (!s) throw new Error('empty');\n  return s;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-06",
+    "title": "similar negative: try/catch without a throw",
+    "files": {
+      "app.js": "function f(s) {\n  try {\n    return JSON.parse(s);\n  } catch (e) {\n    return null;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-07",
+    "title": "boundary: a throw inside a nested function is not a local jump",
+    "files": {
+      "app.js": "function f(xs) {\n  try {\n    xs.forEach(() => {\n      throw new Error('x');\n    });\n  } catch (e) {\n    log(e);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-08",
+    "title": "similar negative: loop catch that handles the error",
+    "files": {
+      "app.js": "function f(xs) {\n  for (const x of xs) {\n    try {\n      g(x);\n    } catch (e) {\n      log(e);\n    }\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-09",
+    "title": "legitimate exception: author suppressed it",
+    "files": {
+      "app.js": "function f(s) {\n  try {\n    // eslint-disable-next-line no-throw-literal\n    if (!s) throw 'empty';\n  } catch (e) {\n    return null;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-10",
+    "title": "two local throws in one function get unique identities",
+    "files": {
+      "app.js": "function f(a, b) {\n  try {\n    if (!a) throw new Error('a');\n    if (!b) throw new Error('b');\n  } catch (e) {\n    return null;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:throw-in-try",
+          "line": 3
+        },
+        {
+          "identity": "f:throw-in-try#2",
+          "line": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-09-11",
+    "title": "similar negative: throw feeding a catch that handles real failures of awaited work (real undici writeBlob shape)",
+    "files": {
+      "app.js": "async function writeBlob(body, size, socket) {\n  try {\n    if (size !== body.size) {\n      throw new Error('length mismatch');\n    }\n    const buffer = Buffer.from(await body.arrayBuffer());\n    socket.write(buffer);\n  } catch (err) {\n    socket.destroy(err);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-12",
+    "title": "boundary: a call in the try body next to a local throw means the catch is shared error handling",
+    "files": {
+      "app.js": "function load(s) {\n  try {\n    if (!s) throw new Error('empty');\n    return JSON.parse(s);\n  } catch (e) {\n    return null;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-09-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "JS-09-91",
+    "title": "unparsable file next to a good one -> partial coverage",
+    "files": {
+      "ok.js": "let x = 1;\n",
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [],
+      "evaluated": [
+        "ok.js"
+      ],
+      "limitations_contain": [
+        "broken.js",
+        "could not be parsed"
+      ]
+    }
+  }
+]
