@@ -298,10 +298,54 @@ repeats, as in OBS-02. A call can legitimately match both OBS-02 (eager
 formatting) and OBS-03 (per-iteration call); they are separate checks. No
 measurements are emitted: the loop's iteration count, the call frequency of
 the enclosing function and the production log level are unknown.
+## LLM-07 — Unbounded LLM outputs (static proxy: no output-token limit)
+
+Flags LLM API calls in Python source that set no output-token limit. The
+taxonomy detects verbose outputs from usage logs; this v1 is a static proxy: it
+proves that a call has no explicit cap, not that responses are long or tokens
+are wasted, and it emits no token counts. LLM-call recognition lives in
+`owner_d/llmcalls.py` so later LLM checks (LLM-01, LLM-15) can reuse it.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only). No context settings are required.
+
+### Detection rule
+
+| Call | Flagged when none of these is set |
+| --- | --- |
+| Bedrock `converse` / `converse_stream` (boto3) | `inferenceConfig.maxTokens`, or a token key in `additionalModelRequestFields` |
+| OpenAI `chat.completions.create/parse/stream` (also `beta.`) | `max_completion_tokens`, `max_tokens` (also via `extra_body`) |
+| OpenAI `responses.create/parse/stream` | `max_output_tokens` |
+| OpenAI v0 `openai.ChatCompletion.create` | `max_tokens` |
+
+Clients are recognised from `.client("bedrock-runtime")` on boto3 or a
+session, `OpenAI()`/`AsyncOpenAI()`/`AzureOpenAI()`, the module-level `openai`
+client, local factory functions and type annotations; plain client names are
+tracked per scope. Confidence is `medium` when the client (or Bedrock's
+`modelId=` keyword) establishes the provider, and `low` for a
+`chat.completions` call on a client not created in the file (the file must
+import `openai`). Clients built from other imported SDK classes (`Groq()`,
+`Together()`, ...) are not matched.
+
+Not flagged, because the cap cannot be seen statically: `**kwargs` or config
+dicts that are parameters, built by calls or mutated after assignment; Bedrock
+Prompt management (`promptVariables`, prompt ARNs) and OpenAI stored prompts
+(`prompt=`). Not evaluated in v1: Bedrock `invoke_model` bodies (defaults are
+model-specific, e.g. 512 tokens for Llama and Titan), the Anthropic SDK
+(`max_tokens` is required), LangChain/LiteLLM and other languages. `# noqa` or
+`# noqa: LLM-07` suppresses a call.
+
+The identity is `<qualified function>:<provider>.<api>`, e.g.
+`summarise:bedrock.converse`; a repeat in the same function gets `#2`. Missing,
+non-Python or unparseable files are left out of `evaluated_scope`, never
+reported clean.
 
 ### Run
 
 ```bash
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs03/obs03-01-positive-input.json
+  detectors/owner-d/tests/fixtures/llm07/llm07-01-positive-input.json
 ```
