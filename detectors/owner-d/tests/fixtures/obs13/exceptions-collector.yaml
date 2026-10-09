@@ -1,0 +1,21 @@
+# Synthetic fixture for OBS-13: suppressed pipelines.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+exporters:
+  otlp/a:
+    endpoint: a.example.com:4317
+  otlp/b:
+    endpoint: b.example.com:4317
+service:
+  pipelines:
+    # Probe spans feed an SLO dashboard here.
+    # noqa: OBS-13
+    traces/slo:
+      receivers: [otlp]
+      exporters: [otlp/a]
+    traces/main:  # noqa: E501
+      receivers: [otlp]
+      exporters: [otlp/b]

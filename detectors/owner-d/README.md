@@ -2291,3 +2291,125 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm13/llm13-01-positive-input.json
 ```
 
+## OBS-13 — Noisy health-check/probe telemetry
+
+Flags an OpenTelemetry Collector traces pipeline that keeps the spans of
+Kubernetes liveness/readiness probes. The kubelet probes every replica every
+`periodSeconds` (default 10s) for as long as the pod runs. When the workload is
+OpenTelemetry-instrumented, each probe becomes a server span. Vendor guidance
+(SRC-19) drops these spans with the collector `filter` processor; the
+opentelemetry-demo does the same for gRPC health checks in its Go services
+(`otelgrpc.WithFilter(filters.Not(filters.HealthCheck()))`).
+
+The check is static. Files are read as text with `owner_d/miniyaml.py` and the
+shared `owner_d/otelconfig.py`, and are never run, rendered or resolved. It
+does not count spans, so no measurements are emitted. The summary estimates the
+declared probe rate instead.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. The payload is judged **as a whole**: probes, filters and SDK exclusions
+are collected from every source first. Supported files:
+
+- **OpenTelemetry Collector** `.yaml`/`.yml` (also ADOT): a plain config, an
+  `OpenTelemetryCollector` resource or a `ConfigMap` `|` entry, as in OBS-09.
+- **Kubernetes workloads** `.yaml`/`.yml` with an `httpGet` probe and an
+  OpenTelemetry marker: Pod, Deployment, StatefulSet, DaemonSet, ReplicaSet,
+  ReplicationController, Job, CronJob, DeploymentConfig, Rollout, also inside
+  `kind: List`.
+- **Code with an SDK exclusion hook** (`.py`, `.js`/`.ts`/`.mjs`/`.cjs`,
+  `.go`, `.cs`, `.java`, `.kt`) containing `excluded_urls`,
+  `ignoreIncomingRequestHook`, `ignoreIncomingPaths`, `WithFilter(`,
+  `AddAspNetCoreInstrumentation` or `RuleBasedRoutingSampler`. These files
+  only supply exceptions and never produce findings.
+
+No context settings are required.
+
+### Detection rule
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `pipeline/<id>:probe-spans` | A `traces` pipeline receives from `otlp`, `zipkin` or `jaeger` and exports to an exporter other than `debug`/`logging`/`nop`/`file`/a connector, and the payload has an instrumented probed workload whose probe path nothing drops | medium; low if the pipeline has a `probabilistic_sampler` (probe spans are still kept in proportion) |
+
+Embedded configs get the `OpenTelemetryCollector/<name>:` or
+`ConfigMap/<name>:<key>:` prefix, and a repeated identity gets `#n`. Evidence
+is the pipeline block. The summary lists the probe paths, workloads, files and
+periods, and an estimate of spans per day: `spec.replicas` × 86400 /
+`periodSeconds`, with DaemonSets counted once.
+
+An **instrumented probed workload** is a container with an HTTP
+`livenessProbe` or `readinessProbe` (`httpGet.path`, query stripped) that:
+
+- carries the operator annotation `instrumentation.opentelemetry.io/inject-<lang>`
+  (not `"false"`). It applies to the containers in `container-names` /
+  `<lang>-container-names`, else to the first container; or
+- sets `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT` or
+  `OTEL_TRACES_EXPORTER` (not `none`), an OpenTelemetry `-javaagent` in
+  `JAVA_TOOL_OPTIONS`/`JAVA_OPTS`, or runs `opentelemetry-instrument`;
+- and does not set `OTEL_SDK_DISABLED=true`, `OTEL_TRACES_EXPORTER=none` or
+  `OTEL_TRACES_SAMPLER=always_off`.
+
+A probe path is **dropped** when a `filter` processor of any traces pipeline
+in the payload matches it. All filter formats are read: `trace_conditions`,
+the deprecated `traces.span` and the legacy `spans.exclude`. A filter matches
+when one of its values or quoted OTTL literals contains the path, matches it as
+a regex (`IsMatch(span.name, "GET /health.*")`, `health`), or mentions
+`kube-probe` (the probe `User-Agent`, which covers every path). `/` is matched
+only exactly or by a full regex match. A filter in another collector config
+counts, so an agent in front of a filtering gateway is not flagged.
+
+Not flagged:
+
+- payloads where a traces pipeline uses `tail_sampling` (policies such as
+  `status_code`/`latency` can drop healthy probe traces, and v1 does not judge
+  policies), a `filter` that is not defined in its file or has unresolved
+  `${...}` values, or an unresolved processors list. A limitation names it.
+- probes excluded in the SDK: container env `OTEL_PYTHON_EXCLUDED_URLS` /
+  `OTEL_PYTHON_<FRAMEWORK>_EXCLUDED_URLS` whose comma-separated regexes
+  `re.search`-match the path (the Python contrib semantics), the same env set
+  with `valueFrom`, or a matching string literal on a code-hook line or the 5
+  lines after it
+- `startupProbe` (it stops after the first success), `tcpSocket`/`exec`/`grpc`
+  probes, probes with no or a templated `path`
+- uninstrumented containers and collector images (`opentelemetry-collector`,
+  `otelcol`, `aws-otel-collector`)
+- `logs`/`metrics`/`profiles` pipelines, pipelines that only export to
+  `debug`-like exporters or connectors, and unresolved pipeline lists
+- `# noqa` / `# noqa: OBS-13` on the pipeline key or directly above it. On a
+  probe's `path:` line or directly above the probe key, it ignores that probe.
+
+The recommended filter drops only **successful** probe spans, for example
+`span.attributes["url.path"] == "/healthz" and span.attributes["http.response.status_code"] < 400`.
+Failing probes explain restarts and pods taken out of service, so they should
+be kept.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- every probe and code-hook file when the payload has no collector config
+- Helm/Go templates and YAML outside the `miniyaml` subset, Helm values
+- YAML that has neither a collector config nor an instrumented probed workload
+- development/test files (the OBS-09 path tokens, and test modules)
+
+Other files are out of scope (`Unsupported`), so the scan worker passes only
+these inputs to the check.
+
+### Limitations
+
+Not visible: collectors, filters and workloads in other repositories,
+namespace-level operator annotations, `Instrumentation` sampler settings, SDK
+exclusions other than the ones listed, `--config` merges and HPA replica
+counts. Code-hook literals are matched by text, so an unrelated literal next to
+a hook can hide a finding (precision over recall).
+
+Out of scope for v1: Kubernetes events (`k8sobjects`/`k8s_events`), probe
+access logs in `filelog` pipelines, static-asset 404s and load-balancer health
+checks. Telling noise from an audit trail there needs runtime volume data.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs13/obs13-01-positive-input.json
+```

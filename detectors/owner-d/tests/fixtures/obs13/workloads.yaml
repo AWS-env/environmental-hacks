@@ -1,0 +1,53 @@
+# Synthetic fixture for OBS-13: OpenTelemetry-instrumented workloads with HTTP probes.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: api
+          image: example/api:1.4.2
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector:4317
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /ready?verbose=0
+              port: 8080
+            periodSeconds: 5
+        - name: envoy
+          image: envoyproxy/envoy:v1.31
+          livenessProbe:
+            httpGet:
+              path: /stats
+              port: 9901
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: checkout
+spec:
+  template:
+    metadata:
+      annotations:
+        instrumentation.opentelemetry.io/inject-java: "true"
+    spec:
+      containers:
+        - name: checkout
+          image: example/checkout:2.0.0
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8081
+            periodSeconds: 15
+          startupProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081

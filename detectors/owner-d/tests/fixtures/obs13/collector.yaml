@@ -1,0 +1,38 @@
+# Synthetic fixture for OBS-13: production gateway collector with no probe filter.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+  hostmetrics:
+    scrapers:
+      cpu:
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+  batch:
+  filter/redis:
+    error_mode: ignore
+    trace_conditions:
+      - span.attributes["db.system"] == "redis"
+
+exporters:
+  otlp/backend:
+    endpoint: tempo.example.com:4317
+  debug:
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, filter/redis, batch]
+      exporters: [otlp/backend, debug]
+    traces/local:
+      receivers: [otlp]
+      exporters: [debug]
+    metrics:
+      receivers: [hostmetrics, otlp]
+      processors: [batch]
+      exporters: [otlp/backend]
