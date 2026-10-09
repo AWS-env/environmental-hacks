@@ -24,15 +24,22 @@
 - **S1 `range(len())` indexing loop** (`range-len-indexing`): `for i in range(len(xs))` with an
   `xs[i]` read in the body → direct iteration / `enumerate`. Low severity, high confidence.
 - **S2 manual-index `while` loop** (`manual-index-while`): `i = 0` (immediately preceding
-  statement, same block) … `while i < len(xs)` … `i += 1` (or `i = i + 1`) with an `xs[i]`
-  read → `for` / `enumerate`. Low severity, high confidence.
+  statement, same block) … `while i < len(xs)` … exactly one `i += 1` (or `i = i + 1`) as a
+  top-level body statement, no `continue` owned by the loop, with an `xs[i]` read → `for` /
+  `enumerate`. Low severity, high confidence.
 - **S3 append-accumulation loop** (`append-accumulation`, `append-accumulation-gated`):
   `out = []` (immediately preceding statement, same block; annotated `out: list = []` counts)
   plus a loop whose body is a single `out.append(E)` statement, optionally wrapped in one
-  `if <cond>:` with no `else` → list comprehension. Low severity, high confidence.
+  `if <cond>:` with no `else` → list comprehension (`async for` loops get an `async for`
+  comprehension). Low severity, high confidence.
 - **S4 dict key loop with lookup** (`dict-key-lookup`): `for k in d` / `for k in d.keys()`
-  with a `d[k]` read in the body → `for k, v in d.items()`. Low severity, high confidence
-  (only when `d` is not mutated in the body).
+  with a `d[k]` read in the body → `for k, v in d.items()`. Low severity. Confidence is
+  high for `.keys()` and for a name bound in-file to a dict literal / comprehension /
+  `dict()` / `defaultdict()` / `Counter()` / `OrderedDict()` or annotated as a mapping;
+  **medium** (with a "not provably a dict" limitation) when the binding is unknown; a name
+  bound to a list / tuple / set / `range` / `sorted(...)` is **suppressed**, because
+  `for i in perm: perm[i]` on a list is legitimate indexing and `.items()` would be wrong.
+  Only when `d` is not mutated in the body.
 
 One finding per loop at most. **S3 takes precedence over S1/S4 on the same loop**: the
 comprehension rewrite subsumes the header-form question (e.g. `out.append(xs[i])` inside a
@@ -59,6 +66,9 @@ direct iteration inside).
   `while` with a non-index condition, counting `range(n)` with a non-`len` bound → no match.
 - `while` without a same-block `i = 0` init or without an `i += 1` / `i = i + 1`
   increment → suppress (manual indexing not established).
+- `while` whose increment is conditional (inside an `if`), repeated, or skippable by a
+  `continue` → not a plain traversal (a `for` rewrite would change which elements are
+  visited) → suppress.
 
 ## Boundaries with sibling checks
 
@@ -82,8 +92,9 @@ matches against. Confirmation upgrades confidence without re-emitting.
 
 ## Suppressions
 
-`isLineSuppressed(headerLine, ["CODE-C3.1"])` — honouring `# noqa: CODE-C3.1` (and blanket
-`# noqa`) on the loop header line. Path skips belong to the scan Lambda's file walker.
+`isLineSuppressed(line, ["CODE-C3.1"])` — honouring `# noqa: CODE-C3.1` (and blanket
+`# noqa`) on the loop header line, and for S3 also on the `out.append(...)` line. Path skips
+belong to the scan Lambda's file walker.
 
 ## Known limitations (v1, static half)
 

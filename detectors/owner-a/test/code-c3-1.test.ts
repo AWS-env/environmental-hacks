@@ -32,7 +32,10 @@ describe("CODE-C3.1 Inefficient iteration construct detector (static half)", () 
         expect(f.check).toBe("CODE-C3.1");
         expect(f.kind).toBe("inefficient-iteration-construct");
         expect(f.severity).toBe("low");
-        expect(f.confidence).toBe("high");
+        // Only the bare `for k in d` loop over an untyped parameter is Medium.
+        expect(f.confidence).toBe(
+          f.evidence.snippet === "for k in d:" ? "medium" : "high"
+        );
         expect(f.evidenceTier).toBe("static");
         expect(f.impact.quantified).toBe(false);
         expect(f.fingerprint).toMatch(/^[0-9a-f]{16}$/);
@@ -124,6 +127,79 @@ describe("CODE-C3.1 Inefficient iteration construct detector (static half)", () 
       );
       expect(findings).toHaveLength(1);
       expect(findings[0].evidence.loopType).toBe("while");
+    });
+  });
+
+  describe("Audit regressions (2026-10-09)", () => {
+    it("S4: never suggests .items() for a list iterated by its own values", () => {
+      const { findings } = runCheckOnSource(
+        "perm.py",
+        "perm = [2, 0, 1]\nfor i in perm:\n    out = perm[i]\n"
+      );
+      expect(findings).toEqual([]);
+    });
+
+    it("S4: dict-bound name is High, untyped name is Medium with a caveat", () => {
+      const typed = runCheckOnSource(
+        "d.py",
+        "d = {}\nfor k in d:\n    print(k, d[k])\n"
+      ).findings;
+      expect(typed).toHaveLength(1);
+      expect(typed[0].confidence).toBe("high");
+
+      const annotated = runCheckOnSource(
+        "a.py",
+        "def f(d: dict[str, int]):\n    for k in d:\n        print(k, d[k])\n"
+      ).findings;
+      expect(annotated[0].confidence).toBe("high");
+
+      const untyped = runCheckOnSource(
+        "u.py",
+        "def f(d):\n    for k in d:\n        print(k, d[k])\n"
+      ).findings;
+      expect(untyped[0].confidence).toBe("medium");
+      expect(untyped[0].limitations.some((l) => l.includes("not provably a dict"))).toBe(true);
+    });
+
+    it("S2: a conditional increment is not a plain traversal", () => {
+      const { findings } = runCheckOnSource(
+        "cond.py",
+        "i = 0\nwhile i < len(xs):\n    if xs[i] == sep:\n        i += 1\n    else:\n        handle(xs[i])\n"
+      );
+      expect(findings).toEqual([]);
+    });
+
+    it("S2: `continue` in the body blocks the rewrite", () => {
+      const { findings } = runCheckOnSource(
+        "cont.py",
+        "i = 0\nwhile i < len(xs):\n    if skip(xs[i]):\n        continue\n    use(xs[i])\n    i += 1\n"
+      );
+      expect(findings).toEqual([]);
+    });
+
+    it("S2: a `continue` inside a nested loop does not block it", () => {
+      const { findings } = runCheckOnSource(
+        "nested_cont.py",
+        "i = 0\nwhile i < len(xs):\n    for y in ys:\n        if y:\n            continue\n    use(xs[i])\n    i += 1\n"
+      );
+      expect(findings).toHaveLength(1);
+    });
+
+    it("S3: `# noqa: CODE-C3.1` on the append line suppresses", () => {
+      const { findings } = runCheckOnSource(
+        "noqa.py",
+        "out = []\nfor x in xs:\n    out.append(f(x))  # noqa: CODE-C3.1\n"
+      );
+      expect(findings).toEqual([]);
+    });
+
+    it("S3: `async for` suggests an async comprehension", () => {
+      const { findings } = runCheckOnSource(
+        "async.py",
+        "async def g(xs):\n    out = []\n    async for x in xs:\n        out.append(x)\n    return out\n"
+      );
+      expect(findings).toHaveLength(1);
+      expect(findings[0].evidence.suggested).toBe("[<expr> async for x in xs]");
     });
   });
 

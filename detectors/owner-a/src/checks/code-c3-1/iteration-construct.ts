@@ -1,5 +1,6 @@
 import Parser from "tree-sitter";
 import {
+  Confidence,
   Finding,
   generateFingerprint,
 } from "../../core/finding.js";
@@ -70,6 +71,11 @@ interface LoopMatch {
   suggested: string;
   why: string;
   agentPromptAction: string;
+  confidence: Confidence;
+  /** Signal-specific caveats appended to the shared static limitations. */
+  extraLimitations?: string[];
+  /** Extra 0-based rows whose `# noqa` also suppresses (e.g. the S3 append line). */
+  suppressionRows?: number[];
 }
 
 // ---------------------------------------------------------------------------
@@ -208,6 +214,146 @@ function isAssignmentTargetOf(
   return false;
 }
 
+/** `async for` loops need `async for` inside the suggested comprehension. */
+function isAsyncFor(loop: Parser.SyntaxNode): boolean {
+  return loop.children.some((c) => !c.isNamed && c.type === "async");
+}
+
+const LOOP_OR_SCOPE = new Set([
+  "for_statement",
+  "while_statement",
+  "function_definition",
+  "class_definition",
+]);
+
+/** Statements of these types inside `body` that belong to this loop (not nested loops/defs). */
+function ownedStatements(
+  body: Parser.SyntaxNode,
+  types: Set<string>
+): Parser.SyntaxNode[] {
+  const found: Parser.SyntaxNode[] = [];
+  const visit = (node: Parser.SyntaxNode) => {
+    for (const child of node.namedChildren) {
+      if (types.has(child.type)) found.push(child);
+      if (!LOOP_OR_SCOPE.has(child.type)) visit(child);
+    }
+  };
+  visit(body);
+  return found;
+}
+
+type BindingKind = "mapping" | "sequence" | "unknown";
+
+const MAPPING_FACTORIES = new Set([
+  "dict",
+  "defaultdict",
+  "OrderedDict",
+  "Counter",
+  "ChainMap",
+  "collections.defaultdict",
+  "collections.OrderedDict",
+  "collections.Counter",
+  "collections.ChainMap",
+]);
+const SEQUENCE_FACTORIES = new Set([
+  "list",
+  "tuple",
+  "range",
+  "sorted",
+  "reversed",
+  "set",
+  "frozenset",
+]);
+
+function classifyValue(node: Parser.SyntaxNode): BindingKind {
+  if (node.type === "dictionary" || node.type === "dictionary_comprehension") {
+    return "mapping";
+  }
+  if (
+    node.type === "list" ||
+    node.type === "list_comprehension" ||
+    node.type === "tuple" ||
+    node.type === "set" ||
+    node.type === "set_comprehension"
+  ) {
+    return "sequence";
+  }
+  if (node.type === "call") {
+    const fn = node.childForFieldName("function")?.text ?? "";
+    if (MAPPING_FACTORIES.has(fn)) return "mapping";
+    if (SEQUENCE_FACTORIES.has(fn)) return "sequence";
+  }
+  return "unknown";
+}
+
+function classifyAnnotation(text: string): BindingKind {
+  const head = text.replace(/\s+/g, "").split("[")[0].split(".").pop() ?? "";
+  if (/^(dict|Dict|Mapping|MutableMapping|defaultdict|OrderedDict|Counter)$/.test(head)) {
+    return "mapping";
+  }
+  if (/^(list|List|tuple|Tuple|Sequence|set|Set|frozenset|range)$/.test(head)) {
+    return "sequence";
+  }
+  return "unknown";
+}
+
+/**
+ * Best-effort, file-local type of `name` at `loop`: the last plain binding
+ * before the loop in the enclosing scope, or an annotated parameter.
+ * Anything else is "unknown" — S4 then reports at Medium confidence.
+ */
+function bindingKindBefore(
+  loop: Parser.SyntaxNode,
+  name: string
+): BindingKind {
+  let scope: Parser.SyntaxNode | null = loop.parent;
+  while (
+    scope &&
+    scope.type !== "function_definition" &&
+    scope.type !== "module"
+  ) {
+    scope = scope.parent;
+  }
+  if (!scope) return "unknown";
+
+  let kind: BindingKind = "unknown";
+  if (scope.type === "function_definition") {
+    const params = scope.childForFieldName("parameters");
+    for (const p of params ? params.namedChildren : []) {
+      if (
+        (p.type === "typed_parameter" || p.type === "typed_default_parameter") &&
+        (p.namedChildren[0]?.text === name ||
+          p.childForFieldName("name")?.text === name)
+      ) {
+        const ann = p.childForFieldName("type");
+        if (ann) kind = classifyAnnotation(ann.text);
+      }
+    }
+  }
+
+  const visit = (node: Parser.SyntaxNode) => {
+    for (const child of node.namedChildren) {
+      if (child.startIndex >= loop.startIndex) return;
+      if (child.type === "function_definition" || child.type === "class_definition") {
+        continue;
+      }
+      if (child.type === "assignment") {
+        const left = child.childForFieldName("left");
+        if (left?.type === "identifier" && left.text === name) {
+          const right = child.childForFieldName("right");
+          const ann = child.childForFieldName("type");
+          kind = right ? classifyValue(right) : "unknown";
+          if (kind === "unknown" && ann) kind = classifyAnnotation(ann.text);
+        }
+      }
+      visit(child);
+    }
+  };
+  const body = scope.type === "module" ? scope : scope.childForFieldName("body");
+  if (body) visit(body);
+  return kind;
+}
+
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -336,6 +482,7 @@ function matchRangeLen(
     suggested: `for ${indexName}, <item> in enumerate(${collectionText})`,
     why: `Index-based loop 'for ${indexName} in range(len(${collectionText}))' reads elements via '${collectionText}[${indexName}]'; direct iteration or 'enumerate' expresses the same traversal without repeated indexing.`,
     agentPromptAction: `rewrite the index-based loop to direct iteration ('for <item> in ${collectionText}') or 'enumerate(${collectionText})' when the index itself is needed`,
+    confidence: "high",
   };
 }
 
@@ -373,8 +520,18 @@ function matchManualIndexWhile(
     return null;
   }
 
-  // Increment `i += 1` or `i = i + 1` somewhere in the body.
+  // A linear traversal has no `continue` (it would skip the increment).
+  if (ownedStatements(body, new Set(["continue_statement"])).length > 0) {
+    return null;
+  }
+
+  // Exactly one increment `i += 1` / `i = i + 1`, as a top-level body
+  // statement: a conditional or repeated advance is not a plain traversal.
   // Ranges compare by byte offset (see hasNonAccessIndexUse).
+  const topLevelRanges = namedChildrenSkippingComments(body).map((s) => ({
+    start: s.startIndex,
+    end: s.endIndex,
+  }));
   const increments: Array<{ start: number; end: number }> = [];
   for (const node of walk(body)) {
     if (
@@ -403,7 +560,15 @@ function matchManualIndexWhile(
       }
     }
   }
-  if (increments.length === 0) return null;
+  if (increments.length !== 1) return null;
+  const isTopLevel = topLevelRanges.some(
+    (r) =>
+      r.start <= increments[0].start &&
+      r.end >= increments[0].end &&
+      // the statement is the increment itself, not a block containing it
+      r.end - r.start <= increments[0].end - increments[0].start + 1
+  );
+  if (!isTopLevel) return null;
 
   if (!hasIndexedRead(body, collectionText, indexName)) return null;
   if (hasNonAccessIndexUse(body, collectionText, indexName, increments)) {
@@ -419,6 +584,7 @@ function matchManualIndexWhile(
     suggested: `for ${indexName}, <item> in enumerate(${collectionText})`,
     why: `Manual-index 'while ${indexName} < len(${collectionText})' loop with explicit init/increment reads elements via '${collectionText}[${indexName}]'; a 'for' loop over the collection or 'enumerate' expresses the same traversal.`,
     agentPromptAction: `rewrite the manual-index while loop to a 'for' loop over ${collectionText} (or 'enumerate(${collectionText})' when the index itself is needed)`,
+    confidence: "high",
   };
 }
 
@@ -476,6 +642,7 @@ function matchAppendAccumulation(
   if (statements.length !== 1) return null;
 
   let gated = false;
+  let appendRow: number;
   const only = statements[0];
   if (only.type === "if_statement") {
     if (only.childForFieldName("alternative") !== null) return null;
@@ -486,8 +653,11 @@ function matchAppendAccumulation(
       return null;
     }
     gated = true;
+    appendRow = inner[0].startPosition.row;
   } else if (!matchAccumulatorAppend(only, accumulator)) {
     return null;
+  } else {
+    appendRow = only.startPosition.row;
   }
 
   // Mechanical comprehension blockers anywhere in the body (incl. await in E).
@@ -528,9 +698,10 @@ function matchAppendAccumulation(
   const signal: Signal = gated
     ? "append-accumulation-gated"
     : "append-accumulation";
+  const forKw = isAsyncFor(loop) ? "async for" : "for";
   const suggested = gated
-    ? `[<expr> for ${iterVar} in ${iterableText} if <cond>]`
-    : `[<expr> for ${iterVar} in ${iterableText}]`;
+    ? `[<expr> ${forKw} ${iterVar} in ${iterableText} if <cond>]`
+    : `[<expr> ${forKw} ${iterVar} in ${iterableText}]`;
   return {
     signal,
     symbol: accumulator,
@@ -538,6 +709,8 @@ function matchAppendAccumulation(
     suggested,
     why: `Loop accumulates results with a single${gated ? " (if-gated)" : ""} '${accumulator}.append(...)' call; a list comprehension (or a bulk builtin where one applies — see C10) expresses the same construction without per-iteration method-call overhead.`,
     agentPromptAction: `rewrite the append-accumulation loop to the comprehension '${suggested}' (preferring direct iteration / enumerate inside it); if the loop reduces to a builtin (sum, join, …) prefer that per C10 instead`,
+    confidence: "high",
+    suppressionRows: [appendRow],
   };
 }
 
@@ -552,8 +725,20 @@ function matchDictKeyLookup(
   const keyName = left.text;
 
   let dictText: string | null = null;
+  // `.keys()` proves a mapping; a bare name may be a list of indices
+  // (`for i in perm: perm[i]`), where `.items()` would be wrong advice.
+  let confidence: Confidence = "high";
+  const extraLimitations: string[] = [];
   if (right.type === "identifier") {
     dictText = right.text;
+    const kind = bindingKindBefore(loop, dictText);
+    if (kind === "sequence") return null;
+    if (kind === "unknown") {
+      confidence = "medium";
+      extraLimitations.push(
+        `'${dictText}' is not provably a dict in this file; '.items()' applies only if it is a mapping (a list iterated by its own values as indices is not).`
+      );
+    }
   } else if (right.type === "call") {
     const fn = right.childForFieldName("function");
     if (!fn || fn.type !== "attribute") return null;
@@ -584,7 +769,9 @@ function matchDictKeyLookup(
     loopType: "for",
     suggested: `for ${keyName}, <value> in ${dictText}.items()`,
     why: `Key loop 'for ${keyName} in ${dictText}' re-reads each value via '${dictText}[${keyName}]'; iterating '${dictText}.items()' yields both directly without the repeated lookup.`,
-    agentPromptAction: `rewrite the key loop to 'for ${keyName}, <value> in ${dictText}.items()'`,
+    agentPromptAction: `rewrite the key loop to 'for ${keyName}, <value> in ${dictText}.items()'${confidence === "high" ? "" : ` after confirming '${dictText}' is a dict`}`,
+    confidence,
+    extraLimitations,
   };
 }
 
@@ -604,8 +791,10 @@ function buildFinding(
   const endLine = loop.endPosition.row + 1;
   const headerLine = (sourceLines[loop.startPosition.row] ?? "").trim();
 
-  const suppression = isLineSuppressed(headerLine, [CHECK]);
-  if (suppression.isSuppressed) return null;
+  const suppressed = [loop.startPosition.row, ...(match.suppressionRows ?? [])].some(
+    (row) => isLineSuppressed(sourceLines[row] ?? "", [CHECK]).isSuppressed
+  );
+  if (suppressed) return null;
 
   const normalizedHeader = headerLine.replace(/\s+/g, " ");
   const scope = enclosingScopeName(loop);
@@ -630,8 +819,8 @@ function buildFinding(
     },
     why: match.why,
     severity: "low",
-    confidence: "high",
-    limitations: [...STATIC_LIMITATIONS],
+    confidence: match.confidence,
+    limitations: [...STATIC_LIMITATIONS, ...(match.extraLimitations ?? [])],
     evidenceTier: "static",
     impact: {
       quantified: false,
