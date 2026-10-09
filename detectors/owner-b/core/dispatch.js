@@ -5,6 +5,7 @@ const jobs={
   'JOB-03':require('../checks/job-03'),
   'JOB-05':require('../checks/job-05'),
   'JOB-01':require('../checks/job-01'),
+  'JOB-06':require('../checks/job-06'),
 };
 function evaluate(input){return jobs[input.check_id]?jobs[input.check_id].evaluate(input):database.evaluate(input);}
 module.exports={evaluate,jobs};
