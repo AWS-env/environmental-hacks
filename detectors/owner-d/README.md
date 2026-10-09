@@ -463,3 +463,89 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs01/obs01-01-positive-input.json
   detectors/owner-d/tests/fixtures/inf09/inf09-01-positive-input.json
 ```
+
+
+## INF-08 — Missing CPU/memory limits (noisy neighbor)
+
+Flags containers in deployment manifests that a shared host cannot bound. The
+check is static: manifests are read as text and are never applied, rendered or
+sent to a cluster or to AWS. It uses the `textstatic.py` runner. YAML is read
+by `owner_d/miniyaml.py`, a stdlib reader with line numbers for the YAML
+subset that Kubernetes, Compose and CloudFormation use: block and flow
+collections, block scalars, multiple documents, anchors and merge keys, and
+tags. PyYAML is not a dependency. Anything outside that subset is reported as
+*not parsed*. The same applies to Helm/Go template actions that appear outside
+quoted strings.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Supported files:
+
+- **Kubernetes** `.yaml`/`.yml`: `Pod`, `Deployment`, `StatefulSet`,
+  `DaemonSet`, `ReplicaSet`, `Job`, `CronJob`, `ReplicationController`,
+  `DeploymentConfig` and `Rollout`, including inside `kind: List`
+- **Docker Compose** `.yaml`/`.yml`: a top-level `services` mapping
+- **Amazon ECS** `.json`: a task definition, or `describe-task-definition`
+  output with the `taskDefinition` wrapper
+- **CloudFormation** `.json`/`.yaml`: `AWS::ECS::TaskDefinition` resources
+
+No context settings are required.
+
+### Detection rule
+
+| Format | Identity | Flagged when | Confidence |
+| --- | --- | --- | --- |
+| Kubernetes | `<Kind>/[<ns>/]<name>:<container>` | No requests or limits at all (BestEffort), or no `limits.memory` | medium |
+| Kubernetes | same | Memory limit set but no CPU request (and no CPU limit, so no request is defaulted) | low |
+| Compose | `service/<name>` | No `mem_limit` and no `deploy.resources.limits.memory` | low |
+| ECS / CloudFormation | `task/<family or logical id>:<container>` | Neither the task nor the container sets a hard `memory`. `memoryReservation` is only a soft limit. | medium |
+| ECS / CloudFormation | same | Neither the task nor the container sets CPU units (`cpu` 0 counts as unset) | low |
+
+A missing CPU limit on its own is **not** flagged. Under contention, CPU is
+shared by request/weight, and many operators leave CPU limits unset on purpose
+to avoid throttling. Kubernetes copies a limit into an unset request, so
+`limits` alone counts as requested.
+
+The following are not flagged:
+
+- containers covered by a `LimitRange` in the same file and the same
+  namespace that sets `default`/`defaultRequest`
+- workloads annotated `ignore-check.kube-linter.io/unset-*` or
+  `polaris.fairwinds.com/*exempt`
+- containers with `# noqa` / `# noqa: INF-08` on the line or directly above it
+- Compose services that use `extends`
+- Fargate task definitions, because the task-level `cpu`/`memory` they
+  require bound every container
+- `initContainers`
+
+Evidence is the container's `name` line, or the Compose service key line.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- Helm/Go templates
+- invalid JSON or YAML outside the subset
+- Kubernetes JSON manifests
+- YAML/JSON files that contain no Kubernetes objects, Compose services, ECS
+  task definitions or CloudFormation resources
+- Compose files marked as development/test, such as
+  `docker-compose.override.yml`, `compose.dev.yaml`, `*.test.yml` or a file
+  under `test/` or `.devcontainer/`
+
+### Limitations
+
+The taxonomy row describes runtime impact ("one container starves others").
+v1 is static only and uses no telemetry, so it proves that a container is
+unbounded in the manifest, not that it starves anything, and it emits no
+measurements. Defaults applied outside the file are not visible: LimitRange
+or ResourceQuota objects in other files, Kustomize patches, Helm values,
+admission webhooks, EKS Fargate profiles (one pod per micro-VM) and ECS
+capacity settings.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/inf08/inf08-01-positive-input.json
+```

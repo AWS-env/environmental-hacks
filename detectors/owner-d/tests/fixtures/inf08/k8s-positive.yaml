@@ -1,0 +1,59 @@
+# Synthetic INF-08 fixture: Kubernetes workloads with unbounded containers.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: shop
+spec:
+  replicas: 3
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/web:1.0
+          ports:
+            - containerPort: 8080
+        - name: sidecar
+          image: example/proxy:1.0
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  ports:
+    - port: 80
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: report
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: report
+            image: example/report:1.0
+            resources: {}
+          restartPolicy: OnFailure
+---
+apiVersion: v1
+kind: List
+items:
+  - apiVersion: v1
+    kind: Pod
+    metadata:
+      name: worker
+    spec:
+      containers:
+        - image: example/worker:1.0
+          name: worker
+          resources:
+            limits: {memory: 256Mi}

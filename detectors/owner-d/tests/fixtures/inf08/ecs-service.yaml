@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: Synthetic INF-08 fixture - CloudFormation ECS task definitions.
+Parameters:
+  ImageUri:
+    Type: String
+Resources:
+  ApiTask:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub "${AWS::StackName}-api"
+      ContainerDefinitions:
+        - Name: api
+          Image: !Ref ImageUri
+          MemoryReservation: 512
+  FargateTask:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      RequiresCompatibilities: [FARGATE]
+      Cpu: "256"
+      Memory: "512"
+      ContainerDefinitions:
+        - Name: web
+          Image: !Ref ImageUri

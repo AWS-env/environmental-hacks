@@ -1,0 +1,25 @@
+# Synthetic INF-08 fixture: Compose services with and without memory limits.
+x-limits: &limits
+  deploy:
+    resources:
+      limits:
+        cpus: "0.50"
+        memory: 256M
+
+services:
+  web:
+    image: example/web:1.0
+    ports:
+      - "8080:8080"
+  worker:
+    image: example/worker:1.0
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+  db:
+    image: postgres:16
+    mem_limit: 512m
+  cache:
+    <<: *limits
+    image: redis:7

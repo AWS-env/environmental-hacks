@@ -1,0 +1,33 @@
+# Synthetic INF-08 fixture: bounded containers (no findings expected).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: migrate
+          image: example/migrate:1.0
+      containers:
+        - name: app
+          image: example/web:1.0
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              memory: 256Mi
+        - name: sidecar
+          image: example/proxy:1.0
+          resources:
+            limits:
+              cpu: "1"
+              memory: 128Mi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: settings
+data:
+  containers: "not a pod spec"

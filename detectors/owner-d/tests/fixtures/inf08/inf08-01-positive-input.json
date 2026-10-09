@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf08-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "INF-08",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "manifest"
+  },
+  "scope": [
+    "file:k8s-positive.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:k8s-positive.yaml",
+      "scope_id": "file:k8s-positive.yaml",
+      "kind": "static",
+      "locator": "k8s-positive.yaml",
+      "content": "# Synthetic INF-08 fixture: Kubernetes workloads with unbounded containers.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: web\n  namespace: shop\nspec:\n  replicas: 3\n  template:\n    spec:\n      containers:\n        - name: app\n          image: example/web:1.0\n          ports:\n            - containerPort: 8080\n        - name: sidecar\n          image: example/proxy:1.0\n          resources:\n            requests:\n              cpu: 100m\n              memory: 64Mi\n---\napiVersion: v1\nkind: Service\nmetadata:\n  name: web\nspec:\n  ports:\n    - port: 80\n---\napiVersion: batch/v1\nkind: CronJob\nmetadata:\n  name: report\nspec:\n  schedule: \"0 * * * *\"\n  jobTemplate:\n    spec:\n      template:\n        spec:\n          containers:\n          - name: report\n            image: example/report:1.0\n            resources: {}\n          restartPolicy: OnFailure\n---\napiVersion: v1\nkind: List\nitems:\n  - apiVersion: v1\n    kind: Pod\n    metadata:\n      name: worker\n    spec:\n      containers:\n        - image: example/worker:1.0\n          name: worker\n          resources:\n            limits: {memory: 256Mi}\n"
+    }
+  ]
+}
