@@ -616,3 +616,60 @@ CI time spent on tests that check nothing.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst06/tst06-01-positive-input.json
 ```
+
+## TST-05 — Duplicate Assert
+
+Flags an assertion that repeats an earlier assertion in the same test when the
+repeat cannot fail on its own. The rule follows PyNose's Duplicate Assert ("a test case contains more than
+one assertion statement with the same parameters";
+[Wang et al., ASE 2021](https://arxiv.org/abs/2108.04639), adopted from
+[tsDetect](https://testsmells.org/pages/testsmells.html)), narrowed to remove
+deliberate re-checks. It is static (`ast` only), uses the same input, test
+recognition and per-file "nothing to flag" note as TST-06, and needs no
+context settings.
+
+### Detection rule
+
+Within one statement block of a test, the check scans each run of consecutive
+assertion statements (`assert ...` or a bare assertion call, see TST-06). A
+statement is flagged when it repeats an earlier assertion in the same run. Two
+assertions are the same when they have the same callee, operands and
+non-message keywords. They are compared both by AST and by source tokens, so
+whitespace, comments and messages are ignored, but `p[:4]` vs `p[:4:]` or
+`f".."` vs `fr".."` still differ.
+
+The run restarts, so nothing is compared across it, at:
+
+- any non-assertion statement, because the test may have changed state;
+- an assertion that may run code: an operand with a call other than
+  `len`/`isinstance`/`issubclass`/`type`/`id`/`callable`/`abs`/`round` (so
+  `list(it)` or `reader.read()` repeated is a re-read, not a duplicate), an
+  `await`/walrus, call-form `assertRaises`/`assertWarns`/`assertLogs`/
+  `pytest.raises`, or a custom `TestCase` assertion such as
+  `assertTemplateUsed`.
+
+Assertions in different branches, loop iterations, nested functions or lambdas
+are never compared. `with self.assertRaises(...)` blocks guard different code
+and are not compared. `# noqa: TST-05` suppresses a finding.
+
+This is a deliberate narrowing. PyNose flags any textual repeat in the test,
+including re-checks after the test mutates state. On about 80k real tests,
+that broad rule gave 17,314 matches against 92 for this one. Every one of the
+12 removed matches sampled was a deliberate "assert, act, assert again"
+re-check. Attribute and property reads are assumed
+side-effect free, so deliberate idempotence checks of cached properties are
+still reported; mark them with `# noqa: TST-05`.
+
+Each repeat is one finding, with evidence on the repeated line and the first
+line named in the summary. The identity is
+`<qualified test>:<assertion callee>` (e.g. `CartTest.test_total:self.assertEqual`),
+with `#n` for further repeats in the same test. Findings are `medium`
+confidence. No measurements are emitted: the waste is one comparison per run
+plus maintenance, a weak environmental link.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst05/tst05-01-positive-input.json
+```

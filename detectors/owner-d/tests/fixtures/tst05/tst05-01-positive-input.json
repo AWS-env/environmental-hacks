@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst05-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "TST-05",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:tests/test_cart.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_cart.py",
+      "kind": "static",
+      "locator": "tests/test_cart.py",
+      "content": "# Synthetic TST-05 fixture: repeated assertions. Never executed.\nimport unittest\n\nimport numpy as np\n\n\nclass CartTest(unittest.TestCase):\n    def test_total(self):\n        cart = make_cart()\n        self.assertEqual(cart.total, 3)\n        self.assertEqual(cart.total, 3)\n\n    def test_message_is_ignored(self):\n        cart = make_cart()\n        self.assertTrue(cart.items, \"has items\")\n        self.assertIn(\"apple\", cart.items)\n        self.assertTrue(cart.items, \"still has items\")\n\n    def test_alias(self):\n        eq = self.assertEqual\n        cart = make_cart()\n        eq(cart.count, 2)\n        eq(cart.count, 2)\n\n\ndef test_plain_assert():\n    cart = make_cart()\n    assert cart.total == 3\n    assert cart.total == 3\n\n\ndef test_formatting_differs():\n    cart = make_cart()\n    assert len(cart.items) == 2\n    assert len( cart.items )==2  # same tokens\n\n\ndef test_numpy_style():\n    values = load()\n    np.testing.assert_allclose(values.mean, 2.0, rtol=1e-6)\n    np.testing.assert_allclose(values.mean, 2.0, rtol=1e-6)\n"
+    }
+  ]
+}
