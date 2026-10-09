@@ -5,6 +5,7 @@ const db34 = require('./db-34-detector');
 module.exports = {
   evaluate: require('./core/g01').evaluate,
   checks: {
+    'DB-06': require('./checks/db-06'),
     'DB-34': require('./checks/db-34'),
   },
   db34: {
