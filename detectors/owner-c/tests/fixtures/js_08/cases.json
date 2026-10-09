@@ -1,0 +1,293 @@
+[
+  {
+    "id": "JS-08-01",
+    "title": "known positive: Intl formatter built per call in a hot function",
+    "files": {
+      "app.js": "function format(n) {\n  return new Intl.NumberFormat('en-US').format(n);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "format:new Intl.NumberFormat",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.3
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-02",
+    "title": "constant RegExp built per call",
+    "files": {
+      "app.js": "function ok(s) {\n  return new RegExp('^a+$').test(s);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "ok:new RegExp",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.3
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-03",
+    "title": "DateTimeFormat in an arrow function",
+    "files": {
+      "app.js": "const day = (d) => new Intl.DateTimeFormat('en', { dateStyle: 'short' }).format(d);\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "day:new Intl.DateTimeFormat",
+          "line": 1
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.3
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-04",
+    "title": "boundary: share exactly at the threshold is reported",
+    "files": {
+      "app.js": "function format(n) {\n  return new Intl.NumberFormat('en-US').format(n);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "format:new Intl.NumberFormat",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.05
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-05",
+    "title": "boundary: just below the threshold is not reported",
+    "files": {
+      "app.js": "function format(n) {\n  return new Intl.NumberFormat('en-US').format(n);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.0499
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-06",
+    "title": "recommended form: formatter hoisted to module scope",
+    "files": {
+      "app.js": "const nf = new Intl.NumberFormat('en-US');\nfunction format(n) {\n  return nf.format(n);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_2": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-07",
+    "title": "legitimate exception: RegExp built from a dynamic pattern cannot be hoisted",
+    "files": {
+      "app.js": "function m(pattern, s) {\n  return new RegExp(pattern).test(s);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-08",
+    "title": "similar negative: regex literal",
+    "files": {
+      "app.js": "function ok(s) {\n  return /^a+$/.test(s);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-09",
+    "title": "similar negative: other Intl members are not formatters",
+    "files": {
+      "app.js": "function f() {\n  return Intl.getCanonicalLocales('en');\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.9
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-08-10",
+    "title": "malformed settings: threshold missing -> unavailable",
+    "files": {
+      "app.js": "function format(n) {\n  return new Intl.NumberFormat('en-US').format(n);\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_time_share must be a number"
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.3
+        }
+      }
+    },
+    "context": {
+      "min_time_share": null
+    }
+  },
+  {
+    "id": "JS-08-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "JS-08-91",
+    "title": "no profiler artifact -> unavailable, not clean",
+    "files": {
+      "app.js": "function format(n) {\n  return new Intl.NumberFormat('en-US').format(n);\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no node-cpu artifact"
+      ]
+    }
+  },
+  {
+    "id": "JS-08-92",
+    "title": "artifact covers only one of two files -> partial",
+    "files": {
+      "app.js": "function format(n) {\n  return new Intl.NumberFormat('en-US').format(n);\n}\n",
+      "cold.js": "let x = 1;\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "format:new Intl.NumberFormat",
+          "line": 2
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ],
+      "limitations_contain": [
+        "cold.js",
+        "no node-cpu artifact"
+      ]
+    },
+    "artifacts": {
+      "node-cpu": {
+        "app.js": {
+          "profiler": "node-cpu",
+          "sampled_seconds": 3.0,
+          "function_time_share_line_1": 0.3
+        }
+      }
+    }
+  }
+]
