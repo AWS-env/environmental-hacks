@@ -1,0 +1,184 @@
+[
+  {
+    "id": "CI-16-01",
+    "title": "known positive: constant cache key on a dependency directory",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ~/.npm\n          key: npm-cache\n      - run: npm ci\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:test:cache:~/.npm:static-key",
+          "line": 9,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-16-02",
+    "title": "similar negative: key includes hashFiles of the lockfile",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ~/.npm\n          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}\n      - run: npm ci\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-03",
+    "title": "known positive: OS matrix with a platform-specific node_modules cache whose key has no OS part",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        os: [ubuntu-latest, windows-latest]\n    steps:\n      - uses: actions/cache@v4\n        with:\n          path: node_modules\n          key: npm-${{ hashFiles('**/package-lock.json') }}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:test:cache:node_modules:no-os-in-key",
+          "line": 11,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-16-04",
+    "title": "similar negative: OS matrix with runner.os in the key",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        os: [ubuntu-latest, windows-latest]\n    steps:\n      - uses: actions/cache@v4\n        with:\n          path: ~/.npm\n          key: npm-${{ runner.os }}-${{ hashFiles('**/package-lock.json') }}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-05",
+    "title": "legitimate exception: restore-only step with a fixed key",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache/restore@v4\n        with:\n          path: ~/.npm\n          key: npm-cache\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-06",
+    "title": "legitimate exception: per-run key with github.sha is intentionally unique",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: build-output\n          key: build-${{ github.sha }}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-07",
+    "title": "boundary: key with only runner.os is still constant per OS",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ~/.npm\n          key: ${{ runner.os }}-npm\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:test:cache:~/.npm:static-key",
+          "line": 9,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-16-08",
+    "title": "legitimate exception: a constant key on a tool or output cache (not a package store) is not reported",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: .build-output\n          key: build\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-10",
+    "title": "legitimate exception: the SonarCloud cache snippet from Sonar's own docs (constant key plus restore-keys)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ~/.sonar/cache\n          key: ${{ runner.os }}-sonar\n          restore-keys: ${{ runner.os }}-sonar\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-11",
+    "title": "legitimate exception: a package-store key that carries a version number is refreshed by editing the version",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ~/.npm\n          key: npm-v2.1\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-12",
+    "title": "boundary: Maven jars (~/.m2) are portable across operating systems, so a key without an OS part is not reported",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        os: [ubuntu-latest, macos-latest]\n    steps:\n      - uses: actions/cache@v4\n        with:\n          path: ~/.m2\n          key: m2-${{ hashFiles('**/pom.xml') }}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-13",
+    "title": "known positive: pnpm store cached under a constant key per OS (real: open-telemetry/opentelemetry-java-instrumentation)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ~/.pnpm-store\n          key: ${{ runner.os }}-test-cache-pnpm-modules\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:test:cache:~/.pnpm-store:static-key",
+          "line": 9,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-16-14",
+    "title": "legitimate exception: release workflows are not judged for cache keys",
+    "files": {
+      ".github/workflows/release.yml": "name: Release\non:\n  release:\n    types: [published]\njobs:\n  publish:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/cache@v4\n        with:\n          path: ~/.npm\n          key: npm-cache\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-16-09",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  }
+]
