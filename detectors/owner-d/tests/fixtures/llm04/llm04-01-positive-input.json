@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm04-001",
+  "commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "check_id": "LLM-04",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic LLM-04 fixture: pipeline steps that receive the whole context again. Never executed.\nimport json\n\nimport anthropic\nimport boto3\nfrom openai import OpenAI\n\nclaude = anthropic.Anthropic()\nclient = OpenAI()\nbedrock = boto3.client(\"bedrock-runtime\")\nSONNET = \"claude-sonnet-4-5\"\nNOVA = \"amazon.nova-lite-v1:0\"\n\n\ndef research(question, document):\n    messages = [{\"role\": \"user\", \"content\": f\"Read this report:\\n{document}\\n\\nList the key facts.\"}]\n    facts = claude.messages.create(model=SONNET, max_tokens=512, messages=messages)\n    messages.append({\"role\": \"assistant\", \"content\": facts.content})\n    messages.append({\"role\": \"user\", \"content\": \"Group the facts by theme.\"})\n    themes = claude.messages.create(model=SONNET, max_tokens=512, messages=messages)\n    messages.extend([{\"role\": \"assistant\", \"content\": themes.content}, {\"role\": \"user\", \"content\": question}])\n    return claude.messages.create(model=SONNET, max_tokens=512, messages=messages)\n\n\ndef draft_and_critique(history, topic):\n    draft = client.chat.completions.create(model=\"gpt-4.1\", messages=history + [{\"role\": \"user\", \"content\": topic}])\n    critique = client.chat.completions.create(\n        model=\"gpt-4.1\",\n        messages=history + [{\"role\": \"user\", \"content\": \"Critique the draft.\"}],\n    )\n    return draft, critique\n\n\ndef converse_pipeline(conversation, ask):\n    outline = bedrock.converse(modelId=NOVA, messages=conversation)\n    conversation.append(outline[\"output\"][\"message\"])\n    return bedrock.converse(modelId=NOVA, messages=[*conversation, {\"role\": \"user\", \"content\": [{\"text\": ask}]}])\n\n\ndef respond_twice(history):\n    first = client.responses.create(model=\"gpt-4.1\", input=history)\n    history += [{\"role\": \"assistant\", \"content\": first.output_text}, {\"role\": \"user\", \"content\": \"Shorter.\"}]\n    return client.responses.create(model=\"gpt-4.1\", input=history)\n\n\ndef contract_review(contract_text):\n    clauses_prompt = f\"Extract every clause from this contract:\\n{contract_text}\"\n    clauses = client.chat.completions.create(model=\"gpt-4.1\", messages=[{\"role\": \"user\", \"content\": clauses_prompt}])\n    clause_list = clauses.choices[0].message.content\n    risk_prompt = f\"Rate the risk of each clause:\\n{clause_list}\\n\\nFull contract:\\n{contract_text}\"\n    risks = client.chat.completions.create(model=\"gpt-4.1\", messages=[{\"role\": \"user\", \"content\": risk_prompt}])\n    return client.chat.completions.create(\n        model=\"gpt-4.1\", messages=[{\"role\": \"user\", \"content\": \"Summarise: \" + risks.choices[0].message.content}]\n    )\n\n\ndef invoke_pipeline(chat_log):\n    body = json.dumps({\"messages\": chat_log, \"max_tokens\": 256})\n    summary = bedrock.invoke_model(modelId=\"anthropic.claude-3-haiku-20240307-v1:0\", body=body)\n    chat_log.append({\"role\": \"assistant\", \"content\": summary[\"body\"].read().decode()})\n    request = json.dumps({\"messages\": chat_log, \"max_tokens\": 256})\n    return bedrock.invoke_model(modelId=\"anthropic.claude-3-haiku-20240307-v1:0\", body=request)\n\n\ndef injected(llm, messages):\n    plan = llm.chat.completions.create(model=\"gpt-4.1\", messages=messages)\n    messages.append({\"role\": \"assistant\", \"content\": plan.choices[0].message.content})\n    return llm.chat.completions.create(model=\"gpt-4.1\", messages=messages)\n"
+    }
+  ]
+}
