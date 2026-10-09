@@ -9,6 +9,7 @@ detector (see `owner_c/connector.py` and `owner_c/normalize/`).
 | Check | Pattern | Evidence | Issue |
 | --- | --- | --- | --- |
 | PY-09 | Mutable default arguments | static | #253 |
+| PY-04 | String `+=` inside loops | static | #248 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open.
@@ -88,6 +89,11 @@ defaults. Not flagged: `None`, scalars, tuples, `frozenset()`, immutable annotat
 lines with `# noqa` (bare or naming B006/B008). Identity: `qualname(arg)`. Confidence: high.
 Limitation: a deliberate cache is a legitimate exception the code cannot distinguish.
 
+## PY-04 - string `+=` in loops
+
+Flags `x += ...` inside `for`/`while`/comprehension scope when the value is a string expression
+(literal, f-string, `str()`, `%`/`+` with a string) or `x` is assigned a string in the same scope.
+Identity: `qualname:target`. Confidence: medium. Limitation: loop length unknown; types are inferred.
 
 
 
