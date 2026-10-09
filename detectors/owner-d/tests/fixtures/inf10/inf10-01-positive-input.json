@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf10-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "INF-10",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "iac"
+  },
+  "scope": [
+    "file:template-positive.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:template-positive.yaml",
+      "scope_id": "file:template-positive.yaml",
+      "kind": "static",
+      "locator": "template-positive.yaml",
+      "content": "# Synthetic fixture (INF10-01): storage resources with no lifecycle/retention declared.\nAWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  Stage:\n    Type: String\nResources:\n  UploadsBucket:\n    DeletionPolicy: Retain\n    Type: AWS::S3::Bucket\n    Properties:\n      BucketName: !Sub \"uploads-${Stage}\"\n  ArchiveBucket:\n    Type: AWS::S3::Bucket\n    Properties:\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-old\n            Status: Disabled\n            ExpirationInDays: 30\n          - Id: to-glacier\n            Status: Disabled\n            Transitions:\n              - StorageClass: GLACIER\n                TransitionInDays: 90\n  StagingBucket:\n    Type: AWS::S3::Bucket\n    Properties:\n      LifecycleConfiguration:\n        Rules:\n          - Id: abort-uploads\n            Status: Enabled\n            AbortIncompleteMultipartUpload:\n              DaysAfterInitiation: 7\n  ReportsBucket:\n    Type: AWS::S3::Bucket\n    Properties:\n      LifecycleConfiguration:\n        Rules:\n          - Id: old-versions\n            Status: Enabled\n            NoncurrentVersionExpiration:\n              NoncurrentDays: 30\n  DataBucket:\n    Type: AWS::S3::Bucket\n    Properties:\n      VersioningConfiguration:\n        Status: Enabled\n      LifecycleConfiguration:\n        Rules:\n          - Id: expire-current\n            Status: Enabled\n            ExpirationInDays: 365\n  AppLogGroup:\n    Type: AWS::Logs::LogGroup\n    Properties:\n      LogGroupName: !Sub \"/app/${Stage}\"\n  ImageRepository:\n    Type: AWS::ECR::Repository\n    Properties:\n      RepositoryName: app\n      ImageScanningConfiguration:\n        ScanOnPush: true\n  Handler:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.handler\n      CodeUri: src/\n"
+    }
+  ]
+}

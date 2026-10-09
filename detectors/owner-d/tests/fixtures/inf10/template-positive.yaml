@@ -1,0 +1,69 @@
+# Synthetic fixture (INF10-01): storage resources with no lifecycle/retention declared.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  Stage:
+    Type: String
+Resources:
+  UploadsBucket:
+    DeletionPolicy: Retain
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "uploads-${Stage}"
+  ArchiveBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-old
+            Status: Disabled
+            ExpirationInDays: 30
+          - Id: to-glacier
+            Status: Disabled
+            Transitions:
+              - StorageClass: GLACIER
+                TransitionInDays: 90
+  StagingBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: abort-uploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+  ReportsBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: old-versions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+  DataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-current
+            Status: Enabled
+            ExpirationInDays: 365
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub "/app/${Stage}"
+  ImageRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: app
+      ImageScanningConfiguration:
+        ScanOnPush: true
+  Handler:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      CodeUri: src/

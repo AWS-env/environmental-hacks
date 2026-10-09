@@ -1,0 +1,4 @@
+{
+  "Resources": {
+    "LogsBucket": {
+      "Type": "AWS::S3::Bucket",

@@ -1,0 +1,107 @@
+# Synthetic fixture (INF10-02): lifecycle/retention declared (literally or via intrinsics).
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  LogRetentionDays:
+    Type: Number
+    Default: 14
+  RuleStatus:
+    Type: String
+Conditions:
+  IsProd: !Equals [!Ref "AWS::AccountId", "111111111111"]
+Resources:
+  ExpiringBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire
+            Status: Enabled
+            ExpirationInDays: 30
+  TieredBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: tmp
+            Prefix: tmp/
+            Status: Enabled
+            Transitions:
+              - StorageClass: STANDARD_IA
+                TransitionInDays: 30
+  VersionedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - Id: current
+            Status: Enabled
+            ExpirationInDays: 90
+          - Id: noncurrent
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 30
+  ConditionalBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration: !If
+        - IsProd
+        - Rules:
+            - Id: expire
+              Status: Enabled
+              ExpirationInDays: 30
+        - !Ref AWS::NoValue
+  ConditionalRuleBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - !If [IsProd, {Id: expire, Status: Enabled, ExpirationInDays: 30}, !Ref AWS::NoValue]
+  LongFormBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Fn::If:
+          - IsProd
+          - Rules: [{Id: expire, Status: Enabled, ExpirationInDays: 7}]
+          - Ref: AWS::NoValue
+  ParameterStatusBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire
+            Status: !Ref RuleStatus
+            ExpirationInDays: !Ref LogRetentionDays
+  AppLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !Ref LogRetentionDays
+  ConditionalLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays: !If [IsProd, 90, 7]
+  VendedLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupClass: DELIVERY
+  Repository:
+    Type: AWS::ECR::Repository
+    Properties:
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {"rules": [{"rulePriority": 1, "selection": {"tagStatus": "any", "countType": "imageCountMoreThan",
+            "countNumber": 20}, "action": {"type": "expire"}}]}
+  Table:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions: [{AttributeName: pk, AttributeType: S}]
+      KeySchema: [{AttributeName: pk, KeyType: HASH}]
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ExpiringBucket
+      PolicyDocument: {}

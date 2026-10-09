@@ -1,0 +1,8 @@
+# Synthetic fixture (INF10-05): not a CloudFormation template.
+name: ci
+on: [push]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo ok
