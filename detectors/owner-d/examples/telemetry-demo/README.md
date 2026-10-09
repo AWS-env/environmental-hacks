@@ -20,14 +20,31 @@ X-Ray subsegments. Owner D's telemetry analyzers then have real evidence to read
 | `OBS-17` | One ERROR line with the full `stack_trace` (chained exceptions) and the whole echoed `request_body` (40 items, about 6 KB). | `error_type`, `error`, `order_id`, `body_bytes`, `body_sha256` (about 0.25 KB). | Field-level analysis finds large verbose fields and the size ratio between the two paths. |
 | `OBS-04` | Three free-text lines (`<time> WARN [...] inventory lookup slow for order_id ... ms 2310`). | The same three events as JSON lines. | Unstructured lines need parsing at query time; the structured ones need none. |
 | `OBS-06` | `RequestLatencyMs` keyed by `request_id` (`req-000`..`req-039`, one series per request). | `RequestLatencyMs` keyed by `endpoint` (2 values). | `ListMetrics` shows a dimension whose value count grows with traffic, next to a bounded one. |
-| `LLM-10` | X-Ray `agent_loop` subsegment with `tool_calls` (default 12, max 25) `tool:get_order_status` children. They all have the same `args_hash`, and the loop has `stop_reason=max_iterations`. | `agent_loop` with 2 different tool calls and `stop_reason=answer_ready`. | Trace analysis sees repeated identical tool calls and a loop that ends only at its cap. |
+| `LLM-10` | `invoke_agent demo_unbounded_agent` runs `tool_calls` turns (default 12, max 25). Each turn is a `chat` span followed by `execute_tool get_order_status` with byte-identical arguments. It ends with `stop_reason=max_iterations`. | `invoke_agent demo_bounded_agent`: 3 `chat` turns and 2 different tools (`get_order_status`, then `draft_reply`), ending with `stop_reason=answer_ready`. | Owner D's LLM-10 detector flags the waste run for `identical-tool-calls` (12 > 3) and `iteration-budget` (12 > 10). The control run stays under both limits. |
 
 Shared dimensions on every metric: `synthetic`, `check=OBS-06` and `path`.
 
-X-Ray annotations:
+### LLM-10 trace shape
 
-- `agent_loop`: `synthetic`, `check`, `path`, `iterations`, `stop_reason`.
-- `tool:*`: `synthetic`, `check`, `tool_name`, `args_hash`. The arguments themselves are in the `tool.args` metadata.
+The LLM-10 spans follow the
+[OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md)
+in the form the ADOT `awsxrayexporter` writes to X-Ray. Owner D's LLM-10 normalizer,
+`llm10.normalize_xray_traces`, reads exactly this shape.
+
+- **Span names:** `invoke_agent <agent>`, `chat <model>` and `execute_tool <tool>`.
+- **Attributes:** dotted keys under `metadata.default`:
+  - `gen_ai.operation.name` (`invoke_agent`, `chat` or `execute_tool`)
+  - `gen_ai.agent.name`
+  - `gen_ai.request.model`, set to the placeholder `synthetic-demo-model`
+  - `gen_ai.tool.name`
+  - `gen_ai.tool.call.arguments`, a JSON string that is identical byte for byte on repeated calls
+  - `gen_ai.tool.call.id`
+- **Annotations:**
+  - Every span has `synthetic=true` and `check=LLM-10`.
+  - The agent span also has `path`, `llm_calls`, `tool_calls` and `stop_reason`.
+
+The entrypoint the detector reports is the function segment, `owner-d-telemetry-demo`. Each invocation
+produces one analyzable trace.
 
 The subsegments are sent straight to the Lambda X-Ray daemon over UDP, under the function's trace. This
 removes the need to bundle `aws-xray-sdk`, which is not in the Python runtime. The zip contains only
@@ -37,12 +54,16 @@ removes the need to bundle `aws-xray-sdk`, which is not in the Python runtime. T
 ## Event
 
 ```json
-{"scenario": "all", "repeat": 20, "series": 40, "tool_calls": 12}
+{"scenario": "all", "repeat": 20, "series": 40, "tool_calls": 12, "path": "both"}
 ```
 
 `scenario` takes `all` (the default) or one of `OBS-11`, `OBS-17`, `OBS-04`, `OBS-06` or `LLM-10`. Short
-forms such as `obs11` are also accepted. Each knob is optional and is clamped to its maximum. The response
-summarizes what was emitted, along with a `run_id` that also appears in every log line.
+forms such as `obs11` are also accepted. Each numeric knob is optional and is clamped to its maximum.
+
+`path` applies to LLM-10 only and takes `both` (the default), `waste` or `control`. Both runs share one
+entrypoint, so a clean-only result needs a time window that contains only `"path": "control"` traces.
+
+The response summarizes what was emitted, along with a `run_id` that also appears in every log line.
 
 ## Build, deploy, invoke
 
@@ -56,13 +77,13 @@ aws cloudformation deploy --stack-name owner-d-telemetry-demo \
   --template-file cdk/owner-d/telemetry-demo.yaml --capabilities CAPABILITY_NAMED_IAM \
   --tags owner=D project=environmental-hacks \
   --parameter-overrides CodeBucket=owner-d-deploy-<account>-ap-south-1 CodeKey=<zip name> \
-    ReservedConcurrency=0 \
   --profile aws-agent --region ap-south-1
 ```
 
-The project's Lambda concurrency quota is 10, and Lambda refuses any reservation while the quota is 10. Run
-`aws lambda get-account-settings --query AccountLimit.ConcurrentExecutions` to check it. On this project,
-deploy with `ReservedConcurrency=0`. On projects with a higher quota, keep the default of `1`. The schedule is
+`ReservedConcurrency` defaults to `0` (no reservation). The project's Lambda concurrency quota is 10, and
+Lambda refuses any reservation while the quota is 10, so the stack deploys as-is. Run
+`aws lambda get-account-settings --query AccountLimit.ConcurrentExecutions` to check the quota. On projects
+with a higher quota, pass `ReservedConcurrency=1` to cap the demo at one concurrent run. The schedule is
 created `DISABLED`. To turn it on, pass `ScheduleState=ENABLED` (default `rate(1 day)`), and read the cost
 note first.
 
@@ -71,6 +92,23 @@ aws lambda invoke --function-name owner-d-telemetry-demo --cli-binary-format raw
   --payload '{"scenario":"all"}' --profile aws-agent --region ap-south-1 /tmp/telemetry-demo.json
 cat /tmp/telemetry-demo.json
 ```
+
+LLM-10 evaluates an entrypoint only once it has `min_traces` analyzable traces, with a reference value of 10.
+Run the LLM-10 scenario about 10 times. Pause one second between calls: X-Ray samples the first request in
+each second, and later ones only at 5%.
+
+```bash
+for i in $(seq 10); do
+  aws lambda invoke --function-name owner-d-telemetry-demo --cli-binary-format raw-in-base64-out \
+    --payload '{"scenario":"llm10"}' --profile aws-agent --region ap-south-1 /tmp/telemetry-demo-llm10.json
+  grep -o '"xray": "[a-z_]*"' /tmp/telemetry-demo-llm10.json
+  sleep 1
+done
+```
+
+The `llm10` scenario sends no custom metrics. Ten runs cost almost nothing: 10 X-Ray traces, which fall
+within the 100,000 free traces each month, and a few log lines. Re-run any call that reports
+`"xray": "not_sampled"`.
 
 Read-only checks that the evidence landed. Metrics can take a few minutes to appear, and traces about a
 minute:
@@ -93,8 +131,9 @@ fall within free tiers or plan credits.
   in hours that receive data.
   - The `request_id` and `endpoint` values come from fixed pools, so at most **42 series** ever exist, however
     often the demo runs. A unit test enforces this bound.
-  - One invocation is 42 series for 1 hour, about **$0.02**. Five invocations in different hours cost about
-    $0.09.
+  - One `all` or `OBS-06` invocation is 42 series for 1 hour, about **$0.02**. Five such invocations in
+    different hours cost about $0.09.
+  - Other scenarios, including the 10 `llm10` runs, send no metrics.
   - With the optional daily schedule: 42 × 30 h / 730 h × $0.30 ≈ **$0.52/month**.
   - Do not schedule it hourly. That keeps all 42 series active all month, about $12.60/month.
 - **PutMetricData**: 1 request per run, at $0.01 per 1,000 requests.

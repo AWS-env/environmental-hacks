@@ -10,12 +10,13 @@ a ``waste`` path and a clean ``control`` path, and every emitted item is labeled
 * OBS-06  custom metric ``RequestLatencyMs`` in ``OwnerD/Demo`` keyed by ``request_id`` (high cardinality),
           vs keyed by ``endpoint`` (low cardinality). Values come from fixed pools, so the number of distinct
           series is bounded across all invocations (MAX_METRIC_SERIES)
-* LLM-10  X-Ray subsegments of an agent loop calling the same tool with identical arguments until it hits
-          its iteration cap, vs a bounded loop that stops once it has an answer. No LLM is called
+* LLM-10  X-Ray subsegments with OpenTelemetry GenAI attributes: an agent run that calls the same tool with
+          byte-identical arguments until its iteration cap stops it, vs a bounded run that stops once it has
+          an answer. No LLM is called; the model name is a placeholder
 
 The event selects what to emit: ``{"scenario": "all" | "OBS-11" | "OBS-17" | "OBS-04" | "OBS-06" | "LLM-10"}``.
 Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series`` (OBS-06 request ids), ``tool_calls``
-(LLM-10 iterations). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
+(LLM-10 iterations); ``path`` (LLM-10 only: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
 no dependency beyond the Python runtime (boto3 is used only for PutMetricData).
 """
 
@@ -38,7 +39,7 @@ ENDPOINTS = ("/checkout", "/search")
 MAX_METRIC_SERIES = REQUEST_ID_POOL + len(ENDPOINTS)
 
 LIMITS = {"repeat": (20, 1, 50), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25)}
-TOOL_CALL_SECONDS = 0.02
+SPAN_SECONDS = 0.01
 
 
 def _now():
@@ -202,37 +203,78 @@ def obs06(emit, series):
 
 # ---- LLM-10: repeated identical tool calls in an agent loop --------------------------------------------
 
+# Spans follow the OpenTelemetry GenAI semantic conventions as the ADOT awsxrayexporter writes them to X-Ray:
+# dotted attribute keys under metadata.default, span names `invoke_agent <agent>`, `chat <model>` and
+# `execute_tool <tool>`. Owner D's LLM-10 normalizer (llm10.normalize_xray_traces) reads exactly this shape.
+
+DEMO_MODEL = "synthetic-demo-model"  # placeholder, not a real model; no LLM is called
+LOOKUP = ("get_order_status", {"order_id": "ord-demo-0003"})
+LLM10_PATHS = ("both", "waste", "control")
+
+
 def _segment_id():
     return uuid.uuid4().hex[:16]
 
 
-def _tool_call(tool, args):
+def _span(name, attributes):
     start = _now()
-    time.sleep(TOOL_CALL_SECONDS)
-    digest = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()[:16]
-    return {"id": _segment_id(), "name": f"tool:{tool}", "start_time": start, "end_time": _now(),
-            "annotations": {"synthetic": True, "check": "LLM-10", "tool_name": tool, "args_hash": digest},
-            "metadata": {"tool": {"args": args}}}
+    time.sleep(SPAN_SECONDS)
+    return {"id": _segment_id(), "name": name, "start_time": start, "end_time": _now(),
+            "annotations": {"synthetic": True, "check": "LLM-10"}, "metadata": {"default": attributes}}
 
 
-def _agent_loop(path, calls, stop_reason):
+def _chat():
+    return _span(f"chat {DEMO_MODEL}", {"gen_ai.operation.name": "chat", "gen_ai.request.model": DEMO_MODEL,
+                                        "gen_ai.provider.name": "synthetic"})
+
+
+def _execute_tool(tool, args):
+    # Identical calls carry byte-identical argument strings, as an instrumented tool would record them.
+    return _span(f"execute_tool {tool}", {
+        "gen_ai.operation.name": "execute_tool", "gen_ai.tool.name": tool, "gen_ai.tool.type": "function",
+        "gen_ai.tool.call.id": f"call_{uuid.uuid4().hex[:12]}",
+        "gen_ai.tool.call.arguments": json.dumps(args, sort_keys=True)})
+
+
+def _agent_run(path, agent, tool_calls, stop_reason, final_turn):
+    """One `invoke_agent` span: a model turn before each tool call, plus a closing turn if it answers."""
     start = _now()
-    children = [_tool_call(tool, args) for tool, args in calls]
-    return {"id": _segment_id(), "name": "agent_loop", "start_time": start, "end_time": _now(),
-            "annotations": {"synthetic": True, "check": "LLM-10", "path": path, "iterations": len(children),
-                            "stop_reason": stop_reason},
+    children = []
+    for tool, args in tool_calls:
+        children += [_chat(), _execute_tool(tool, args)]
+    if final_turn:
+        children.append(_chat())
+    turns = sum(1 for child in children if child["name"].startswith("chat "))
+    return {"id": _segment_id(), "name": f"invoke_agent {agent}", "start_time": start, "end_time": _now(),
+            "annotations": {"synthetic": True, "check": "LLM-10", "path": path, "llm_calls": turns,
+                            "tool_calls": len(tool_calls), "stop_reason": stop_reason},
+            "metadata": {"default": {"gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": agent}},
             "subsegments": children}
 
 
-def llm10(emit, tool_calls):
-    same = ("get_order_status", {"order_id": "ord-demo-0003"})
-    waste = _agent_loop("waste", [same] * tool_calls, "max_iterations")
-    control = _agent_loop("control", [same, ("draft_reply", {"status": "shipped"})], "answer_ready")
-    sent = [emit.subsegment(waste), emit.subsegment(control)]
-    for doc, path in ((waste, "waste"), (control, "control")):
-        emit.json("LLM-10", path, level="INFO", message="agent loop finished", iterations=len(doc["subsegments"]),
-                  stop_reason=doc["annotations"]["stop_reason"])
-    return {"waste_tool_calls": tool_calls, "control_tool_calls": 2, "xray": sent[0]}
+def llm10(emit, tool_calls, path="both"):
+    if path not in LLM10_PATHS:
+        raise ValueError(f"path must be one of {', '.join(LLM10_PATHS)}")
+    runs = []
+    if path in ("both", "waste"):
+        # Re-issues the same lookup with byte-identical arguments until its iteration cap stops it.
+        runs.append(("waste", _agent_run("waste", "demo_unbounded_agent", [LOOKUP] * tool_calls,
+                                         "max_iterations", final_turn=False)))
+    if path in ("both", "control"):
+        # Looks the order up once, drafts a reply from the result, then answers.
+        runs.append(("control", _agent_run("control", "demo_bounded_agent",
+                                           [LOOKUP, ("draft_reply", {"status": "shipped"})],
+                                           "answer_ready", final_turn=True)))
+    summary = {}
+    for label, doc in runs:
+        summary["xray"] = emit.subsegment(doc)
+        notes = doc["annotations"]
+        emit.json("LLM-10", label, level="INFO", message="agent run finished",
+                  agent=doc["metadata"]["default"]["gen_ai.agent.name"], llm_calls=notes["llm_calls"],
+                  tool_calls=notes["tool_calls"], stop_reason=notes["stop_reason"])
+        summary[f"{label}_llm_calls"] = notes["llm_calls"]
+        summary[f"{label}_tool_calls"] = notes["tool_calls"]
+    return summary
 
 
 # ---- entry points ---------------------------------------------------------------------------------------
@@ -265,7 +307,7 @@ def run(event=None, write=None, cloudwatch=None, xray=None):
         "OBS-17": lambda: obs17(emit),
         "OBS-04": lambda: obs04(emit),
         "OBS-06": lambda: obs06(emit, _knob(event, "series")),
-        "LLM-10": lambda: llm10(emit, _knob(event, "tool_calls")),
+        "LLM-10": lambda: llm10(emit, _knob(event, "tool_calls"), event.get("path", "both")),
     }
     emitted = {check: steps[check]() for check in selected}
     return {"synthetic": True, "run_id": emit.run_id, "scenarios": list(selected), "emitted": emitted}

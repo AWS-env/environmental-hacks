@@ -32,7 +32,7 @@ class FakeXRay:
 
 def run(**event):
     lines, cloudwatch, xray = [], FakeCloudWatch(), FakeXRay()
-    with mock.patch.object(demo, "TOOL_CALL_SECONDS", 0):
+    with mock.patch.object(demo, "SPAN_SECONDS", 0):
         result = demo.run(event, write=lines.append, cloudwatch=cloudwatch, xray=xray)
     return result, lines, cloudwatch, xray
 
@@ -152,32 +152,128 @@ class Obs06(unittest.TestCase):
         self.assertLessEqual(demo.MAX_METRIC_SERIES, 50)
 
 
-class Llm10(unittest.TestCase):
-    def test_unbounded_loop_repeats_identical_tool_calls(self):
-        result, lines, _, xray = run(scenario="LLM-10", tool_calls=9)
-        waste, control = xray.documents
-        self.assertEqual(waste["name"], "agent_loop")
-        self.assertEqual(waste["annotations"]["path"], "waste")
-        self.assertEqual(waste["annotations"]["stop_reason"], "max_iterations")
-        calls = waste["subsegments"]
-        self.assertEqual(len(calls), 9)
-        self.assertEqual({c["name"] for c in calls}, {"tool:get_order_status"})
-        self.assertEqual(len({c["annotations"]["args_hash"] for c in calls}), 1)
-        self.assertEqual(len({c["id"] for c in calls}), 9)
-        for doc in [waste, control, *calls, *control["subsegments"]]:
-            self.assertIs(doc["annotations"]["synthetic"], True)
-            self.assertEqual(doc["annotations"]["check"], "LLM-10")
-            self.assertRegex(doc["id"], r"^[0-9a-f]{16}$")
-            self.assertLessEqual(doc["start_time"], doc["end_time"])
-        self.assertEqual(control["annotations"]["stop_reason"], "answer_ready")
-        self.assertEqual(len(control["subsegments"]), 2)
-        self.assertEqual(len({c["annotations"]["args_hash"] for c in control["subsegments"]}), 2)
-        self.assertEqual([r["iterations"] for r in records(lines)], [9, 2])
-        self.assertEqual(result["emitted"]["LLM-10"]["xray"], "sent")
+def genai(doc):
+    return doc["metadata"]["default"]
 
-    def test_tool_calls_clamped(self):
-        _, _, _, xray = run(scenario="LLM-10", tool_calls=500)
-        self.assertEqual(len(xray.documents[0]["subsegments"]), 25)
+
+def tools(run_doc):
+    return [c for c in run_doc["subsegments"] if genai(c)["gen_ai.operation.name"] == "execute_tool"]
+
+
+class Llm10(unittest.TestCase):
+    def test_spans_carry_otel_genai_attributes(self):
+        _, _, _, xray = run(scenario="LLM-10", tool_calls=4)
+        for agent in xray.documents:
+            self.assertTrue(agent["name"].startswith("invoke_agent "))
+            self.assertEqual(genai(agent)["gen_ai.operation.name"], "invoke_agent")
+            self.assertEqual(agent["name"], f"invoke_agent {genai(agent)['gen_ai.agent.name']}")
+            for child in agent["subsegments"]:
+                attrs = genai(child)
+                if attrs["gen_ai.operation.name"] == "chat":
+                    self.assertEqual(child["name"], f"chat {attrs['gen_ai.request.model']}")
+                    self.assertEqual(attrs["gen_ai.request.model"], demo.DEMO_MODEL)
+                else:
+                    self.assertEqual(attrs["gen_ai.operation.name"], "execute_tool")
+                    self.assertEqual(child["name"], f"execute_tool {attrs['gen_ai.tool.name']}")
+                    self.assertIsInstance(attrs["gen_ai.tool.call.arguments"], str)
+                    json.loads(attrs["gen_ai.tool.call.arguments"])
+            for doc in [agent, *agent["subsegments"]]:
+                self.assertIs(doc["annotations"]["synthetic"], True)
+                self.assertEqual(doc["annotations"]["check"], "LLM-10")
+                self.assertRegex(doc["id"], r"^[0-9a-f]{16}$")
+                self.assertLessEqual(doc["start_time"], doc["end_time"])
+
+    def test_waste_repeats_identical_arguments_past_threshold_and_control_does_not(self):
+        result, lines, _, xray = run(scenario="LLM-10")
+        waste, control = xray.documents
+        calls = tools(waste)
+        self.assertEqual(len(calls), 12)
+        self.assertGreater(len(calls), 3)  # LLM-10 reference max_identical_tool_calls
+        self.assertEqual({genai(c)["gen_ai.tool.name"] for c in calls}, {"get_order_status"})
+        self.assertEqual(len({genai(c)["gen_ai.tool.call.arguments"] for c in calls}), 1)
+        self.assertEqual(waste["annotations"]["stop_reason"], "max_iterations")
+        self.assertEqual(waste["annotations"]["llm_calls"], 12)
+        clean = tools(control)
+        self.assertEqual([genai(c)["gen_ai.tool.name"] for c in clean], ["get_order_status", "draft_reply"])
+        self.assertEqual(control["annotations"]["stop_reason"], "answer_ready")
+        self.assertEqual(control["annotations"]["llm_calls"], 3)
+        self.assertEqual([(r["path"], r["tool_calls"]) for r in records(lines)], [("waste", 12), ("control", 2)])
+        self.assertEqual(result["emitted"]["LLM-10"], {"xray": "sent", "waste_llm_calls": 12,
+                                                       "waste_tool_calls": 12, "control_llm_calls": 3,
+                                                       "control_tool_calls": 2})
+
+    def test_path_selects_one_run_and_tool_calls_are_clamped(self):
+        _, _, _, xray = run(scenario="LLM-10", path="control")
+        self.assertEqual([d["annotations"]["path"] for d in xray.documents], ["control"])
+        _, _, _, xray = run(scenario="LLM-10", path="waste", tool_calls=500)
+        self.assertEqual(len(tools(xray.documents[0])), 25)
+        with self.assertRaises(ValueError):
+            run(scenario="LLM-10", path="sometimes")
+
+
+try:  # owner_d.llm10 lands with PR #396; until then only the attribute shape above is asserted.
+    from owner_d import llm10
+except ImportError:
+    llm10 = None
+
+
+FUNCTION = "owner-d-telemetry-demo"
+
+
+def batch_get_traces(invocations, path):
+    """Wrap the emitted documents the way BatchGetTraces returns a Lambda trace with independent subsegments."""
+    traces = []
+    for i in range(invocations):
+        trace_id, lambda_id, function_id = f"1-6a000000-{i:024x}", f"a{i:015x}", f"f{i:015x}"
+        daemon = demo.XRayDaemon(f"Root={trace_id};Parent={function_id};Sampled=1", None)
+        _, _, _, xray = run(scenario="LLM-10", path=path)
+        start, end = xray.documents[0]["start_time"] - 0.01, xray.documents[-1]["end_time"] + 0.01
+        segments = [
+            {"id": lambda_id, "name": FUNCTION, "trace_id": trace_id, "start_time": start, "end_time": end,
+             "origin": "AWS::Lambda"},
+            {"id": function_id, "name": FUNCTION, "trace_id": trace_id, "parent_id": lambda_id,
+             "start_time": start, "end_time": end, "origin": "AWS::Lambda::Function"},
+        ]
+        segments += [json.loads(daemon.payload(doc).split(b"\n", 1)[1]) for doc in xray.documents]
+        traces.append({"Id": trace_id, "Segments": [{"Id": s["id"], "Document": json.dumps(s)} for s in segments]})
+    return traces
+
+
+@unittest.skipIf(llm10 is None, "owner_d.llm10 not on this branch yet")
+class Llm10Detector(unittest.TestCase):
+    CONTEXT = {"min_traces": 10, "max_llm_iterations": 10, "max_identical_tool_calls": 3}
+
+    def evaluate(self, traces):
+        scope, sources = llm10.telemetry_sources(llm10.normalize_xray_traces(traces))
+        return llm10.evaluate({
+            "schema_version": "1.0", "kind": "input", "repository_id": "github:AWS-env/telemetry-demo",
+            "scan_id": "scan-telemetry-demo", "commit_sha": "0" * 40, "check_id": "LLM-10",
+            "detector_version": llm10.DETECTOR_VERSION, "context": self.CONTEXT, "scope": scope,
+            "sources": sources})
+
+    def test_ten_demo_invocations_normalize_to_one_entrypoint(self):
+        normalized = llm10.normalize_xray_traces(batch_get_traces(10, "both"))
+        self.assertEqual(normalized["skipped_traces"], [])
+        data = normalized["entrypoints"][FUNCTION]
+        self.assertEqual(data["traces_analyzed"], 10)
+        worst = data["max_identical_tool_calls"]
+        self.assertEqual((worst["agent"], worst["tool"], worst["calls"]), ("demo_unbounded_agent", "get_order_status", 12))
+        self.assertEqual(data["max_llm_iterations"]["llm_calls"], 12)
+
+    def test_waste_is_flagged_and_control_is_clean(self):
+        waste = self.evaluate(batch_get_traces(10, "waste"))
+        self.assertEqual(waste["coverage"]["evaluated_scope"], [f"entrypoint:{FUNCTION}"])
+        self.assertEqual({f["identity"] for f in waste["findings"]}, {"identical-tool-calls", "iteration-budget"})
+        self.assertIn("demo_unbounded_agent", json.dumps(waste["findings"]))
+        control = self.evaluate(batch_get_traces(10, "control"))
+        self.assertEqual(control["status"], "completed")
+        self.assertEqual(control["coverage"]["evaluated_scope"], [f"entrypoint:{FUNCTION}"])
+        self.assertEqual(control["findings"], [])
+
+    def test_nine_invocations_are_below_min_traces(self):
+        result = self.evaluate(batch_get_traces(9, "waste"))
+        self.assertEqual(result["coverage"]["evaluated_scope"], [])
+        self.assertIn("below the required min_traces 10", json.dumps(result["coverage"]["limitations"]))
 
 
 class XRayDaemon(unittest.TestCase):
@@ -219,7 +315,7 @@ class LambdaHandler(unittest.TestCase):
         with mock.patch.object(demo, "_boto3_client", return_value=cloudwatch) as client, \
                 mock.patch.object(demo.XRayDaemon, "from_env", return_value=xray), \
                 mock.patch.object(demo, "_stdout") as stdout, \
-                mock.patch.object(demo, "TOOL_CALL_SECONDS", 0):
+                mock.patch.object(demo, "SPAN_SECONDS", 0):
             result = demo.lambda_handler({"scenario": "all"}, None)
         client.assert_called_once_with("cloudwatch")
         self.assertEqual(len(cloudwatch.calls), 1)
