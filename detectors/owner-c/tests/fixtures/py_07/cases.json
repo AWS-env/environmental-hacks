@@ -1,0 +1,162 @@
+[
+  {
+    "id": "PY-07-01",
+    "title": "known positive: time.sleep in async def",
+    "files": {
+      "app.py": "import time\n\n\nasync def f():\n    time.sleep(1)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:time.sleep",
+          "line": 5,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-07-02",
+    "title": "requests.get in async def",
+    "files": {
+      "app.py": "import requests\n\n\nasync def f():\n    requests.get('u')\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:requests.get",
+          "line": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-07-03",
+    "title": "imported name resolves to the blocking call",
+    "files": {
+      "app.py": "from time import sleep\n\n\nasync def f():\n    sleep(1)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:time.sleep",
+          "line": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-07-04",
+    "title": "subprocess.run in async def",
+    "files": {
+      "app.py": "import subprocess\n\n\nasync def f():\n    subprocess.run(['ls'])\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:subprocess.run",
+          "line": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-07-05",
+    "title": "boundary: sync open() is reported with low confidence",
+    "files": {
+      "app.py": "async def f(p):\n    return open(p).read()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:open",
+          "line": 2,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-07-06",
+    "title": "similar negative: blocking call in a sync function",
+    "files": {
+      "app.py": "import time\n\n\ndef f():\n    time.sleep(1)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-07-07",
+    "title": "recommended form: asyncio.sleep",
+    "files": {
+      "app.py": "import asyncio\n\n\nasync def f():\n    await asyncio.sleep(1)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-07-08",
+    "title": "legitimate exception: offloaded with to_thread",
+    "files": {
+      "app.py": "import asyncio\nimport time\n\n\nasync def f():\n    await asyncio.to_thread(time.sleep, 1)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-07-09",
+    "title": "legitimate exception: blocking call in a nested sync def",
+    "files": {
+      "app.py": "import time\n\n\nasync def f():\n    def inner():\n        time.sleep(1)\n    return inner\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-07-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "PY-07-91",
+    "title": "unparsable file next to a good one -> partial coverage",
+    "files": {
+      "ok.py": "x = 1\n",
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [],
+      "evaluated": [
+        "ok.py"
+      ],
+      "limitations_contain": [
+        "broken.py",
+        "could not be parsed"
+      ]
+    }
+  }
+]
