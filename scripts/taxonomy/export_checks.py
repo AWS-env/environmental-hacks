@@ -190,14 +190,14 @@ def main(xlsx_path: str) -> None:
 
     if not os.path.exists(OWNERS_PATH):
         owners = {
-            "_comment": "PLACEHOLDER: change ONLY the `handle` values once owners are decided.",
+            "_comment": "Owner labels map to GitHub handles for reviews/issues and AWS user names for cloud access.",
             "repo": "AWS-env/environmental-hacks",
             "team": "AWS-env/environmental-hacks",
             "owners": {
-                "A": {"label": "owner:A", "handle": "MrPanda009"},
-                "B": {"label": "owner:B", "handle": "shryssssss-maker"},
-                "C": {"label": "owner:C", "handle": "Medhansh-741"},
-                "D": {"label": "owner:D", "handle": "prx-my"},
+                "A": {"label": "owner:A", "handle": "mrpanda", "aws_user": "shrey"},
+                "B": {"label": "owner:B", "handle": "shreyas", "aws_user": "shreyas"},
+                "C": {"label": "owner:C", "handle": "medhansh", "aws_user": "medhansh"},
+                "D": {"label": "owner:D", "handle": "prXmy", "aws_user": "prakhar"},
             },
         }
         with open(OWNERS_PATH, "w", encoding="utf-8") as fh:
