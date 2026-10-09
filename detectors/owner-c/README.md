@@ -21,6 +21,7 @@ stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`)
 | PY-11 | Needless `deepcopy` / `.copy()` | static candidate + memray artifact | #255 |
 | CODE-RT.6 | Outdated runtime / interpreter version | static + dated support table | #102 |
 | CODE-RT.2 | Thread/executor hop awaited around trivial work (Python asyncio) | static | #99 |
+| JS-06 | Listeners, timers, subscriptions without cleanup | static | #190 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
@@ -37,6 +38,7 @@ detectors/owner-c/
     checks/py_NN.py      static checks; checks/__init__.py is the registry
     artifact_checks/     artifact-confirmed checks (candidate + confirm)
     normalize/           one module per artifact type (profiles, traces) -> normalized `artifact` data
+    js/                  tree-sitter parse context (ctx.py) and V8 profile confirmation helpers
     config/              dated runtime support table for CODE-RT.6
     aws/                 Lambda handlers (static scan, profile parser, X-Ray parser, presign)
     cli.py               `evaluate` and `scan` commands
@@ -181,6 +183,23 @@ Flags `await asyncio.to_thread(f, ...)` / `await loop.run_in_executor(ex, f, ...
 builtin (`len`, `str`, `int`, ...) or a coroutine function defined in the same file. Unknown functions are never flagged.
 Identity: `qualname:to_thread(len)`. Confidence: low (medium for the coroutine case). Limitation: static only; there is no
 precedent rule in Ruff or flake8-async (they flag the opposite).
+
+## JavaScript / TypeScript checks
+
+Files ending `.js .jsx .mjs .cjs .ts .tsx` (not minified/bundled files or `.d.ts`) are parsed with tree-sitter (Python bindings; install
+`requirements.txt`). A file with syntax errors, or one the grammar rejects, is left out of coverage and the result is
+`partial`, never clean (known case: class fields without semicolons, e.g. `#a` followed by `[k] = 1`, which Node accepts but
+tree-sitter-javascript 0.25 does not). `// eslint-disable[-next-line] <rule>` comments naming the equivalent ESLint/Biome/oxc
+rule suppress a hit. JS candidates are matched to profiles through their nearest enclosing **function** (V8 attributes work
+to functions, not lines); module top-level code is never matched.
+
+### JS-06 - listeners, timers and subscriptions without cleanup
+
+In `useEffect`/`useLayoutEffect`/`useInsertionEffect` bodies and `componentDidMount`: `addEventListener`, `setInterval`,
+`.subscribe`, `.addListener`, `.on` without a returned cleanup (or `componentWillUnmount`) that undoes them by name.
+Not flagged: `{once}`/`{signal}` options, cleanup returned by reference. Inline handler functions are flagged because they
+can never be removed. Un-stored `setInterval` is flagged at low confidence. Identity: `qualname:effect:kind`.
+Limitation: handler identity and capture flags are not compared; one-shot `setTimeout` is not analysed.
 
 ## AWS deployment (Free Plan, project Region)
 

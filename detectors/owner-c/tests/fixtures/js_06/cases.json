@@ -1,0 +1,233 @@
+[
+  {
+    "id": "JS-06-01",
+    "title": "known positive: addEventListener in an effect with no cleanup",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    window.addEventListener('resize', onResize);\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "Comp:useEffect:addEventListener",
+          "line": 3,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-06-02",
+    "title": "setInterval in an effect whose cleanup does not clear it",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    const t = setInterval(tick, 1000);\n    return () => { console.log('bye'); };\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "Comp:useEffect:setInterval",
+          "line": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-06-03",
+    "title": "inline listener can never be removed even with a cleanup",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    window.addEventListener('resize', () => setW(1));\n    return () => window.removeEventListener('resize', () => setW(1));\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "Comp:useEffect:addEventListener",
+          "line": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-06-04",
+    "title": "subscribe without unsubscribe, in a TSX file",
+    "files": {
+      "app.tsx": "function Comp() {\n  useEffect(() => {\n    store.subscribe(onChange);\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "Comp:useEffect:subscribe",
+          "line": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-06-05",
+    "title": "class component registers in componentDidMount and never undoes it",
+    "files": {
+      "app.jsx": "class A extends React.Component {\n  componentDidMount() {\n    this.t = setInterval(tick, 1);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "A:componentDidMount:setInterval",
+          "line": 3
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-06-06",
+    "title": "a discarded setInterval handle in a function (low confidence)",
+    "files": {
+      "app.js": "function start() {\n  setInterval(poll, 1000);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "start:setInterval-unstored",
+          "line": 2,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "JS-06-07",
+    "title": "recommended form: add and remove the same handler",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    window.addEventListener('resize', onResize);\n    return () => window.removeEventListener('resize', onResize);\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-08",
+    "title": "recommended form: interval cleared in the cleanup",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    const t = setInterval(tick, 1000);\n    return () => clearInterval(t);\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-09",
+    "title": "legitimate exception: once-only listener",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    window.addEventListener('load', init, { once: true });\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-10",
+    "title": "legitimate exception: cleanup returned by reference",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    const unsub = store.subscribe(onChange);\n    return unsub;\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-11",
+    "title": "similar negative: an effect with no registrations",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    document.title = 'x';\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-12",
+    "title": "legitimate exception: class that removes in componentWillUnmount",
+    "files": {
+      "app.jsx": "class A extends React.Component {\n  componentDidMount() {\n    this.t = setInterval(tick, 1);\n  }\n  componentWillUnmount() {\n    clearInterval(this.t);\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-13",
+    "title": "boundary: a module-level setInterval lives for the whole app",
+    "files": {
+      "app.js": "setInterval(poll, 1000);\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-14",
+    "title": "similar negative: on() with a single argument is not a registration",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    emitter.on('x');\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-15",
+    "title": "legitimate exception: author suppressed it",
+    "files": {
+      "app.jsx": "function Comp() {\n  useEffect(() => {\n    // eslint-disable-next-line react-web-api/no-leaked-event-listener\n    window.addEventListener('resize', onResize);\n  }, []);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "JS-06-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "JS-06-91",
+    "title": "unparsable file next to a good one -> partial coverage",
+    "files": {
+      "ok.js": "let x = 1;\n",
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [],
+      "evaluated": [
+        "ok.js"
+      ],
+      "limitations_contain": [
+        "broken.js",
+        "could not be parsed"
+      ]
+    }
+  }
+]
