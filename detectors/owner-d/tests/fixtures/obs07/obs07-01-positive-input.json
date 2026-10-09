@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "aws:ap-south-1:project",
+  "scan_id": "scan-obs07-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "OBS-07",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_hot_retention_days": 365,
+    "min_stored_bytes": 1073741824,
+    "compliance_tag_keys": [
+      "compliance",
+      "data-retention",
+      "legal-hold"
+    ],
+    "exempt_log_group_prefixes": [
+      "aws-controltower/"
+    ]
+  },
+  "scope": [
+    "resource:/aws/lambda/orders-api",
+    "resource:/aws/ecs/payments-worker"
+  ],
+  "sources": [
+    {
+      "source_id": "cwl:/aws/lambda/orders-api",
+      "scope_id": "resource:/aws/lambda/orders-api",
+      "kind": "telemetry",
+      "locator": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/orders-api",
+      "data": {
+        "resource_id": "/aws/lambda/orders-api",
+        "resource_type": "aws_cloudwatch_log_group",
+        "log_group_arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/orders-api",
+        "retention_in_days": null,
+        "stored_bytes": 53687091200,
+        "log_group_class": "STANDARD",
+        "data_protection_status": "ACTIVATED",
+        "creation_time": "2026-01-01T00:00:00.000Z",
+        "metric_filter_count": 0,
+        "deletion_protection_enabled": false,
+        "tags": {
+          "team": "orders",
+          "env": "production"
+        }
+      }
+    },
+    {
+      "source_id": "cwl:/aws/ecs/payments-worker",
+      "scope_id": "resource:/aws/ecs/payments-worker",
+      "kind": "telemetry",
+      "locator": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/ecs/payments-worker",
+      "data": {
+        "resource_id": "/aws/ecs/payments-worker",
+        "resource_type": "aws_cloudwatch_log_group",
+        "log_group_arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/ecs/payments-worker",
+        "retention_in_days": 3653,
+        "stored_bytes": 5368709120,
+        "log_group_class": "INFREQUENT_ACCESS",
+        "data_protection_status": null,
+        "creation_time": "2026-01-01T00:00:00.000Z",
+        "metric_filter_count": 0,
+        "deletion_protection_enabled": false,
+        "tags": null
+      }
+    }
+  ]
+}

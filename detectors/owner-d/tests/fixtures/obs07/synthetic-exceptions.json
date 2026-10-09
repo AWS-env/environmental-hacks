@@ -1,0 +1,52 @@
+{
+  "_comment": "SYNTHETIC DescribeLogGroups page and tags; not production data.",
+  "pages": [
+    {
+      "logGroups": [
+        {
+          "logGroupName": "/aws/lambda/card-ledger",
+          "creationTime": 1767225600000,
+          "metricFilterCount": 0,
+          "arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/card-ledger:*",
+          "storedBytes": 53687091200,
+          "logGroupClass": "STANDARD",
+          "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/card-ledger",
+          "deletionProtectionEnabled": false
+        },
+        {
+          "logGroupName": "aws-controltower/CloudTrailLogs",
+          "creationTime": 1767225600000,
+          "metricFilterCount": 0,
+          "arn": "arn:aws:logs:ap-south-1:123456789012:log-group:aws-controltower/CloudTrailLogs:*",
+          "storedBytes": 85899345920,
+          "logGroupClass": "STANDARD",
+          "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:aws-controltower/CloudTrailLogs",
+          "deletionProtectionEnabled": false
+        },
+        {
+          "logGroupName": "/aws/lambda/cron-heartbeat",
+          "creationTime": 1767225600000,
+          "metricFilterCount": 0,
+          "arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/cron-heartbeat:*",
+          "storedBytes": 10485760,
+          "logGroupClass": "STANDARD",
+          "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/cron-heartbeat",
+          "deletionProtectionEnabled": false
+        }
+      ]
+    }
+  ],
+  "tags": {
+    "/aws/lambda/card-ledger": {
+      "tags": {
+        "Compliance": "pci-dss"
+      }
+    },
+    "aws-controltower/CloudTrailLogs": {
+      "tags": {}
+    },
+    "/aws/lambda/cron-heartbeat": {
+      "tags": {}
+    }
+  }
+}

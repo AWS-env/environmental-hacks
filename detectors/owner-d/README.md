@@ -1242,3 +1242,115 @@ to transfer to Python, so no measurements are emitted.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst07/tst07-01-positive-input.json
 ```
+
+## OBS-07 — Uniform retention (no tiering) for CloudWatch Logs
+
+Flags CloudWatch Logs log groups that keep a non-trivial amount of data in
+CloudWatch Logs storage forever, or for longer than a configured hot horizon,
+with no compliance marker. By default, "log data is stored in CloudWatch Logs
+indefinitely"
+([retention](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/Working-with-log-groups-and-streams.html#SettingLogRetention)).
+CloudWatch Logs has no storage tier inside the service: "the Standard and
+Infrequent Access log classes differ in ingestion costs only. Storage charges
+and CloudWatch Logs Insights charges are the same in each log class"
+([log classes](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CloudWatch_Logs_Log_Classes.html)).
+Tiering means a retention policy plus delivery to Amazon S3, where S3 Lifecycle
+archives or deletes the data. This matches Well-Architected
+[SUS04-BP03](https://docs.aws.amazon.com/wellarchitected/latest/sustainability-pillar/sus_sus_data_a4.html).
+It is a configuration audit: query frequency is not observed, so the detector
+cannot prove the data is rarely read.
+
+### Input
+
+One `telemetry` source per `resource:<log-group-name>` scope item, as in
+INF-01. The scope is per log group because retention, class and stored bytes
+are log-group properties, and the fix is per log group. A retention that is
+uniform across an account is not waste by itself: this project's 20 groups
+all use 7 days.
+
+`owner_d.obs07.normalize_describe_log_groups(pages, tags=None)` builds the
+`data` objects from raw API responses:
+
+- `pages` is a list of `DescribeLogGroups` responses, or the auto-paginated
+  `aws logs describe-log-groups` output wrapped in a list.
+- `tags` optionally maps a log group name or `logGroupArn` to a
+  `ListTagsForResource` response or a plain tag mapping.
+- It returns `{logGroupName: data}`.
+- It raises `NormalizationError` (a `ValueError`) when a page has no
+  `logGroups` list, a group has no name, or a name repeats.
+
+The detector never calls AWS.
+
+| Field | Meaning |
+| --- | --- |
+| `resource_id` / `resource_type` | `logGroupName` / `aws_cloudwatch_log_group` |
+| `log_group_arn` | `logGroupArn` (or `arn` without `:*`); suggested `locator` |
+| `retention_in_days` | `retentionInDays`; **`null` = never expire** (no retention policy) |
+| `stored_bytes` | `storedBytes` (excludes events already marked for deletion) |
+| `log_group_class` | `STANDARD`, `INFREQUENT_ACCESS` or `DELIVERY` |
+| `tags` | Tag object, or `null` when tags were not collected |
+| `data_protection_status`, `creation_time`, `metric_filter_count`, `deletion_protection_enabled` | Context only; not used by the rule |
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_hot_retention_days` | Longest retention kept in CloudWatch Logs without a finding | `365` |
+| `min_stored_bytes` | Groups storing less are not flagged | `1073741824` (1 GiB) |
+| `compliance_tag_keys` | Tag keys (case-insensitive) that mark mandated retention; may be empty | `["compliance", "data-retention", "legal-hold"]` |
+| `exempt_log_group_prefixes` | Log group name prefixes retained by mandate; may be empty | `["aws-controltower/"]` |
+
+`365` is the default minimum of Security Hub
+[CloudWatch.16](https://docs.aws.amazon.com/securityhub/latest/userguide/cloudwatch-controls.html#cloudwatch-16),
+so the reference value never flags a retention that this control requires.
+1 GiB costs cents per month at the published
+[archival price](https://aws.amazon.com/cloudwatch/pricing/). All four values are
+judgment calls. Missing or invalid settings make the result `unavailable`.
+
+### Detection rule
+
+A finding is emitted when `retention_in_days` is `null` or strictly greater than
+`max_hot_retention_days`, **and** `stored_bytes >= min_stored_bytes`.
+
+Groups that are evaluated but not flagged:
+
+- `DELIVERY`-class groups, whose short retention is fixed by AWS;
+- groups whose name starts with an exempt prefix, or that have a compliance tag
+  key (a limitation note names them);
+- groups below `min_stored_bytes` (a note names hot-retention groups that are
+  still small).
+
+The Infrequent Access class is **not** an exception, because it lowers
+ingestion cost only. Export and subscription to S3 are not exceptions either:
+keeping the CloudWatch copy forever duplicates storage.
+
+Each finding cites `retention_in_days`, `stored_bytes`, `log_group_class` and
+`tags`. The identity is `hot-log-retention`, so growth or a retention change
+keeps the fingerprint. Confidence:
+
+- `medium` when tags were supplied and have no compliance key;
+- `low` when tags were not collected.
+
+Untagged mandates cannot be seen, so the recommendation asks the team to
+confirm retention requirements first. Measurements stay absent: `storedBytes`
+is a point-in-time stock, not a windowed `log_volume`.
+
+### Limitations
+
+- S3 lifecycle, Firehose delivery streams, subscription filters and export
+  tasks are out of scope for v1: they do not change the verdict, and S3-side
+  tiering is not audited.
+- CloudWatch metrics and X-Ray retention are not covered.
+- Groups with missing or malformed data, mismatched scope or several sources
+  stay out of `evaluated_scope` with the reason.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs07/obs07-01-positive-input.json
+```
+
+`tests/fixtures/obs07/recorded-describe-log-groups.json` is a real response
+from the project's selected Region (account ID replaced with `123456789012`).
+The `synthetic-*.json` fixtures are synthetic.

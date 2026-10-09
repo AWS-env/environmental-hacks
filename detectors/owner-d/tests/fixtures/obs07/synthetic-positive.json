@@ -1,0 +1,44 @@
+{
+  "_comment": "SYNTHETIC DescribeLogGroups pages (two pages) and ListTagsForResource results; not production data.",
+  "pages": [
+    {
+      "logGroups": [
+        {
+          "logGroupName": "/aws/lambda/orders-api",
+          "creationTime": 1767225600000,
+          "metricFilterCount": 0,
+          "arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/orders-api:*",
+          "storedBytes": 53687091200,
+          "logGroupClass": "STANDARD",
+          "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/orders-api",
+          "deletionProtectionEnabled": false,
+          "dataProtectionStatus": "ACTIVATED"
+        }
+      ],
+      "nextToken": "synthetic-next-token"
+    },
+    {
+      "logGroups": [
+        {
+          "logGroupName": "/aws/ecs/payments-worker",
+          "creationTime": 1767225600000,
+          "retentionInDays": 3653,
+          "metricFilterCount": 0,
+          "arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/ecs/payments-worker:*",
+          "storedBytes": 5368709120,
+          "logGroupClass": "INFREQUENT_ACCESS",
+          "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/ecs/payments-worker",
+          "deletionProtectionEnabled": false
+        }
+      ]
+    }
+  ],
+  "tags": {
+    "/aws/lambda/orders-api": {
+      "tags": {
+        "team": "orders",
+        "env": "production"
+      }
+    }
+  }
+}

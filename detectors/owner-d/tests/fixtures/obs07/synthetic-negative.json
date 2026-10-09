@@ -1,0 +1,50 @@
+{
+  "_comment": "SYNTHETIC DescribeLogGroups page; not production data.",
+  "pages": [
+    {
+      "logGroups": [
+        {
+          "logGroupName": "/aws/lambda/search-indexer",
+          "creationTime": 1767225600000,
+          "retentionInDays": 30,
+          "metricFilterCount": 0,
+          "arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/search-indexer:*",
+          "storedBytes": 536870912000,
+          "logGroupClass": "STANDARD",
+          "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/search-indexer",
+          "deletionProtectionEnabled": false
+        },
+        {
+          "logGroupName": "/aws/ecs/batch-report",
+          "creationTime": 1767225600000,
+          "retentionInDays": 90,
+          "metricFilterCount": 0,
+          "arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/ecs/batch-report:*",
+          "storedBytes": 214748364800,
+          "logGroupClass": "INFREQUENT_ACCESS",
+          "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/ecs/batch-report",
+          "deletionProtectionEnabled": false
+        },
+        {
+          "logGroupName": "/aws/vendedlogs/lambda-delivery",
+          "creationTime": 1767225600000,
+          "retentionInDays": 1,
+          "metricFilterCount": 0,
+          "arn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/vendedlogs/lambda-delivery:*",
+          "storedBytes": 3221225472,
+          "logGroupClass": "DELIVERY",
+          "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/vendedlogs/lambda-delivery",
+          "deletionProtectionEnabled": false
+        }
+      ]
+    }
+  ],
+  "tags": {
+    "/aws/lambda/search-indexer": {
+      "tags": {}
+    },
+    "/aws/ecs/batch-report": {
+      "tags": {}
+    }
+  }
+}
