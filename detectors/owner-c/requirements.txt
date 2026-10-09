@@ -5,3 +5,5 @@ tree-sitter-javascript>=0.25,<0.26
 tree-sitter-typescript>=0.23,<0.24
 tree-sitter-html>=0.23,<0.24
 tree-sitter-css>=0.25,<0.26
+# CI detectors (owner_c.ci): GitHub Actions workflow YAML parser; bundled into the shared Lambda zip by scripts/build-owner-c-lambda.sh
+pyyaml==6.0.3

@@ -27,7 +27,7 @@ skip = {".git", "node_modules"}
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
     for f in sorted(src.rglob("*")):
         if f.is_file() and not skip & set(f.relative_to(src).parts):
-            z.write(f, f.relative_to(src).as_posix())
+            z.write(f, "repo/" + f.relative_to(src).as_posix())  # one top folder, like a GitHub archive: the parser drops it
 PY
 
 # V8 inlines small hot functions into their callers; --no-opt keeps function boundaries so the profile can be matched.

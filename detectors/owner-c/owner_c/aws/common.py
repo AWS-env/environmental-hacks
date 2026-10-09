@@ -11,7 +11,7 @@ import zipfile
 from owner_c.common import MAX_FILE_BYTES
 from owner_c.connector import BINARY_SUFFIXES, SKIP_DIRS
 
-SOURCE = "owner-c.python-detectors"
+SOURCE = "owner-c.detectors"  # Python, JS/TS and CI results; owner D's hub rule matches the `owner-` prefix
 DETAIL_TYPE = "detector.result.v1"  # Detail = one contract v1 result payload
 MAX_ZIP_FILES = 20_000
 MAX_ZIP_BYTES = 200_000_000  # total uncompressed; guards against zip bombs
@@ -97,14 +97,30 @@ def ensure_bus(bus_name):
     _verified_buses.add(bus_name)
 
 
+def as_error_result(result: dict, size: int) -> dict:
+    """Same identity, context and scope, status `error`, nothing certified: the contract's way to say a check could
+    not be evaluated, used when a result is too large for one EventBridge event (so one big result no longer
+    drops the whole batch)."""
+    keys = ("schema_version", "repository_id", "scan_id", "commit_sha", "check_id", "detector_version", "context", "scope")
+    out = {k: result[k] for k in keys}
+    out.update(kind="result", status="error", findings=[], measurements=[], coverage={
+        "evaluated_scope": [],
+        "limitations": [f"result is {size} bytes, over the {MAX_DETAIL_BYTES} byte event limit; not published. "
+                        "Split the files or lower FILES_PER_PAYLOAD."]})
+    return out
+
+
 def publish_results(results, bus_name):
     """Send each contract result as one event. Raises if the bus is missing or any entry fails."""
     ensure_bus(bus_name)
     entries = []
     for result in results:
         detail = json.dumps(result)
-        if len(detail.encode("utf-8")) > MAX_DETAIL_BYTES:
-            raise RuntimeError(f"{result['check_id']} result is too large for one event; lower FILES_PER_PAYLOAD")
+        size = len(detail.encode("utf-8"))
+        if size > MAX_DETAIL_BYTES:
+            print(json.dumps({"warning": "result too large for one event; published as error", "check_id": result["check_id"],
+                              "bytes": size}))
+            detail = json.dumps(as_error_result(result, size))
         entries.append({"Source": SOURCE, "DetailType": DETAIL_TYPE, "EventBusName": bus_name, "Detail": detail})
     events = client("events")
     for i in range(0, len(entries), PUT_EVENTS_BATCH):

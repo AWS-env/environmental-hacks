@@ -1,0 +1,12 @@
+{
+  "CI-11": {
+    "issue": 25,
+    "formats": "GitHub Actions workflow YAML (`on` as string, list or mapping).",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the `on:` entry, the `push:` entry or the `concurrency:` entry.",
+    "rule": "(1) `push` with no branch/tag/path filter plus `pull_request`: every PR commit runs twice. (2) A `pull_request` workflow with no `concurrency` at workflow or job level: superseded runs keep running. (3) `concurrency` set without `cancel-in-progress`: GitHub only queues. Exceptions: `workflow_call`-only, `pull_request_target` automation, `pull_request` with `types` that leave out `synchronize` (no run is ever superseded), workflows with an `environment` job or a deploy/release/publish name (never cancel deployments), an explicit `cancel-in-progress: false` (deliberate queue), `cancel-in-progress` given as an expression. (4, low confidence: only one file is read) A cancelling `concurrency.group` (workflow or job level) made only of context expressions with no `github.workflow` and no literal text, for example `${{ github.ref }}`: another workflow with the same group cancels it. A group with literal text is assumed unique. Confidence: (2) high, (1) and (3) medium, (4) low.",
+    "identity": "`workflow:redundant-trigger:push+pull_request`, `workflow:no-cancel-superseded`, `workflow:concurrency-without-cancel`., `workflow:concurrency-group-shared`, `job:<job id>:concurrency-group-shared`.",
+    "context": "None.",
+    "unsupported": "Whether the push and PR branches actually overlap when a branch filter exists. Reusable workflows called from elsewhere.",
+    "challenge": "Two workflows that both use the same literal group name still cancel each other; groups are only judged inside one file."
+  }
+}

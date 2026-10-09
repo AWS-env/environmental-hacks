@@ -58,7 +58,7 @@ class StaticHandlerTests(AwsTestCase):
         self.assertEqual(len(self.events.entries), len(expected))
         for entry in self.events.entries:
             self.assertEqual((entry["Source"], entry["DetailType"], entry["EventBusName"]),
-                             ("owner-c.python-detectors", "detector.result.v1", "findings-hub"))
+                             ("owner-c.detectors", "detector.result.v1", "findings-hub"))
             result = json.loads(entry["Detail"])
             validate(result)  # a complete, valid contract v1 result
             self.assertEqual((result["repository_id"], result["commit_sha"], result["scan_id"]),
