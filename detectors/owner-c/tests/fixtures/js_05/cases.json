@@ -1,0 +1,263 @@
+[
+  {
+    "id": "JS-05-01",
+    "title": "known positive: filter().map() allocating in a hot function",
+    "files": {
+      "app.js": "function names(rows) {\n  return rows.filter((r) => r.ok).map((r) => r.name);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "names:filter.map",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-05-02",
+    "title": "three-step chain keeps its order in the identity",
+    "files": {
+      "app.js": "function f(rows) {\n  return rows.map((r) => r.a).filter(Boolean).map((r) => r + 1);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:map.filter.map",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-05-03",
+    "title": "chain ending in reduce still has two allocating steps",
+    "files": {
+      "app.js": "function f(rows) {\n  return rows.filter((r) => r.ok).map((r) => r.n).reduce((a, b) => a + b, 0);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:filter.map.reduce",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-05-04",
+    "title": "boundary: exactly 10 MiB is reported",
+    "files": {
+      "app.js": "function names(rows) {\n  return rows.filter((r) => r.ok).map((r) => r.name);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "names:filter.map",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 10485760
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-05-05",
+    "title": "boundary: one byte under 10 MiB is not reported",
+    "files": {
+      "app.js": "function names(rows) {\n  return rows.filter((r) => r.ok).map((r) => r.name);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 10485759
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-05-06",
+    "title": "recommended form: a single reduce",
+    "files": {
+      "app.js": "function f(rows) {\n  return rows.reduce((a, r) => (r.ok ? a + r.n : a), 0);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-05-07",
+    "title": "similar negative: only one allocating step",
+    "files": {
+      "app.js": "function f(rows) {\n  return rows.map((r) => r.n).reduce((a, b) => a + b, 0);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-05-08",
+    "title": "similar negative: single map",
+    "files": {
+      "app.js": "function f(rows) {\n  return rows.map((r) => r.n);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-05-09",
+    "title": "malformed settings: threshold missing -> unavailable",
+    "files": {
+      "app.js": "function names(rows) {\n  return rows.filter((r) => r.ok).map((r) => r.name);\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_alloc_bytes must be a number"
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    },
+    "context": {
+      "min_alloc_bytes": null
+    }
+  },
+  {
+    "id": "JS-05-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "JS-05-91",
+    "title": "no profiler artifact -> unavailable, not clean",
+    "files": {
+      "app.js": "function names(rows) {\n  return rows.filter((r) => r.ok).map((r) => r.name);\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no node-heap artifact"
+      ]
+    }
+  },
+  {
+    "id": "JS-05-92",
+    "title": "artifact covers only one of two files -> partial",
+    "files": {
+      "app.js": "function names(rows) {\n  return rows.filter((r) => r.ok).map((r) => r.name);\n}\n",
+      "cold.js": "let x = 1;\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "names:filter.map",
+          "line": 2
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ],
+      "limitations_contain": [
+        "cold.js",
+        "no node-heap artifact"
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  }
+]
