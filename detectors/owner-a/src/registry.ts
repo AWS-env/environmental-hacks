@@ -20,6 +20,27 @@ import { checkCodeC104 } from "./checks/code-c10-4/index.js";
 import { checkCodeC67 } from "./checks/code-c6-7/index.js";
 import { checkCodeC66 } from "./checks/code-c6-6/index.js";
 import { checkCodeC114 } from "./checks/code-c11-4/index.js";
+import { checkCodeC61 } from "./checks/code-c6-1/index.js";
+import { RegisteredArtifactCheck } from "./core/artifact.js";
+
+/**
+ * Owner-a checks whose evidence is a client-produced artifact (not Python source). They run through the
+ * same `evaluate` entry point; the adapter feeds them the artifact source's normalized `data`.
+ */
+export const ARTIFACT_CHECKS: ReadonlyMap<string, RegisteredArtifactCheck> = new Map([
+  [
+    "CODE-C6.1",
+    {
+      version: "0.1.0",
+      artifactLabel: "memray stats JSON",
+      run: checkCodeC61,
+      limitations: [
+        "Runtime evidence from one client-run workload: allocation volume and peak show churn, not object lifetimes, and the export lists only the top few locations; a finding is a strong indicator, not proof of an avoidable object.",
+        "Locations inside the standard library or third-party packages are ignored; thresholds come from the input context (min_total_bytes, churn_ratio_min, min_hotspot_count, min_hotspot_share).",
+      ],
+    },
+  ],
+]);
 
 export interface RegisteredCheck {
   version: string;

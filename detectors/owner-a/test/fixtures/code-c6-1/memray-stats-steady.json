@@ -1,0 +1,143 @@
+{
+  "total_num_allocations": 1618,
+  "total_bytes_allocated": 3529123,
+  "allocation_size_histogram": [
+    {
+      "min_bytes": 0,
+      "max_bytes": 2,
+      "count": 6
+    },
+    {
+      "min_bytes": 3,
+      "max_bytes": 8,
+      "count": 0
+    },
+    {
+      "min_bytes": 9,
+      "max_bytes": 26,
+      "count": 0
+    },
+    {
+      "min_bytes": 27,
+      "max_bytes": 83,
+      "count": 5
+    },
+    {
+      "min_bytes": 84,
+      "max_bytes": 255,
+      "count": 0
+    },
+    {
+      "min_bytes": 256,
+      "max_bytes": 775,
+      "count": 39
+    },
+    {
+      "min_bytes": 776,
+      "max_bytes": 2354,
+      "count": 1532
+    },
+    {
+      "min_bytes": 2355,
+      "max_bytes": 7141,
+      "count": 21
+    },
+    {
+      "min_bytes": 7142,
+      "max_bytes": 21656,
+      "count": 13
+    },
+    {
+      "min_bytes": 21657,
+      "max_bytes": 65665,
+      "count": 2
+    }
+  ],
+  "allocator_type_distribution": {
+    "CALLOC": 1530,
+    "MALLOC": 51,
+    "REALLOC": 37
+  },
+  "top_allocations_by_size": [
+    {
+      "location": "main:steady.py:5",
+      "size": 3222684
+    },
+    {
+      "location": "_get_code_from_file:<frozen runpy>:266",
+      "size": 73626
+    },
+    {
+      "location": "_read_directory:<frozen zipimport>:368",
+      "size": 66008
+    },
+    {
+      "location": "namedtuple:/usr/local/lib/python3.13/collections/__init__.py:444",
+      "size": 46972
+    },
+    {
+      "location": "get_data:<frozen importlib._bootstrap_external>:1219",
+      "size": 39997
+    }
+  ],
+  "top_allocations_by_count": [
+    {
+      "location": "main:steady.py:5",
+      "count": 1523
+    },
+    {
+      "location": "_get_code_from_file:<frozen runpy>:266",
+      "count": 31
+    },
+    {
+      "location": "_compile_bytecode:<frozen importlib._bootstrap_external>:781",
+      "count": 28
+    },
+    {
+      "location": "namedtuple:/usr/local/lib/python3.13/collections/__init__.py:444",
+      "count": 17
+    },
+    {
+      "location": "_get_code_from_file:<frozen runpy>:265",
+      "count": 2
+    }
+  ],
+  "top_modules_by_allocation_size": [
+    {
+      "module": "steady",
+      "num_allocations": 1523,
+      "total_bytes": 3222684
+    },
+    {
+      "module": "<root>",
+      "num_allocations": 95,
+      "total_bytes": 306439
+    }
+  ],
+  "top_modules_by_allocation_count": [
+    {
+      "module": "steady",
+      "num_allocations": 1523,
+      "total_bytes": 3222684
+    },
+    {
+      "module": "<root>",
+      "num_allocations": 95,
+      "total_bytes": 306439
+    }
+  ],
+  "metadata": {
+    "start_time": "2026-10-09 22:34:43.118000+00:00",
+    "end_time": "2026-10-09 22:34:43.159000+00:00",
+    "total_allocations": 3221,
+    "total_frames": 0,
+    "peak_memory": 3147710,
+    "command_line": "/usr/local/bin/memray run -o steady.bin --force steady.py",
+    "pid": 11,
+    "main_thread_id": 1,
+    "python_allocator": "pymalloc",
+    "has_native_traces": false,
+    "trace_python_allocators": false,
+    "file_format": 0
+  }
+}

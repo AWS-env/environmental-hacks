@@ -8,7 +8,8 @@
 import { createHash } from "node:crypto";
 import { Finding } from "./core/finding.js";
 import { parsePythonSource } from "./core/parse.js";
-import { CHECKS, RegisteredCheck } from "./registry.js";
+import { ARTIFACT_CHECKS, CHECKS, RegisteredCheck } from "./registry.js";
+import { RegisteredArtifactCheck } from "./core/artifact.js";
 
 export type ContractConfidence = "low" | "medium" | "high";
 export type ContractStatus = "completed" | "partial" | "unavailable" | "error";
@@ -40,10 +41,14 @@ export interface ContractInput extends ContractBase {
 
 export interface ContractEvidence {
   source_id: string;
-  kind: "static";
+  kind: "static" | "artifact";
   locator: string;
-  line_start: number;
-  value: string;
+  /** Static evidence: one-based first quoted line. */
+  line_start?: number;
+  /** Artifact evidence: the top-level `data` field being cited. */
+  field?: string;
+  /** Static: the exact quoted lines. Artifact: the cited field's value, in full. */
+  value: unknown;
 }
 
 export interface ContractFinding {
@@ -237,6 +242,62 @@ function evaluateScope(
   return { findings };
 }
 
+const ARTIFACT_ONLY_LIMITATION =
+  "Artifact analysis only: findings rest on a client-produced artifact from one run; no code was executed by this detector and no environmental values are reported.";
+
+/** Evaluate one scope of an artifact check: exactly one artifact source with a `data` object is required. */
+function evaluateArtifactScope(
+  input: ContractInput,
+  scopeId: string,
+  check: RegisteredArtifactCheck
+): { findings: ContractFinding[] } | { reason: string } {
+  const sources = input.sources.filter((s) => s.scope_id === scopeId);
+  const artifacts = sources.filter((s) => s.kind === "artifact");
+  if (artifacts.length !== 1) {
+    return {
+      reason: `${scopeId}: expected exactly one ${check.artifactLabel} artifact source, got ${artifacts.length}; ${input.check_id} needs it as evidence.`,
+    };
+  }
+  const source = artifacts[0];
+  if (!source.data || typeof source.data !== "object" || Array.isArray(source.data)) {
+    return { reason: `${scopeId}: ${source.locator} has no normalized data object; not evaluated.` };
+  }
+  const outcome = check.run(source.data, input.context);
+  if (outcome.kind === "unavailable") {
+    return { reason: `${scopeId}: ${source.locator}: ${outcome.reason}` };
+  }
+
+  const findings: ContractFinding[] = [];
+  const usedIdentities = new Map<string, number>();
+  for (const f of outcome.findings) {
+    const missing = f.fields.filter((field) => !(field in (source.data as Record<string, unknown>)));
+    if (missing.length > 0 || f.references.length === 0) {
+      return { reason: `${scopeId}: a ${input.check_id} finding in ${source.locator} could not be cited; scope not certified.` };
+    }
+    const qualified = `${source.locator}::${f.identity}`;
+    const seen = usedIdentities.get(qualified) ?? 0;
+    usedIdentities.set(qualified, seen + 1);
+    const identity = seen === 0 ? qualified : `${qualified}#${seen + 1}`;
+    findings.push({
+      fingerprint: contractFingerprint(input.repository_id, input.check_id, source.scope_id, identity),
+      scope_id: source.scope_id,
+      identity,
+      summary: f.summary,
+      confidence: f.confidence,
+      recommendation: f.recommendation,
+      references: [...new Set(f.references)],
+      evidence: f.fields.map((field) => ({
+        source_id: source.source_id,
+        kind: "artifact" as const,
+        locator: source.locator,
+        field,
+        value: (source.data as Record<string, unknown>)[field],
+      })),
+    });
+  }
+  return { findings };
+}
+
 /**
  * Evaluate a contract v1 input with the requested owner-a check.
  * Throws `ContractInputError` only when the payload is not a contract input at
@@ -245,15 +306,18 @@ function evaluateScope(
  */
 export function evaluate(
   payload: unknown,
-  checks: ReadonlyMap<string, RegisteredCheck> = CHECKS
+  checks: ReadonlyMap<string, RegisteredCheck> = CHECKS,
+  artifactChecks: ReadonlyMap<string, RegisteredArtifactCheck> = ARTIFACT_CHECKS
 ): ContractResult {
   assertInput(payload);
   const input = payload;
 
   const check = checks.get(input.check_id);
+  const artifactCheck = check ? undefined : artifactChecks.get(input.check_id);
+  if (artifactCheck) return evaluateArtifactCheck(input, artifactCheck);
   if (!check) {
     return resultFor(input, "unavailable", [], [
-      `${input.check_id} is not implemented by the owner-a detector (supported: ${[...checks.keys()].join(", ")}).`,
+      `${input.check_id} is not implemented by the owner-a detector (supported: ${[...checks.keys(), ...artifactChecks.keys()].join(", ")}).`,
     ], []);
   }
   if (input.detector_version !== check.version) {
@@ -287,5 +351,34 @@ export function evaluate(
       : evaluated.length > 0
         ? "partial"
         : "unavailable";
+  return resultFor(input, status, evaluated, limitations, findings);
+}
+
+function evaluateArtifactCheck(input: ContractInput, check: RegisteredArtifactCheck): ContractResult {
+  if (input.detector_version !== check.version) {
+    return resultFor(input, "unavailable", [], [
+      `detector_version ${input.detector_version} requested; this build implements ${input.check_id} ${check.version}.`,
+    ], []);
+  }
+  const evaluated: string[] = [];
+  const limitations = [ARTIFACT_ONLY_LIMITATION, ...check.limitations];
+  const findings: ContractFinding[] = [];
+  try {
+    for (const scopeId of input.scope) {
+      const outcome = evaluateArtifactScope(input, scopeId, check);
+      if ("reason" in outcome) {
+        limitations.push(outcome.reason);
+      } else {
+        evaluated.push(scopeId);
+        findings.push(...outcome.findings);
+      }
+    }
+  } catch (error) {
+    return resultFor(input, "error", [], [
+      `${input.check_id} evaluation failed: ${error instanceof Error ? error.message : String(error)}`,
+    ], []);
+  }
+  const status: ContractStatus =
+    evaluated.length === input.scope.length ? "completed" : evaluated.length > 0 ? "partial" : "unavailable";
   return resultFor(input, status, evaluated, limitations, findings);
 }

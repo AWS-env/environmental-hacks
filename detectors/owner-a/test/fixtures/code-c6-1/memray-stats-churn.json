@@ -1,0 +1,143 @@
+{
+  "total_num_allocations": 24111,
+  "total_bytes_allocated": 27423964,
+  "allocation_size_histogram": [
+    {
+      "min_bytes": 0,
+      "max_bytes": 2,
+      "count": 7
+    },
+    {
+      "min_bytes": 3,
+      "max_bytes": 8,
+      "count": 0
+    },
+    {
+      "min_bytes": 9,
+      "max_bytes": 26,
+      "count": 0
+    },
+    {
+      "min_bytes": 27,
+      "max_bytes": 83,
+      "count": 5
+    },
+    {
+      "min_bytes": 84,
+      "max_bytes": 255,
+      "count": 0
+    },
+    {
+      "min_bytes": 256,
+      "max_bytes": 775,
+      "count": 6043
+    },
+    {
+      "min_bytes": 776,
+      "max_bytes": 2354,
+      "count": 18032
+    },
+    {
+      "min_bytes": 2355,
+      "max_bytes": 7141,
+      "count": 14
+    },
+    {
+      "min_bytes": 7142,
+      "max_bytes": 21656,
+      "count": 8
+    },
+    {
+      "min_bytes": 21657,
+      "max_bytes": 65665,
+      "count": 2
+    }
+  ],
+  "allocator_type_distribution": {
+    "REALLOC": 18020,
+    "MALLOC": 6056,
+    "CALLOC": 35
+  },
+  "top_allocations_by_size": [
+    {
+      "location": "score:wasteful.py:7",
+      "size": 22176000
+    },
+    {
+      "location": "score:wasteful.py:8",
+      "size": 4920000
+    },
+    {
+      "location": "_get_code_from_file:<frozen runpy>:266",
+      "size": 93317
+    },
+    {
+      "location": "_read_directory:<frozen zipimport>:368",
+      "size": 66242
+    },
+    {
+      "location": "namedtuple:/usr/local/lib/python3.13/collections/__init__.py:444",
+      "size": 46972
+    }
+  ],
+  "top_allocations_by_count": [
+    {
+      "location": "score:wasteful.py:7",
+      "count": 21000
+    },
+    {
+      "location": "score:wasteful.py:8",
+      "count": 3000
+    },
+    {
+      "location": "_get_code_from_file:<frozen runpy>:266",
+      "count": 46
+    },
+    {
+      "location": "_compile_bytecode:<frozen importlib._bootstrap_external>:781",
+      "count": 28
+    },
+    {
+      "location": "namedtuple:/usr/local/lib/python3.13/collections/__init__.py:444",
+      "count": 17
+    }
+  ],
+  "top_modules_by_allocation_size": [
+    {
+      "module": "wasteful",
+      "num_allocations": 24001,
+      "total_bytes": 27097600
+    },
+    {
+      "module": "<root>",
+      "num_allocations": 110,
+      "total_bytes": 326364
+    }
+  ],
+  "top_modules_by_allocation_count": [
+    {
+      "module": "wasteful",
+      "num_allocations": 24001,
+      "total_bytes": 27097600
+    },
+    {
+      "module": "<root>",
+      "num_allocations": 110,
+      "total_bytes": 326364
+    }
+  ],
+  "metadata": {
+    "start_time": "2026-10-09 22:31:42.185000+00:00",
+    "end_time": "2026-10-09 22:31:42.293000+00:00",
+    "total_allocations": 48207,
+    "total_frames": 0,
+    "peak_memory": 83868,
+    "command_line": "/usr/local/bin/memray run -o out.bin --force wasteful.py",
+    "pid": 12,
+    "main_thread_id": 1,
+    "python_allocator": "pymalloc",
+    "has_native_traces": false,
+    "trace_python_allocators": false,
+    "file_format": 0
+  }
+}
