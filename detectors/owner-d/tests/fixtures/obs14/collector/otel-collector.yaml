@@ -1,0 +1,34 @@
+# Synthetic OBS-14 fixture (not production data): a UAT collector labelled by its resource processor.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+processors:
+  batch:
+  resource/env:
+    attributes:
+      - key: deployment.environment.name
+        value: uat
+        action: upsert
+exporters:
+  awsxray:
+    region: ap-south-1
+  awscloudwatchlogs:
+    log_group_name: /app/uat
+    log_stream_name: app
+  otlphttp/grafana:
+    endpoint: https://otlp-gateway-prod-us-east-0.grafana.net/otlp
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resource/env, batch]
+      exporters: [awsxray]
+    logs:
+      receivers: [otlp]
+      processors: [resource/env, batch]
+      exporters: [awscloudwatchlogs, otlphttp/grafana]
+    metrics:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlphttp/grafana]

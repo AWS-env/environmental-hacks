@@ -1,0 +1,50 @@
+# Synthetic OBS-14 fixture (not production data): staging telemetry that is reduced or stays in-house.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shop
+spec:
+  template:
+    spec:
+      containers:
+        - name: sampled
+          image: example/shop:1.0
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: https://api.honeycomb.io:443
+            - name: OTEL_TRACES_SAMPLER
+              value: parentbased_traceidratio
+            - name: OTEL_TRACES_SAMPLER_ARG
+              value: "0.1"
+            - name: OTEL_LOGS_EXPORTER
+              value: console
+        - name: in-cluster
+          image: example/shop:1.0
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://otel-collector.observability:4317
+            - name: OTEL_TRACES_SAMPLER
+              value: always_on
+            - name: OTEL_LOGS_EXPORTER
+              value: otlp
+        - name: export-off
+          image: example/shop:1.0
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: https://api.honeycomb.io:443
+            - name: OTEL_TRACES_EXPORTER
+              value: none
+        - name: remote-sampler
+          image: example/shop:1.0
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: https://api.honeycomb.io:443
+            - name: OTEL_TRACES_SAMPLER
+              value: xray
+        - name: unresolved
+          image: example/shop:1.0
+          env:
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: $(OTLP_ENDPOINT)
+            - name: OTEL_TRACES_SAMPLER
+              value: always_on

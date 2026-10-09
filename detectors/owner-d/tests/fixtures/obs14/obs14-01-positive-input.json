@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs14-001",
+  "commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "check_id": "OBS-14",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "telemetry-config"
+  },
+  "scope": [
+    "file:overlays/staging/deployment.yaml",
+    "file:docker-compose.qa.yml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:overlays/staging/deployment.yaml",
+      "scope_id": "file:overlays/staging/deployment.yaml",
+      "kind": "static",
+      "locator": "overlays/staging/deployment.yaml",
+      "content": "# Synthetic OBS-14 fixture (not production data): a staging overlay that ships to Honeycomb.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: checkout\nspec:\n  template:\n    spec:\n      containers:\n        - name: checkout\n          image: example/checkout:1.0\n          env:\n            - name: OTEL_EXPORTER_OTLP_ENDPOINT\n              value: https://api.honeycomb.io:443\n            - name: OTEL_TRACES_SAMPLER\n              value: always_on\n            - name: OTEL_LOGS_EXPORTER\n              value: otlp\n            - name: LOG_LEVEL\n              value: debug\n"
+    },
+    {
+      "source_id": "src:docker-compose.qa.yml",
+      "scope_id": "file:docker-compose.qa.yml",
+      "kind": "static",
+      "locator": "docker-compose.qa.yml",
+      "content": "# Synthetic OBS-14 fixture (not production data): QA compose file shipping to New Relic.\nservices:\n  api:\n    image: example/api:1.0\n    environment:\n      OTEL_EXPORTER_OTLP_ENDPOINT: https://otlp.nr-data.net:4317\n      OTEL_RESOURCE_ATTRIBUTES: service.name=api\n      OTEL_SERVICE_NAME: api\n  worker:\n    image: example/worker:1.0\n    environment:\n      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=https://otlp.eu01.nr-data.net/v1/traces\n      - OTEL_TRACES_SAMPLER=parentbased_traceidratio\n      - OTEL_TRACES_SAMPLER_ARG=1.0\n      - OTEL_RESOURCE_ATTRIBUTES=service.name=worker,deployment.environment.name=qa\n"
+    }
+  ]
+}
