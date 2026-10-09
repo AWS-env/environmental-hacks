@@ -2,35 +2,25 @@
   "schema_version": "1.0",
   "kind": "input",
   "repository_id": "github:AWS-env/example",
-  "scan_id": "scan-tst12-001",
-  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "scan_id": "scan-tst12-static-001",
+  "commit_sha": "1111111111111111111111111111111111111111",
   "check_id": "TST-12",
-  "detector_version": "1.0.0",
+  "detector_version": "2.0.0",
   "context": {
-    "max_duration_seconds": 10,
-    "max_sleep_seconds": 0,
+    "max_sleep_seconds": 0.1,
     "max_network_calls": 0,
-    "max_fixture_bytes": 10485760,
-    "max_setup_seconds": 2
+    "max_fixture_bytes": 10485760
   },
   "scope": [
-    "test:tests/test_api.py::test_fetch_users"
+    "file:tests/test_client.py"
   ],
   "sources": [
     {
-      "source_id": "pytest-tests-test-api-test-fetch-users",
-      "scope_id": "test:tests/test_api.py::test_fetch_users",
-      "kind": "artifact",
-      "locator": "pytest --durations artifact: tests/test_api.py::test_fetch_users",
-      "data": {
-        "test_id": "tests/test_api.py::test_fetch_users",
-        "framework": "pytest",
-        "duration_seconds": 14.2,
-        "sleep_seconds": 2.5,
-        "network_call_count": 3,
-        "fixture_bytes": 52428800,
-        "setup_seconds": 4.1
-      }
+      "source_id": "static-tests-test-client",
+      "scope_id": "file:tests/test_client.py",
+      "kind": "static",
+      "locator": "tests/test_client.py",
+      "content": "# Synthetic TST-12 fixture (TST-12-01): unit tests doing real waits, network and big fixtures.\n# Supplied as tests/test_client.py. Never imported or executed by the detector.\nimport asyncio\nimport time\n\nimport boto3\nimport pytest\nimport requests\n\nAPI = \"https://api.pypi.org/pypi\"\nRETRY_DELAY = 1.5\n\n\n@pytest.fixture(scope=\"session\")\ndef large_payload():\n    return b\"\\0\" * 64 * 1024 * 1024\n\n\ndef test_fetch_package(large_payload):\n    response = requests.get(f\"{API}/requests/json\", timeout=5)\n    assert response.status_code == 200\n\n\ndef test_retry_waits_between_attempts():\n    time.sleep(RETRY_DELAY)\n    for _ in range(3):\n        time.sleep(0.2)\n    assert True\n\n\nclass TestUploader:\n    def setup_method(self):\n        self.s3 = boto3.client(\"s3\")\n\n    def test_upload(self):\n        self.s3.put_object(Bucket=\"bucket\", Key=\"key\", Body=b\"x\")\n        client = boto3.client(\"s3\")\n        client.list_buckets()\n\n    async def test_async_backoff(self):\n        await asyncio.sleep(0.5)\n"
     }
   ]
 }

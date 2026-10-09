@@ -5,7 +5,7 @@
   "scan_id": "scan-tst12-003",
   "commit_sha": "cccccccccccccccccccccccccccccccccccccccc",
   "check_id": "TST-12",
-  "detector_version": "1.0.0",
+  "detector_version": "2.0.0",
   "context": {
     "max_duration_seconds": 10,
     "max_sleep_seconds": 0,
