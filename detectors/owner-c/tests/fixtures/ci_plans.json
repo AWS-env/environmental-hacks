@@ -134,6 +134,17 @@
     "unsupported": "Cache hit rate (not exposed by run/job objects); keys longer than 512 characters; `restore-keys` specificity.",
     "challenge": "A constant key on a package store that is rebuilt by a nightly job and restored read-only elsewhere is valid."
   },
+  "CI-18": {
+    "issue": 32,
+    "formats": "GitHub Actions workflow YAML plus the normalized history artifact for the same workflow path.",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the `needs:` entry of the later job, artifact evidence cites `chain_seconds:<A>-><B>` (median over runs of the stage wall time of A plus B, where B started within 60 s of A finishing; matrix legs of one job are one stage named without the `(leg)` suffix). Reported only when history confirms.",
+    "rule": "Job B `needs` job A, both run test commands, B does not read A's outputs (`needs.A.outputs`) or download artifacts, and the measured chain is `>= min_chain_seconds` with `runs_total >= min_runs`. A job is matched to history by its stage name: its `name` (or id) without a trailing matrix leg `(...)`, and a `${{ }}` expression in the name matches any text; the same naming function is used for the workflow and for history. Only jobs executed in the attempt are timed. Confidence medium. Missing pair data in the artifact means not confirmed, no finding. Parallel jobs shorten waiting time; compute is about the same (taxonomy and SRC-17), so the finding recommends a wall-clock saving, not an energy one.",
+    "identity": "`job:<B>:serial-after:<A>`.",
+    "context": "`min_chain_seconds` (default 120, > 0), `min_runs` (default 5).",
+    "unsupported": "Parallelism inside a test command (`pytest -n`, `jest --shard`). Shared-state or ordering dependencies not expressed in `needs`.",
+    "challenge": "Integration tests that need the unit tests' database fixture would break if run in parallel.",
+    "history": true
+  },
   "CI-19": {
     "issue": 33,
     "formats": "GitHub Actions workflow YAML with `actions/upload-artifact` steps. IaC lifecycle rules and live storage inventory are out of scope (decision D2).",

@@ -1,0 +1,152 @@
+[
+  {
+    "id": "CI-18-01",
+    "title": "known positive: integration tests wait for unit tests with no data dependency, 300 s chain",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:unit->integration": 300}}},
+    "expect": {
+      "status": "completed",
+      "evaluated": [".github/workflows/ci.yml"],
+      "findings": [{"identity": "job:integration:serial-after:unit", "line": 10, "field": "chain_seconds:unit->integration", "value": 300, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-18-02",
+    "title": "similar negative: chain of 60 s is below min_chain_seconds (120)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:unit->integration": 60}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/ci.yml"], "findings": []}
+  },
+  {
+    "id": "CI-18-03",
+    "title": "boundary: chain of exactly 120 s is reported",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:unit->integration": 120}}},
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "job:integration:serial-after:unit", "line": 10, "field": "chain_seconds:unit->integration", "value": 120, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-18-04",
+    "title": "legitimate exception: second job downloads the first job's artifact, a real dependency",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/download-artifact@v4\n      - run: pytest tests/integration\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:unit->integration": 300}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/ci.yml"], "findings": []}
+  },
+  {
+    "id": "CI-18-05",
+    "title": "similar negative: first job is a build, not a test job, so the chain is not test-after-test",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm run build\n  test:\n    needs: build\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:build->test": 300}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/ci.yml"], "findings": []}
+  },
+  {
+    "id": "CI-18-06",
+    "title": "similar negative: candidate chain exists but history has no timing for the pair, not confirmed",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/ci.yml"], "findings": []}
+  },
+  {
+    "id": "CI-18-07",
+    "title": "missing evidence: chained test jobs with no history artifact are not evaluated",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "evaluated": [],
+      "findings": [],
+      "limitations_contain": ["no github-actions artifact"]
+    }
+  },
+  {
+    "id": "CI-18-08",
+    "title": "unsupported input: invalid threshold setting makes the check unavailable",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "context": {"min_chain_seconds": 0},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:unit->integration": 300}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["context.min_chain_seconds"]}
+  },
+  {
+    "id": "CI-18-09",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": ["could not be parsed"]
+    }
+  },
+  {
+    "id": "CI-18-10",
+    "title": "boundary: job names with a trailing parenthesis match history stage names without it",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    name: Unit (fast)\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    name: Integration (slow)\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:Unit->Integration": 300}}},
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "job:integration:serial-after:unit", "line": 12, "field": "chain_seconds:Unit->Integration", "value": 300, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-18-11",
+    "title": "boundary: a job name with an expression matches the expanded stage name in history",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    name: Unit ${{ matrix.os }}\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:Unit ubuntu->integration": 300}}},
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "job:integration:serial-after:unit", "line": 11, "field": "chain_seconds:Unit ubuntu->integration", "value": 300, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-18-12",
+    "title": "similar negative: history has the downstream job chained after a different job, not the candidate's upstream",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  unit:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/unit\n  integration:\n    needs: unit\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest tests/integration\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 30, "chain_seconds:lint->integration": 300}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/ci.yml"], "findings": []}
+  }
+]
