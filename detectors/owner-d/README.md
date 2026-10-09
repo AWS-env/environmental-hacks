@@ -200,3 +200,52 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst12/tst12-01-positive-input.json
 ```
 
+
+## OBS-02 — Eager log message construction when the level is disabled
+
+Flags Python logging calls whose message is built before the logger checks its
+level, so the formatting runs even when production drops the record. The check
+is static: source is parsed with `ast` and never imported or executed.
+Shared static plumbing lives in `owner_d/static.py` (contract runner) and
+`owner_d/logcalls.py` (logger-call recognition, reused by later OBS checks).
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item. Scope
+IDs use the form `file:<path>`; `content` is the file text. Only `.py` files
+are supported in v1. No context settings are required.
+
+### Detection rule
+
+A call is flagged when all of the following hold:
+
+- The receiver is a logger: the `logging` module, a name assigned from
+  `getLogger`/`get_logger`/`getChild`/`bind`, loguru's `logger`, or a receiver
+  conventionally named `log`/`logger`/`*_logger`.
+- The level is `trace`/`debug` (`medium` confidence) or `info` (`low`
+  confidence). `.log(logging.DEBUG, ...)` is resolved. WARNING and above are
+  not flagged, because they are normally emitted.
+- The message is an f-string with placeholders, `%`-formatting,
+  `"...".format()` or concatenation of text with a non-constant value.
+
+Exceptions that are not flagged: lazy arguments (`logger.debug("x=%s", x)`),
+constant strings, calls inside an `if` that checks the level (directly via
+`isEnabledFor`/`getEffectiveLevel`/`.level`, or through a flag assigned from
+such a check), and lines with `# noqa` or `# noqa: G004` (or another
+G001–G004 / W1201–W1203 / OBS-02 code).
+
+The identity is `<qualified function>:<receiver>.<method>`, e.g.
+`charge:logger.debug`. A repeated call in the same function becomes
+`charge:logger.debug#2`, so identities survive line movement. Files that are
+missing, not Python or fail to parse are left out of `evaluated_scope` with a
+limitation. The result is then `partial`/`unavailable`, never clean. No
+energy/emissions measurements are emitted: the check proves eager formatting,
+not wasted CPU, because it cannot see the production log level or call
+frequency.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs02/obs02-01-positive-input.json
+```

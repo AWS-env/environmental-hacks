@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs02-001",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "OBS-02",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic OBS-02 fixture: eager log message construction. Never executed.\nimport logging\n\nfrom loguru import logger as trace_log\n\nlogger = logging.getLogger(__name__)\naudit = logging.getLogger(\"audit\")\n\n\ndef charge(order, user):\n    logger.debug(f\"charging order {order.id} for {user}\")\n    logger.debug(\"order payload: %s\" % order.to_dict())\n    logger.info(\"user {} charged\".format(user.id))\n    audit.debug(\"total=\" + str(order.total))\n    logging.debug(f\"module-level call for {order.id}\")\n    logger.log(logging.DEBUG, f\"explicit level for {order.id}\")\n    trace_log.trace(f\"loguru trace {order}\")\n    return order\n\n\nclass Worker:\n    def __init__(self):\n        self.logger = logging.getLogger(type(self).__name__)\n\n    def handle(self, items):\n        for item in items:\n            self.logger.debug(f\"handling {item}\")\n"
+    }
+  ]
+}
