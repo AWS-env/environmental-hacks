@@ -553,3 +553,45 @@ export function collectLoops(
   visit(rootNode, null);
   return loops;
 }
+
+/** True for a bare name or a pure attribute chain (`items`, `self.items`, `a.b.c`). */
+export function isNameChain(node: Parser.SyntaxNode | null): boolean {
+  if (!node) return false;
+  if (node.type === "identifier") return true;
+  if (node.type === "attribute") return isNameChain(node.childForFieldName("object"));
+  return false;
+}
+
+/** Exact base-chain comparison (`self.items` ≠ `other.items` ≠ `items`), ignoring whitespace. */
+export function sameBaseChain(a: Parser.SyntaxNode | null, b: Parser.SyntaxNode | null): boolean {
+  if (!isNameChain(a) || !isNameChain(b)) return false;
+  return a!.text.replace(/\s+/g, "") === b!.text.replace(/\s+/g, "");
+}
+
+/**
+ * The collection a `for` loop iterates directly: `for x in items`, `for k in d.keys()`
+ * (also `.values()` / `.items()`), or `for i, x in enumerate(items)`. Anything else —
+ * including explicit copies like `items[:]`, `list(items)`, `sorted(items)` — returns null.
+ */
+export function iteratedCollection(forNode: Parser.SyntaxNode): Parser.SyntaxNode | null {
+  let iter = forNode.childForFieldName("right");
+  while (iter?.type === "parenthesized_expression") iter = iter.namedChildren[0] ?? null;
+  if (!iter) return null;
+  if (iter.type === "call") {
+    const fn = iter.childForFieldName("function");
+    const args = iter.childForFieldName("arguments");
+    const named = args?.namedChildren.filter((c) => c.type !== "comment") ?? [];
+    if (fn?.type === "attribute" && named.length === 0) {
+      const method = fn.childForFieldName("attribute")?.text;
+      if (method === "keys" || method === "values" || method === "items") {
+        const obj = fn.childForFieldName("object");
+        return isNameChain(obj) ? obj : null;
+      }
+    }
+    if (fn?.type === "identifier" && fn.text === "enumerate" && named.length >= 1) {
+      return isNameChain(named[0]) ? named[0] : null;
+    }
+    return null;
+  }
+  return isNameChain(iter) ? iter : null;
+}

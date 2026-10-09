@@ -20,6 +20,8 @@ export interface FindingEvidence {
   suggested?: string;
   /** Fully qualified setup callee (CODE-C3.3), e.g. `requests.Session`. */
   factory?: string;
+  /** Mutating operation (CODE-C3.7), e.g. `remove`, `pop(0)`, `del`. */
+  mutator?: string;
 }
 
 export interface FindingImpact {

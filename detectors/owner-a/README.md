@@ -27,6 +27,10 @@ This package contains lightweight, read-only static code detectors for **Owner A
 - **`CODE-C3.6`**: Unfiltered bulk iteration (#65)
   - `eager-then-prefix` / `eager-then-early-exit` / `eager-then-short-circuit`: An eager producer (list comprehension, `list(map/filter/…)`, `readlines()`) whose only consumer reads a prefix (S1), a loop that exits early (S2), or `any`/`all`/`in` (S3).
 
+- **`CODE-C3.7`**: Inefficient array mutation (#66)
+  - `mutate-during-iteration`: A `for` loop that removes from (S1), grows (S3, Low) or clears / slice-stores (S4) the collection it iterates.
+  - `front-reindex-in-loop`: `pop(0)` / `insert(0, …)` / `del x[0]` on a list inside any loop (S2, O(n²)); `collections.deque` bindings are skipped.
+
 ## Shared contract v1
 
 `evaluate(input)` (`src/contract.ts`) is the entry point for the shared detector contract
