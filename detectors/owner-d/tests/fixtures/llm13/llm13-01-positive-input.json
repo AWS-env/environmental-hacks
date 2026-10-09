@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm13-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "LLM-13",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic LLM-13 fixture: LLM responses cached without TTL or invalidation. Never executed.\nimport functools\nimport json\n\nimport anthropic\nimport boto3\nimport redis\nfrom async_lru import alru_cache\nfrom cachetools import LRUCache, cached\nfrom langchain_community.cache import SQLiteCache\nfrom langchain_core.caches import InMemoryCache\nfrom langchain_core.globals import set_llm_cache\nfrom langchain_openai import ChatOpenAI\nfrom openai import AsyncOpenAI, OpenAI\n\nclaude = anthropic.Anthropic()\nclient = OpenAI()\naclient = AsyncOpenAI()\nbedrock = boto3.client(\"bedrock-runtime\")\nstore = redis.Redis.from_url(\"redis://localhost:6379/0\")\nANSWERS = {}\n\nset_llm_cache(SQLiteCache(database_path=\".langchain.db\"))\nchat_model = ChatOpenAI(model=\"gpt-5.5\", cache=InMemoryCache())\n\n\n@functools.lru_cache(maxsize=None)\ndef answer(question):\n    reply = claude.messages.create(model=\"claude-sonnet-4-5\", max_tokens=512, messages=[{\"role\": \"user\", \"content\": question}])\n    return reply.content[0].text\n\n\ndef ask(question):\n    return claude.messages.create(model=\"claude-haiku-4-5\", max_tokens=256, messages=[{\"role\": \"user\", \"content\": question}])\n\n\n@functools.cache\ndef faq(topic):\n    return ask(f\"Explain {topic}\").content[0].text\n\n\n@cached(LRUCache(maxsize=256))\ndef classify(ticket):\n    return client.chat.completions.create(model=\"gpt-5.5\", max_tokens=8, messages=[{\"role\": \"user\", \"content\": ticket}])\n\n\n@alru_cache\nasync def summarise(text):\n    return await aclient.responses.create(model=\"gpt-5.5\", max_output_tokens=200, input=text)\n\n\ndef cached_converse(prompt):\n    key = f\"llm:{prompt}\"\n    hit = store.get(key)\n    if hit is not None:\n        return json.loads(hit)\n    response = bedrock.converse(modelId=\"amazon.nova-lite-v1:0\", messages=[{\"role\": \"user\", \"content\": [{\"text\": prompt}]}])\n    text = response[\"output\"][\"message\"][\"content\"][0][\"text\"]\n    store.set(key, json.dumps(text))\n    return text\n\n\ndef lookup(question):\n    if question in ANSWERS:\n        return ANSWERS[question]\n    completion = client.chat.completions.create(model=\"gpt-5.5\", max_tokens=300, messages=[{\"role\": \"user\", \"content\": question}])\n    ANSWERS[question] = completion.choices[0].message.content\n    return ANSWERS[question]\n\n\n@functools.lru_cache(maxsize=1024)\ndef draft(llm, prompt):\n    return llm.chat.completions.create(model=\"gpt-5.5\", max_tokens=300, messages=[{\"role\": \"user\", \"content\": prompt}])\n\n\nclass ReplyCache:\n    def __init__(self):\n        self.redis = redis.Redis(host=\"localhost\", port=6379)\n\n    def reply(self, prompt):\n        hit = self.redis.hget(\"replies\", prompt)\n        if hit:\n            return hit.decode()\n        reply = client.responses.create(model=\"gpt-5.5\", max_output_tokens=300, input=prompt)\n        self.redis.hset(\n            \"replies\",\n            prompt,\n            reply.output_text,\n        )\n        return reply.output_text\n"
+    }
+  ]
+}
