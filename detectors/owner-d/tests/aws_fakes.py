@@ -160,6 +160,31 @@ class FakeXray:
                 "UnprocessedTraceIds": []}
 
 
+class FakeTable:
+    """The findings-hub DynamoDB table, for feeding published events into findings_hub.writer.ingest."""
+
+    def __init__(self):
+        self.items = {}
+
+    def batch_writer(self):
+        table = self
+
+        class Batch:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                return False
+
+            def put_item(self, Item):
+                table.items[(Item["pk"], Item["sk"])] = Item
+
+        return Batch()
+
+    def put_item(self, Item, ConditionExpression=None):
+        self.items[(Item["pk"], Item["sk"])] = Item
+
+
 class Context:
     def __init__(self, ms=120_000):
         self.ms = ms

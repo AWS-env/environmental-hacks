@@ -31,8 +31,7 @@ by scope or resource) are wired through an ``adapter`` (ADAPTERS below), which b
 sources with account-free locators: ``list_metrics`` (OBS-06), ``describe_log_groups`` (OBS-07) and
 ``xray_traces`` (LLM-10: ``fn(Traces)`` plus the module's ``telemetry_sources``).
 
-Wiring a new check is one line in CHECKS. The OBS-06, OBS-07 and LLM-10 lines are ready below; uncomment
-each one when its detector module (owner_d/obs06.py, obs07.py, llm10.py) is merged.
+Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07 and LLM-10 are registered below).
 """
 from __future__ import annotations
 
@@ -73,9 +72,12 @@ class TelemetryCheck:
 CHECKS = (
     TelemetryCheck("INF-01", "owner_d.inf01", "cpu_metrics",
                    normalizer="owner_d.aws.metrics:normalize_cpu_metrics", defaults=INF01_DEFAULTS),
-    # TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:normalize_list_metrics", adapter="list_metrics", defaults=OBS06_DEFAULTS),  # noqa: E501
-    # TelemetryCheck("OBS-07", "owner_d.obs07", "log_groups", normalizer="owner_d.obs07:normalize_describe_log_groups", adapter="describe_log_groups", defaults=OBS07_DEFAULTS),  # noqa: E501
-    # TelemetryCheck("LLM-10", "owner_d.llm10", "traces", normalizer="owner_d.llm10:normalize_xray_traces", adapter="xray_traces", defaults=LLM10_DEFAULTS),  # noqa: E501
+    TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:normalize_list_metrics",
+                   adapter="list_metrics", defaults=OBS06_DEFAULTS),
+    TelemetryCheck("OBS-07", "owner_d.obs07", "log_groups", normalizer="owner_d.obs07:normalize_describe_log_groups",
+                   adapter="describe_log_groups", defaults=OBS07_DEFAULTS),
+    TelemetryCheck("LLM-10", "owner_d.llm10", "traces", normalizer="owner_d.llm10:normalize_xray_traces",
+                   adapter="xray_traces", defaults=LLM10_DEFAULTS),
 )
 
 

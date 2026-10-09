@@ -5,9 +5,11 @@
 - Bounded pagination and time windows, so every AWS read has a fixed upper cost.
 - Contract v1 inputs/results and publishing detector.result.v1 events in the shape the findings-hub
   writer accepts (hub/findings_hub/writer.py): source starting with "owner-", Detail = one contract
-  result. The writer re-validates every event and keeps rejected ones in its DLQ.
+  result. Every input/result pair passes shared.contracts validate_pair before it is published; invalid
+  results are refused and reported. The writer re-validates every event and keeps rejected ones in its DLQ.
 
-boto3 comes from the Lambda runtime; nothing here needs third-party packages.
+boto3 comes from the Lambda runtime. jsonschema (for shared.contracts) is bundled into the Lambda zip by
+scripts/build-owner-d-telemetry.sh.
 """
 from __future__ import annotations
 
@@ -29,6 +31,7 @@ PUT_EVENTS_BATCH = 10  # EventBridge PutEvents limit per call
 MAX_DETAIL_BYTES = 240_000  # EventBridge entry limit is 256 KB; the hub stores results up to 300 KB inline
 DEFAULT_SCOPE_PER_PAYLOAD = 50
 MAX_SCOPE_PER_PAYLOAD = 200
+MAX_ERROR_CHARS = 300  # refused-result reports in the response and the log line
 ROLE_ARN = re.compile(r"arn:aws(?:-[a-z]+)*:iam::\d{12}:role/[\w+=,.@/-]{1,512}")
 COMMIT_SHA = re.compile(r"[a-f0-9]{40}")
 
@@ -64,6 +67,16 @@ def _new_client(service, region_name, credentials=None):
         kwargs.update(aws_access_key_id=credentials["AccessKeyId"], aws_secret_access_key=credentials["SecretAccessKey"],
                       aws_session_token=credentials["SessionToken"])
     return boto3.client(service, **kwargs)
+
+
+def readers_for(event: dict) -> "Readers":
+    """Readers for an event. An `external_id` in the event wins. Otherwise, when the event targets this
+    stack's own read-only role (READONLY_ROLE_ARN), the template-provided READONLY_EXTERNAL_ID is used.
+    It is never sent to any other role, so another project's CloudTrail never sees it."""
+    role_arn, external_id = event.get("role_arn"), event.get("external_id")
+    if external_id is None and role_arn is not None and role_arn == os.environ.get("READONLY_ROLE_ARN"):
+        external_id = os.environ.get("READONLY_EXTERNAL_ID") or None
+    return Readers(role_arn, external_id)
 
 
 def own_client(service):
@@ -235,12 +248,13 @@ def build_inputs(*, repository_id, commit_sha, scan_id, module, context, scope, 
 
 
 def _validator():
-    """shared.contracts needs jsonschema, which the Lambda zip does not ship; the hub writer
-    validates every event again, so the analyzer validates here when the package is importable."""
+    """shared.contracts validate_pair. The Lambda zip bundles jsonschema, so a missing package is a broken
+    build: fail closed instead of publishing unvalidated results."""
     try:
         from shared.contracts.validation import validate_pair
-    except ImportError:
-        return None
+    except ImportError as exc:
+        raise RuntimeError("shared.contracts validation is unavailable (jsonschema missing from the build); "
+                           "refusing to evaluate or publish") from exc
     return validate_pair
 
 
@@ -310,7 +324,7 @@ def _call_collector(collector, event, readers, module, deadline):
 def run_probe(event, context, *, analyzer, collectors):
     """Collect-only smoke test of the read path (IAM, role, Region): returns counts, publishes nothing."""
     region()
-    readers = Readers(event.get("role_arn"), event.get("external_id"))
+    readers = readers_for(event)
     deadline = Deadline(context)
     requested = event["probe"]
     if not isinstance(requested, list) or not requested or not set(requested) <= set(collectors):
@@ -325,7 +339,12 @@ def run_probe(event, context, *, analyzer, collectors):
 
 def run_analyzer(event, context, *, analyzer, source, collectors):
     """Collect -> normalize (registry) -> evaluate -> validate -> publish, for every registered check
-    whose source this analyzer collects. Collection errors raise before anything is published."""
+    whose source this analyzer collects. Collection errors raise before anything is published.
+
+    Every input/result pair goes through validate_pair before publishing. A pair that fails is refused:
+    it is not published and is listed under "refused" in the response, while valid results are still
+    published. A detector that raises is listed under "errors" and makes the invocation fail after the
+    valid results are published."""
     from owner_d.aws import registry
 
     if not isinstance(event, dict):
@@ -337,12 +356,12 @@ def run_analyzer(event, context, *, analyzer, source, collectors):
     checks = registry.select(collectors, event.get("checks"))
     if not checks:
         raise ValueError(f"no checks are registered for {analyzer} yet (see owner_d/aws/registry.py)")
-    readers = Readers(event.get("role_arn"), event.get("external_id"))
+    validate_pair = _validator()
+    readers = readers_for(event)
     deadline = Deadline(context)
     chunk = bounded_int(event.get("scope_per_payload"), DEFAULT_SCOPE_PER_PAYLOAD, 1, MAX_SCOPE_PER_PAYLOAD,
                         "scope_per_payload")
-    validate_pair = _validator()
-    raw_cache, collection, results, skipped, errors = {}, {}, [], [], []
+    raw_cache, collection, results, skipped, errors, refused = {}, {}, [], [], [], []
     for check in checks:
         module, normalize = registry.load(check)
         key = (check.source, *registry.collector_key(module))
@@ -366,10 +385,16 @@ def run_analyzer(event, context, *, analyzer, source, collectors):
                                     sources=normalized["sources"], chunk=chunk):
             try:
                 result = add_limitations(module.evaluate(payload), notes)
-                if validate_pair is not None:
-                    validate_pair(payload, result)
-            except Exception as exc:  # detector or contract failure: never publish, report it
+            except Exception as exc:  # detector failure: never publish, report it
                 errors.append({"check_id": check.check_id, "error": f"{type(exc).__name__}: {exc}"})
+                continue
+            try:
+                validate_pair(payload, result)
+            except Exception as exc:  # contract failure: refuse to publish, report it
+                # schema messages can quote payload values, so keep the report short
+                refused.append({"check_id": check.check_id, "scope": len(payload["scope"]),
+                                "status": result.get("status"),
+                                "error": f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]})
                 continue
             results.append(result)
 
@@ -379,13 +404,14 @@ def run_analyzer(event, context, *, analyzer, source, collectors):
     if results and bus and not dry_run:
         published = publish_results(results, bus_name=bus, source=source)
     summary = {"analyzer": analyzer, "scan_id": scan_id, "dry_run": dry_run, "published": published,
-               "assumed_role": readers.assumed, "contract_validated": validate_pair is not None,
-               "results": summarize(results), "collection": collection, "skipped": skipped, "errors": errors}
+               "assumed_role": readers.assumed, "contract_validated": True,
+               "results": summarize(results), "collection": collection, "skipped": skipped, "refused": refused,
+               "errors": errors}
     if dry_run:
         summary["result_payloads"] = results
     log_summary(summary)
     if errors:
-        raise RuntimeError(f"{len(errors)} result(s) failed evaluation or validation and were not published: "
+        raise RuntimeError(f"{len(errors)} result(s) failed evaluation and were not published: "
                            + "; ".join(e["error"] for e in errors))
     return summary
 

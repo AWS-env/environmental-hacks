@@ -5,7 +5,7 @@ import json
 import unittest
 from unittest import mock
 
-from tests.aws_fakes import NOW, ROLE, AwsTestCase, ClientError, FakeCloudWatch, FakeEvents, FakeSts, hourly
+from tests.aws_fakes import NOW, ROLE, AwsTestCase, ClientError, FakeCloudWatch, FakeEvents, FakeSts, FakeTable, hourly
 
 from findings_hub import writer
 from owner_d.aws import common, metrics, registry, telemetry_handler
@@ -13,29 +13,6 @@ from shared.contracts.validation import validate, validate_pair
 
 IDLE = (hourly(15, 4.0), hourly(15, lambda i: 20.0 + (i % 5)))  # avg 4%, peak 24%
 BUSY_PEAKS = (hourly(15, 6.0), hourly(15, lambda i: 95.0 if i == 100 else 30.0))
-
-
-class FakeTable:
-    def __init__(self):
-        self.items = {}
-
-    def batch_writer(self):
-        table = self
-
-        class Batch:
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *exc):
-                return False
-
-            def put_item(self, Item):
-                table.items[(Item["pk"], Item["sk"])] = Item
-
-        return Batch()
-
-    def put_item(self, Item, ConditionExpression=None):
-        self.items[(Item["pk"], Item["sk"])] = Item
 
 
 class SummaryTests(unittest.TestCase):
@@ -176,11 +153,11 @@ class TelemetryHandlerTests(AwsTestCase):
         ec2 = [{"Namespace": "AWS/EC2", "MetricName": "CPUUtilization",
                 "Dimensions": [{"Name": "InstanceId", "Value": "i-0abc12345678def00"}]}]
         self.use({("i-0abc12345678def00",): IDLE}, list_pages=[ec2])
-        out = self.run_event(discover={})
+        out = self.run_event(discover={}, checks=["INF-01"])  # OBS-06 also reads ListMetrics; keep it out here
         self.assertEqual((out["published"], out["results"][0]["findings"]), (1, 1))
         self.fakes["events"].entries.clear()
         self.use({}, list_pages=[[]])
-        out = self.run_event(discover=True)
+        out = self.run_event(discover=True, checks=["INF-01"])
         self.assertEqual((out["published"], out["skipped"][0]["check_id"]), (0, "INF-01"))
         self.assertEqual(self.fakes["events"].entries, [])
 
@@ -286,6 +263,116 @@ class TelemetryHandlerTests(AwsTestCase):
             with self.assertRaises(RuntimeError):
                 self.run_event(resources=[{"type": "ec2", "id": "i-0abc12345678def00"}])
         self.assertEqual(self.fakes["events"].entries, [])
+
+
+class ValidateBeforePublishTests(AwsTestCase):
+    """validate_pair runs on every input/result pair before PutEvents; invalid pairs are refused and reported."""
+
+    IDS = ("i-0abc12345678def00", "i-0abc12345678def01")
+
+    def setUp(self):
+        super().setUp()
+        self.fakes["cloudwatch"] = FakeCloudWatch({(i,): IDLE for i in self.IDS})
+
+    def run_event(self, **extra):
+        return telemetry_handler.lambda_handler(
+            self.base_event(resources=[{"type": "ec2", "id": i} for i in self.IDS], scope_per_payload=1, **extra))
+
+    def test_valid_pairs_are_validated_then_published(self):
+        from shared.contracts import validation
+        with mock.patch.object(validation, "validate_pair", wraps=validation.validate_pair) as spy:
+            out = self.run_event()
+        self.assertEqual(spy.call_count, 2)
+        for (payload, result), entry in zip((c.args for c in spy.call_args_list), self.fakes["events"].entries):
+            self.assertEqual((payload["kind"], result["kind"]), ("input", "result"))
+            self.assertEqual(json.loads(entry["Detail"]), result)
+        self.assertEqual((out["published"], out["contract_validated"], out["refused"], out["errors"]),
+                         (2, True, [], []))
+
+    def test_invalid_result_is_refused_reported_and_the_valid_one_still_published(self):
+        from owner_d import inf01
+        real = inf01.evaluate
+
+        def tampered(payload):
+            result = real(payload)
+            if payload["scope"] == ["resource:ec2/i-0abc12345678def01"]:
+                result["findings"][0]["fingerprint"] = "0" * 64  # not derived from the finding identity
+            return result
+
+        with mock.patch.object(inf01, "evaluate", side_effect=tampered):
+            out = self.run_event()
+        self.assertEqual(out["published"], 1)
+        self.assertEqual(out["refused"], [{"check_id": "INF-01", "scope": 1, "status": "completed",
+                                           "error": "ContractError: Incorrect finding fingerprint"}])
+        self.assertEqual(out["errors"], [])
+        published = [json.loads(e["Detail"]) for e in self.fakes["events"].entries]
+        self.assertEqual([r["scope"] for r in published], [["resource:ec2/i-0abc12345678def00"]])
+
+    def test_result_that_does_not_match_its_input_is_refused_in_dry_run_too(self):
+        from owner_d import inf01
+        real = inf01.evaluate
+        with mock.patch.object(inf01, "evaluate", side_effect=lambda p: {**real(p), "scan_id": "other-scan"}):
+            out = self.run_event(dry_run=True)
+        self.assertEqual((out["published"], out["result_payloads"], len(out["refused"])), (0, [], 2))
+        self.assertIn("identity or context mismatch", out["refused"][0]["error"])
+        self.assertEqual(self.fakes["events"].entries, [])
+
+    def test_refused_report_is_bounded(self):
+        from owner_d import inf01
+        real = inf01.evaluate
+
+        def huge(payload):
+            result = real(payload)
+            result["coverage"]["limitations"].append(12345)  # schema error quoting payload values
+            result["findings"][0]["evidence"][0]["value"] = "x" * 5000
+            return result
+
+        with mock.patch.object(inf01, "evaluate", side_effect=huge):
+            out = self.run_event()
+        self.assertEqual(out["published"], 0)
+        self.assertTrue(all(len(r["error"]) <= common.MAX_ERROR_CHARS for r in out["refused"]))
+
+    def test_missing_jsonschema_fails_closed_before_reading(self):
+        with mock.patch.dict("sys.modules", {"shared.contracts.validation": None}):
+            with self.assertRaisesRegex(RuntimeError, "refusing to evaluate or publish"):
+                self.run_event()
+        self.assertEqual((self.fakes["cloudwatch"].calls, self.fakes["events"].entries), ([], []))
+
+
+class ExternalIdTests(AwsTestCase):
+    """READONLY_EXTERNAL_ID (set by the template) is sent only when assuming READONLY_ROLE_ARN."""
+
+    OTHER = "arn:aws:iam::210987654321:role/client-telemetry-readonly"
+
+    def setUp(self):
+        super().setUp()
+        self.fakes["cloudwatch"] = FakeCloudWatch({("i-0abc12345678def00",): IDLE})
+        self.env = mock.patch.dict("os.environ", {"READONLY_ROLE_ARN": ROLE,
+                                                  "READONLY_EXTERNAL_ID": "env-external-id-0123456789"})
+        self.env.start()
+        self.addCleanup(self.env.stop)
+
+    def run_event(self, **extra):
+        return telemetry_handler.lambda_handler(
+            self.base_event(resources=[{"type": "ec2", "id": "i-0abc12345678def00"}], dry_run=True, **extra))
+
+    def test_stack_role_uses_the_env_external_id(self):
+        out = self.run_event(role_arn=ROLE)
+        self.assertEqual(self.fakes["sts"].calls[0]["ExternalId"], "env-external-id-0123456789")
+        self.assertNotIn("env-external-id", json.dumps(out))
+
+    def test_event_external_id_wins(self):
+        self.run_event(role_arn=ROLE, external_id="event-external-id")
+        self.assertEqual(self.fakes["sts"].calls[0]["ExternalId"], "event-external-id")
+
+    def test_env_external_id_is_never_sent_to_another_role(self):
+        self.run_event(role_arn=self.OTHER)
+        self.assertNotIn("ExternalId", self.fakes["sts"].calls[0])
+
+    def test_probe_uses_the_env_external_id(self):
+        telemetry_handler.lambda_handler({"probe": ["cpu_metrics"], "role_arn": ROLE,
+                                          "resources": [{"type": "ec2", "id": "i-0abc12345678def00"}]})
+        self.assertEqual(self.fakes["sts"].calls[0]["ExternalId"], "env-external-id-0123456789")
 
 
 class StsFailureTests(AwsTestCase):

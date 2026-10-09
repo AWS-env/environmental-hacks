@@ -1,6 +1,5 @@
 """owner-d-log-analyzer / owner-d-trace-analyzer plumbing and the normalizer registry (stubbed boto3)."""
 
-import importlib.util
 import json
 import sys
 import types
@@ -8,9 +7,11 @@ from pathlib import Path
 import unittest
 from unittest import mock
 
-from tests.aws_fakes import ROLE, AwsTestCase, Context, FakeLogs, FakeXray
+from tests.aws_fakes import NOW, ROLE, AwsTestCase, Context, FakeCloudWatch, FakeLogs, FakeTable, FakeXray
 
-from owner_d.aws import common, log_handler, registry, trace_handler
+from findings_hub import writer
+from owner_d import obs06
+from owner_d.aws import common, log_handler, registry, telemetry_handler, trace_handler
 from shared.contracts.validation import validate
 
 GROUPS = [{"logGroupName": f"/aws/lambda/owner-d-{n}", "retentionInDays": 7, "storedBytes": 10,
@@ -51,14 +52,15 @@ def describe_log_groups_like(pages, tags=None):
 
 
 class Registered:
-    """Temporarily register a fake module + check in the registry."""
+    """Temporarily register a fake module + check in the registry, replacing a real check with the same id."""
 
     def __init__(self, module, check):
         self.module, self.check = module, check
 
     def __enter__(self):
         sys.modules[self.module.__name__] = self.module
-        self.patch = mock.patch.object(registry, "CHECKS", registry.CHECKS + (self.check,))
+        kept = tuple(c for c in registry.CHECKS if c.check_id != self.check.check_id)
+        self.patch = mock.patch.object(registry, "CHECKS", kept + (self.check,))
         self.patch.start()
 
     def __exit__(self, *exc):
@@ -167,8 +169,9 @@ class LogHandlerTests(AwsTestCase):
         self.assertEqual(self.fakes["events"].entries, [])
 
     def test_no_registered_checks_is_an_explicit_error(self):
-        with self.assertRaisesRegex(ValueError, "no checks are registered"):
-            log_handler.lambda_handler(self.base_event())
+        with mock.patch.object(registry, "CHECKS", tuple(c for c in registry.CHECKS if c.source != "log_groups")):
+            with self.assertRaisesRegex(ValueError, "no checks are registered"):
+                log_handler.lambda_handler(self.base_event())
 
 
 class TraceHandlerTests(AwsTestCase):
@@ -207,7 +210,9 @@ class TraceHandlerTests(AwsTestCase):
 class RegistryTests(unittest.TestCase):
     def test_select_and_load(self):
         self.assertEqual([c.check_id for c in registry.select({"cpu_metrics": None})], ["INF-01"])
-        self.assertEqual(registry.select({"traces": None}), [])
+        self.assertEqual([c.check_id for c in registry.select({"traces": None})], ["LLM-10"])
+        self.assertEqual([c.check_id for c in registry.select({"cpu_metrics": None, "metrics": None})],
+                         ["INF-01", "OBS-06"])
         with self.assertRaises(ValueError):
             registry.select({"cpu_metrics": None}, ["LLM-10"])
         module, normalize = registry.load(registry.CHECKS[0])
@@ -223,12 +228,17 @@ class RegistryTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             registry.settings(check, module, {"settings": {"INF-01": 3}})
 
-    def test_every_registry_comment_names_a_known_source_and_adapter(self):
-        text = Path(registry.__file__).read_text(encoding="utf-8")
-        for check_id, source in (("OBS-06", "metrics"), ("OBS-07", "log_groups"), ("LLM-10", "traces")):
-            line = next(l for l in text.splitlines() if f'TelemetryCheck("{check_id}"' in l)
-            self.assertIn(f'"{source}"', line)
-            self.assertIn(source, registry.SOURCES)
+    def test_every_registered_check_loads_with_a_known_source_and_adapter(self):
+        wired = {c.check_id: (c.source, c.adapter) for c in registry.CHECKS}
+        self.assertEqual(wired, {"INF-01": ("cpu_metrics", None), "OBS-06": ("metrics", "list_metrics"),
+                                 "OBS-07": ("log_groups", "describe_log_groups"), "LLM-10": ("traces", "xray_traces")})
+        for check in registry.CHECKS:
+            module, normalize = registry.load(check)
+            self.assertEqual(module.CHECK_ID, check.check_id)
+            self.assertIn(check.source, registry.SOURCES)
+            self.assertTrue(check.adapter is None or check.adapter in registry.ADAPTERS)
+            # registry defaults supply every setting the detector requires in its context
+            self.assertTrue(set(getattr(module, "SETTING_KEYS", ())) <= set(check.defaults), check.check_id)
         self.assertEqual(set(registry.ADAPTERS), {"describe_log_groups", "list_metrics", "xray_traces"})
 
     def test_xray_adapter_uses_the_module_telemetry_sources_and_flags_too_few_traces(self):
@@ -253,26 +263,96 @@ class RegistryTests(unittest.TestCase):
         self.assertIn("only 4 traces were read but min_traces is 10", out["limitations"][0])
         self.assertIn("1 traces could not be parsed", out["limitations"][1])
 
-    @unittest.skipUnless(importlib.util.find_spec("owner_d.llm10"), "LLM-10 detector not merged yet")
-    def test_real_llm10_normalizer_through_the_adapter(self):  # pragma: no cover - runs once #396 lands
+    def test_real_llm10_normalizer_through_the_adapter(self):
         from owner_d import llm10
         out = registry.normalize(llm10.normalize_xray_traces, {"Traces": []}, registry.LLM10_DEFAULTS, "xray_traces")
         self.assertEqual(out["scope"], [])
 
-    @unittest.skipUnless(importlib.util.find_spec("owner_d.obs07"), "OBS-07 detector not merged yet")
-    def test_real_obs07_normalizer_through_the_adapter(self):  # pragma: no cover - runs once #379 lands
+    def test_real_obs07_normalizer_through_the_adapter(self):
         from owner_d import obs07
         raw = {"pages": [{"logGroups": GROUPS}], "tags": None, "region": "ap-south-1"}
         out = registry.normalize(obs07.normalize_describe_log_groups, raw, {}, "describe_log_groups")
         self.assertEqual(len(out["sources"]), 4)
 
-    @unittest.skipUnless(importlib.util.find_spec("owner_d.obs06"), "OBS-06 detector not merged yet")
-    def test_real_obs06_normalizer_through_the_adapter(self):  # pragma: no cover - runs once #380 lands
+    def test_real_obs06_normalizer_through_the_adapter(self):
         from owner_d import obs06
         page = {"Metrics": [{"Namespace": "OwnerD/Demo", "MetricName": "Latency",
                              "Dimensions": [{"Name": "request_id", "Value": "r1"}]}]}
         out = registry.normalize(obs06.normalize_list_metrics, {"pages": [page]}, {}, "list_metrics")
         self.assertEqual(out["scope"], [obs06.scope_id_for("OwnerD/Demo", "Latency")])
+
+
+LLM10_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "llm10"
+
+
+class FixtureXray(FakeXray):
+    """GetTraceSummaries/BatchGetTraces over the synthetic LLM-10 BatchGetTraces fixture."""
+
+    def __init__(self, name):
+        self.by_id = {t["Id"]: t for t in json.loads((LLM10_FIXTURES / name).read_text())["Traces"]}
+        super().__init__(list(self.by_id))
+
+    def batch_get_traces(self, TraceIds, **kw):
+        assert len(TraceIds) <= 5, "BatchGetTraces accepts at most 5 ids"
+        self.calls.append(("batch_get_traces", tuple(TraceIds)))
+        return {"Traces": [self.by_id[i] for i in TraceIds], "UnprocessedTraceIds": []}
+
+
+class RealChecksThroughTheAnalyzersTests(AwsTestCase):
+    """OBS-06, OBS-07 and LLM-10 as registered: real collector -> real normalizer -> real detector ->
+    validate_pair -> PutEvents, and the published event is accepted by the findings-hub writer."""
+
+    def stored(self, index=0):
+        entry = self.fakes["events"].entries[index]
+        result = json.loads(entry["Detail"])
+        validate(result)
+        self.assertNotIn("123456789012", entry["Detail"])
+        summary = writer.ingest({"source": entry["Source"], "detail-type": entry["DetailType"], "detail": result,
+                                 "id": f"evt-{index}"}, s3=None, table=FakeTable(), allowed_buckets=set(), now=NOW)
+        self.assertEqual(summary["outcome"], "stored")
+        return entry, result
+
+    def test_obs06_high_cardinality_metric_is_published(self):
+        metrics_page = [{"Namespace": "OwnerD/Demo", "MetricName": "Latency", "OwningAccounts": ["123456789012"],
+                         "Dimensions": [{"Name": "request_id", "Value": f"req-{i:04d}"}]} for i in range(12)]
+        self.fakes["cloudwatch"] = FakeCloudWatch(list_pages=[metrics_page])
+        out = telemetry_handler.lambda_handler(self.base_event(checks=["OBS-06"],
+                                                               list_metrics={"namespace": "OwnerD/Demo"}))
+        self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
+        self.assertEqual(out["results"], [{"check_id": "OBS-06", "status": "completed", "scope": 1, "evaluated": 1,
+                                           "findings": 1}])
+        entry, result = self.stored()
+        self.assertEqual((entry["Source"], result["check_id"]), ("owner-d.telemetry-analyzer", "OBS-06"))
+        self.assertEqual(result["findings"][0]["scope_id"], obs06.scope_id_for("OwnerD/Demo", "Latency"))
+
+    def test_telemetry_analyzer_runs_inf01_and_obs06_by_default(self):
+        self.fakes["cloudwatch"] = FakeCloudWatch(list_pages=[[]])
+        out = telemetry_handler.lambda_handler(self.base_event(discover={}, dry_run=True))
+        self.assertEqual(sorted(s["check_id"] for s in out["skipped"]), ["INF-01", "OBS-06"])
+
+    def test_obs07_never_expiring_large_log_group_is_published(self):
+        big = {"logGroupName": "/aws/lambda/owner-d-big", "storedBytes": 5 * 1024 ** 3, "logGroupClass": "STANDARD",
+               "creationTime": 1700000000000,
+               "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/owner-d-big"}
+        self.fakes["logs"] = FakeLogs([big] + GROUPS[:1], tags={big["logGroupArn"]: {"team": "d"},
+                                                                GROUPS[0]["logGroupArn"]: {}})
+        out = log_handler.lambda_handler(self.base_event(log_groups={"prefix": "/aws/lambda/", "include_tags": True}))
+        self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
+        self.assertEqual(out["results"][0]["check_id"], "OBS-07")
+        self.assertEqual(out["results"][0]["findings"], 1)
+        entry, result = self.stored()
+        self.assertEqual(entry["Source"], "owner-d.log-analyzer")
+        self.assertEqual(result["findings"][0]["scope_id"], "resource:/aws/lambda/owner-d-big")
+
+    def test_llm10_agent_loop_traces_are_published(self):
+        self.fakes["xray"] = FixtureXray("positive.traces.json")
+        out = trace_handler.lambda_handler(self.base_event(xray={"lookback_minutes": 60},
+                                                           settings={"LLM-10": {"min_traces": 1}}))
+        self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
+        self.assertEqual(out["results"][0]["check_id"], "LLM-10")
+        self.assertGreaterEqual(out["results"][0]["findings"], 1)
+        entry, result = self.stored()
+        self.assertEqual((entry["Source"], result["context"]["min_traces"]), ("owner-d.trace-analyzer", 1))
 
 
 if __name__ == "__main__":
