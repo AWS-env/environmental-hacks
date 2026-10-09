@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs04-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "OBS-04",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic OBS-04 fixture: a Lambda handler that logs and prints free text. Never executed.\nimport logging\n\nlogger = logging.getLogger(__name__)\nlogger.setLevel(logging.INFO)\n\n\ndef lambda_handler(event, context):\n    order_id = event[\"order_id\"]\n    logger.info(\"Done\")\n    logger.info(f\"Processing order {order_id}\")\n    logger.info(\"Order %s for tenant %s\", order_id, event[\"tenant\"])\n    logger.warning(\"Retrying \" + order_id)\n    logger.error(\"Charge failed: {}\".format(event.get(\"reason\")))\n    print(\"finished\")\n    print(f\"order={order_id} status=shipped\")\n    print(\"event:\", event)\n    return {\"ok\": True}\n"
+    }
+  ]
+}

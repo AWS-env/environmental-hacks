@@ -1563,3 +1563,92 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
 The fixtures under `tests/fixtures/llm10/` are synthetic `BatchGetTraces`
 responses shaped on the X-Ray segment document format, not production traces.
 
+
+## OBS-04 — Unstructured logs requiring query-time parsing
+
+Flags Python modules that write log lines with runtime values embedded in free
+text while no structured logging is visible in the scanned code. CloudWatch
+Logs Insights discovers fields in JSON log events (and can index them), but
+free-text values need `parse` over every scanned event. Static only (same
+runner and logger recognition as OBS-02). Sampling real CloudWatch log events is
+not part of v1; it is a follow-up for the runtime log analyzer.
+
+### Input
+
+Same as OBS-02: one `static` source per `file:<path>` scope item, `.py` only,
+no context settings. Structured-logging markers are collected from every
+Python source in the payload, because a JSON formatter configured in one module
+applies to the whole process.
+
+### Detection rule
+
+Two kinds of free-text lines are counted per module:
+
+- **Logging calls** (any level, recognised as in OBS-02) whose message
+  interpolates a runtime value: an f-string, `%`-formatting, `"...".format()`,
+  concatenation, or a constant message with `%`-style arguments
+  (`logger.info("order %s shipped", oid)`). Unlike OBS-02, the lazy form
+  counts too, because the emitted line is still free text.
+- **`print()` in Lambda handler modules**: a module-level function taking
+  `(event, context)`, or `lambda_handler`/`handler` with a `context` second
+  parameter. AWS documents that `print` output reaches CloudWatch Logs as plain
+  text even with the JSON log format.
+
+A value passed through `json.dumps(...)` does not count, because Logs Insights
+discovers the first JSON fragment in a Lambda log event. Constant messages,
+messages passed as a variable and constant arguments do not count either.
+
+One finding per module and kind: identity `module:logging` or `module:print`.
+Evidence is the first counted call. The summary gives the count and the
+interpolation styles. Per-call findings would flood a report and duplicate
+OBS-02.
+
+Logging calls are not flagged in any file when the payload shows structured
+logging. A limitation names the file and the marker. The markers are:
+
+- imports of `structlog`, `pythonjsonlogger`, `json_log_formatter`,
+  `ecs_logging`, `logstash_formatter`, `logfmter`, the Powertools `Logger` or
+  the OpenTelemetry logs SDK;
+- a `logging.Formatter` subclass that calls `json.dumps`;
+- a JSON-shaped format string, or a string naming a JSON formatter (dictConfig);
+- loguru `serialize=True`;
+- the Lambda JSON log format in CDK/SDK code (`logging_format=...JSON`,
+  `LogFormat: "JSON"`);
+- a log call with non-empty `extra=` or structlog-style keyword fields.
+
+Lambda `print` findings are kept even when a marker is present.
+
+Confidence:
+
+- `medium` for `print` findings;
+- `medium` for logging findings in a Lambda handler module (Python Lambda's
+  default log format is plain text) or when a plain-text format with
+  `%(message)s` is configured outside `if __name__ == "__main__":`;
+- `low` otherwise.
+
+Not judged (no findings, still evaluated):
+
+- vendored code (`site-packages`, `vendor`, `third_party`, `.aws-sam`,
+  `cdk.out`, a Lambda layer's `python/` folder, ...) and samples
+  (`examples`, `docs`); these also contribute no markers;
+- tests (`tests/`, `test_*.py`, `*_test.py`, `conftest.py`);
+- terminal scripts and CLIs (`scripts/`, `bin/`, `setup.py`, `manage.py`, a
+  module importing `argparse`/`click`/`typer`/`fire`/`docopt`), unless the
+  module is a Lambda handler;
+- calls inside `if __name__ == "__main__":`;
+- lines with `# noqa` or `# noqa: OBS-04`.
+
+Missing, non-Python or unparseable files are left out of `evaluated_scope` and
+contribute no markers. Logging configuration outside Python (`logging.conf`,
+YAML dictConfig, SAM/Terraform `LogFormat: JSON`) is not visible, so logging
+findings outside Lambda modules stay `low`. JSON records whose `message` still
+embeds values (e.g. Powertools with f-strings) are not flagged in v1. No
+measurements are emitted.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs04/obs04-01-positive-input.json
+```
+
