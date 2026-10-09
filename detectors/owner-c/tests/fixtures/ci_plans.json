@@ -1,4 +1,15 @@
 {
+  "CI-01": {
+    "issue": 17,
+    "formats": "Client-collected GitHub Actions run history (schema v2, normalized by `owner_c/ci/normalize/github_actions.py`): runs, each attempt with its own conclusion, and its jobs. History artifact only; no workflow YAML needed.",
+    "evidence": "Scope `file:<workflow path>`; one `github-actions` artifact per workflow. Cited field: `max_rechecks_per_sha` (largest number of re-runs after a FAILED attempt that any pull request commit needed for this workflow). Second cited field: `reran_passing_jobs` (jobs that had passed and were executed again after a failed attempt, pull requests only).",
+    "rule": "Report when `max_rechecks_per_sha >= min_rechecks` and `runs_total >= min_runs`. A recheck is an attempt that follows an attempt whose conclusion is `failure` or `timed_out` (SRC-14, arXiv 2308.10078: several rechecks are the \"unjustifiable\" case, so the default is 2). Attempts with conclusion `action_required` (GitHub's first-time-contributor approval gate) and `cancelled` attempts are not rechecks. Confidence medium; high when the value is at least twice the threshold. Measured on real GitHub: psf/black commit 2286fd0 has 3 attempts but only one recheck. Second finding `workflow:rerun-passing-jobs` (low confidence) when `reran_passing_jobs >= min_reran_passing_jobs` (default 5): this is CI-04 (\"rechecking passing jobs\"), which taxonomy v1.3 absorbed into CI-01; \"Re-run failed jobs\" would not have re-run them. A job counts as executed again when `started_at >= created_at`.",
+    "identity": "`workflow:repeated-reruns`, `workflow:rerun-passing-jobs` (one each per workflow file).",
+    "context": "`min_rechecks` (default 2), `min_reran_passing_jobs` (default 5), `min_runs` (default 5); all numbers > 0, otherwise unavailable.",
+    "unsupported": "Provider other than GitHub Actions. Gerrit `recheck` comments are not read; the GitHub equivalent is a re-run after a failed attempt. Runs whose attempts could not be fetched (very large runs) are not counted. Re-runs after an infrastructure outage are legitimate and cannot be told apart.",
+    "challenge": "A commit re-run 3 times because the runner pool was down is reported as repeated rechecks.",
+    "history": true
+  },
   "CI-06": {
     "issue": 21,
     "formats": "GitHub Actions workflow files `.github/workflows/*.yml|yaml` (parsed with PyYAML, never executed).",
