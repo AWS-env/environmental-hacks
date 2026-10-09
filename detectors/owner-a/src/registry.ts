@@ -17,6 +17,7 @@ import { checkCodeC36 } from "./checks/code-c3-6/index.js";
 import { checkCodeC13 } from "./checks/code-c1-3/index.js";
 import { checkCodeC51 } from "./checks/code-c5-1/index.js";
 import { checkCodeC104 } from "./checks/code-c10-4/index.js";
+import { checkCodeC67 } from "./checks/code-c6-7/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -143,6 +144,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC104(parsed),
       limitations: [
         "Trip count is not measured, and CPython can sometimes resize a local string in place, so the quadratic cost is not guaranteed.",
+      ],
+    },
+  ],
+  [
+    "CODE-C6.7",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC67(parsed),
+      limitations: [
+        "Only defaults that the function body visibly mutates are reported; mutation through aliases or helper calls is not tracked.",
       ],
     },
   ],
