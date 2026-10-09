@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Build the owner-c Lambda zip into cdk/owner-c/build/:
+# Build the owner-c Lambda zips into cdk/owner-c/build/:
 #   owner-c-detectors.zip  owner_c/ + tree-sitter wheels for Lambda (python3.13, arm64)
-# Handlers: owner_c.aws.handler / profile_handler / presign_handler .lambda_handler
+#   owner-c-xray-demo.zip  the traced demo workload with its npm dependency
+# Handlers: owner_c.aws.handler / profile_handler / xray_handler / presign_handler .lambda_handler
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"
 out="$root/cdk/owner-c/build"
@@ -27,3 +28,20 @@ with zipfile.ZipFile(out / "owner-c-detectors.zip", "w", zipfile.ZIP_DEFLATED) a
 print("built", out / "owner-c-detectors.zip")
 PY
 rm -rf "$out/py"
+demo="$out/demo"
+mkdir -p "$demo"
+cp "$pkg/examples/xray-demo/index.js" "$pkg/examples/xray-demo/package.json" "$demo/"
+(cd "$demo" && npm install --omit=dev --no-audit --no-fund --silent)
+python - "$demo" "$out" <<'PY'
+import pathlib
+import sys
+import zipfile
+
+demo, out = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+with zipfile.ZipFile(out / "owner-c-xray-demo.zip", "w", zipfile.ZIP_DEFLATED) as z:
+    for f in sorted(demo.rglob("*")):
+        if f.is_file():
+            z.write(f, f.relative_to(demo).as_posix())
+print("built", out / "owner-c-xray-demo.zip")
+PY
+rm -rf "$demo"

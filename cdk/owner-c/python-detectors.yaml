@@ -33,6 +33,9 @@ Parameters:
   CodeKey:
     Type: String
     Description: S3 key of owner-c-detectors.zip (Python Lambdas).
+  DemoCodeKey:
+    Type: String
+    Description: S3 key of owner-c-xray-demo.zip (traced demo Lambda).
   FindingsBusName:
     Type: String
     Default: findings-hub
@@ -359,6 +362,139 @@ Resources:
         - { Key: owner, Value: C }
 
   # ---- X-Ray telemetry reader (read-only) ----------------------------------------------------
+  XrayParserLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-c-xray-parser
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: C }
+
+  XrayParserRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "reads existing X-Ray traces (own account or a client's read-only role) to confirm JS-01"
+        must:
+          - "read-only: GetTraceSummaries/BatchGetTraces; AssumeRole only into roles named owner-c-xray-reader"
+    Properties:
+      RoleName: owner-c-xray-parser-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-c-xray-parser
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${XrayParserLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: [events:PutEvents, events:DescribeEventBus]
+                Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "arn:${AWS::Partition}:s3:::owner-c-artifacts-${AWS::AccountId}-${AWS::Region}/uploads/*"
+              - Effect: Allow
+                Action: [xray:GetTraceSummaries, xray:BatchGetTraces]
+                Resource: "*"
+              - Effect: Allow
+                Action: sts:AssumeRole
+                Resource: !Sub "arn:${AWS::Partition}:iam::*:role/owner-c-xray-reader"
+      Tags:
+        - { Key: owner, Value: C }
+
+  XrayParserFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: XrayParserLogGroup
+    Properties:
+      FunctionName: owner-c-xray-parser
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: owner_c.aws.xray_handler.lambda_handler
+      Role: !GetAtt XrayParserRole.Arn
+      MemorySize: 1024
+      Timeout: 120
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          FINDINGS_BUS_NAME: !Ref FindingsBusName
+      LoggingConfig:
+        LogGroup: !Ref XrayParserLogGroup
+      Tags:
+        - { Key: owner, Value: C }
+
+  # ---- traced demo workload (serial vs parallel awaits) -------------------------------------
+  XrayDemoLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-c-xray-demo
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: C }
+
+  XrayDemoRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: owner-c-xray-demo-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-c-xray-demo
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${XrayDemoLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: [xray:PutTraceSegments, xray:PutTelemetryRecords]
+                Resource: "*"
+      Tags:
+        - { Key: owner, Value: C }
+
+  XrayDemoFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: XrayDemoLogGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "real X-Ray traces of serial vs parallel awaits for tests and demos of the JS-01 route"
+        must:
+          - "Active tracing; invoked only by us; makes no downstream calls"
+    Properties:
+      FunctionName: owner-c-xray-demo
+      Runtime: nodejs22.x
+      Architectures: [arm64]
+      Handler: index.handler
+      Role: !GetAtt XrayDemoRole.Arn
+      MemorySize: 256
+      Timeout: 30
+      TracingConfig:
+        Mode: Active
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref DemoCodeKey
+      LoggingConfig:
+        LogGroup: !Ref XrayDemoLogGroup
+      Tags:
+        - { Key: owner, Value: C }
+
 Outputs:
   StaticScanFunctionArn:
     Value: !GetAtt StaticScanFunction.Arn
@@ -366,6 +502,10 @@ Outputs:
     Value: !GetAtt ProfileParserFunction.Arn
   PresignFunctionArn:
     Value: !GetAtt PresignFunction.Arn
+  XrayParserFunctionArn:
+    Value: !GetAtt XrayParserFunction.Arn
+  XrayDemoFunctionArn:
+    Value: !GetAtt XrayDemoFunction.Arn
   ArtifactBucketName:
     Value: !Ref ArtifactBucket
   ParseDlqUrl:

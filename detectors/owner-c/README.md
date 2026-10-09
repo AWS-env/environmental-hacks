@@ -29,6 +29,7 @@ stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`)
 | JS-05 | Chained `map`/`filter`/... building intermediate arrays | static candidate + heap profile | #189 |
 | JS-07 | Spreading the accumulator in `reduce`/loops | static candidate + heap profile | #191 |
 | JS-09 | `throw`/`catch` used as local control flow | static | #193 |
+| JS-01 | `await` inside loops (independent calls run serially) | static candidate + AWS X-Ray traces | #185 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
@@ -50,6 +51,7 @@ detectors/owner-c/
     aws/                 Lambda handlers (static scan, profile parser, X-Ray parser, presign)
     cli.py               `evaluate` and `scan` commands
   collectors/            collect-heap.js, the heap-profile collector clients run in their CI
+  examples/xray-demo/    traced demo Lambda used to test the JS-01 X-Ray route
   examples/client-ci/    tested client-side script: profile, presign, upload, manifest last
   requirements.txt       tree-sitter parsers (JS/TS detectors only)
   tests/                 unittest suite; fixtures/<check>/cases.json are the committed verification cases
@@ -94,6 +96,7 @@ declares every exclusion in `context`, so a file left out is a documented choice
 | `excluded_dirs` | Vendored/build directories out of scope | `.git`, `node_modules`, `venv`, ... |
 | `min_time_share` (PY-01, JS-02, JS-04, JS-08) | Fraction of sampled time a line/function must be on the stack | `0.05` |
 | `min_alloc_bytes` (PY-05, PY-11, JS-03, JS-05, JS-07) | Bytes allocated at a line/function that count as significant | `10485760` |
+| `min_serial_calls`, `min_serial_seconds` (JS-01) | Back-to-back traced calls and serial wall time that count as serial waiting | `3`, `0.05` |
 | `reference_date` (CODE-RT.6) | "As of" date for end-of-life comparisons | today (ISO date) |
 
 Coverage is never silent. A file that cannot be parsed, or (artifact checks) that no artifact covers,
@@ -210,6 +213,7 @@ to functions, not lines); module top-level code is never matched.
 | --- | --- | --- |
 | `cpuprofile` | `node --no-opt --cpu-prof app.js` writes `*.cpuprofile` | per-function and per-line time share (`function_time_share_line_N`, `time_share_line_N`) |
 | `heapprofile` | `node -r ./collectors/collect-heap.js app.js` writes `collected.heapprofile` | allocated bytes per function (`allocated_bytes_function_line_N`), freed objects included |
+| `xray` | not uploaded: read from the client's AWS X-Ray traces (see JS-01) | longest run of back-to-back same-named subsegments |
 
 **Why `--no-opt`:** V8 inlines small hot functions into their callers, so the profile credits the caller and a hot callee
 is not confirmed. `--no-opt` keeps function boundaries in the profile at the cost of speed; it is only for the profiled run.
@@ -265,6 +269,18 @@ Static only (V8 profiles cannot attribute exception cost). Flags a `throw` caugh
 no other call, `await` or `new` (otherwise the catch is shared error handling), and a loop `try` whose catch only
 `continue`s (an empty catch isolating callbacks is not flagged). Identity: `qualname:throw-in-try` / `try-skip-in-loop`.
 
+### JS-01 - `await` inside loops (X-Ray)
+
+Static candidate: an `await` in a loop body. Dropped as serial-on-purpose: `for await`, retry/backoff/sleep/throttle loops,
+loops with `break`/`return`, and `x = await f(x)` where the next iteration depends on the result. Confirmed only by the
+client's AWS X-Ray traces: the `owner-c-xray-parser` Lambda reads `GetTraceSummaries`/`BatchGetTraces` (read-only,
+optionally through a role in the client's account), maps traced function names to repo files (`xray.function_files`) and
+reports when at least `min_serial_calls` same-named sibling subsegments ran back to back (`min_serial_seconds` of waiting).
+It never invokes the client's functions. Real traces of the deployed demo Lambda are in `tests/fixtures/real/xray`
+(parallel: clean; serial: 8 back-to-back `Inventory` calls, out of time order in the document). Identity:
+`qualname:await:callee`. Limitation: a trace has no source lines, so all loop-await candidates in the mapped file are
+confirmed together.
+
 ## AWS deployment (Free Plan, project Region)
 
 `cdk/owner-c/python-detectors.yaml` (CloudFormation) deploys, all tagged `owner=C` with least-privilege roles and a private
@@ -275,6 +291,8 @@ expiring artifact bucket (`owner-c-artifacts-<account>-<region>`):
 | `owner-c-static-scan` | static checks over a repo zip |
 | `owner-c-profile-parser` | confirms candidates with uploaded profiles; also runs from the S3 `manifest.json` trigger |
 | `owner-c-presign` | 15-minute presigned PUT URLs for the client's uploads (regional S3 endpoint) |
+| `owner-c-xray-parser` | JS-01: reads the client's X-Ray traces |
+| `owner-c-xray-demo` | traced demo workload (Active tracing) for testing the X-Ray route |
 
 Build the code zips with `scripts/build-owner-c-lambda.sh` (needs Python, pip and npm). All parsers publish **one contract
 v1 result per check per batch of files** to the shared `findings-hub` bus (owner D) with `detail-type:
