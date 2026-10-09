@@ -1,0 +1,194 @@
+[
+  {
+    "id": "CI-10-01",
+    "title": "known positive: tests run on every pull_request with no path filter",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:test:tests-unfiltered",
+          "line": 9,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-10-02",
+    "title": "similar negative: paths-ignore skips docs-only changes",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\n    paths-ignore:\n      - 'docs/**'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-03",
+    "title": "similar negative: paths filter limits runs to source changes",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\n    paths:\n      - 'src/**'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-04",
+    "title": "legitimate exception: test selection by changed files (jest --onlyChanged)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npx jest --onlyChanged\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-05",
+    "title": "legitimate exception: changed-files gating with dorny/paths-filter",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: dorny/paths-filter@v3\n        id: changes\n        with:\n          filters: |\n            src:\n              - 'src/**'\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-06",
+    "title": "similar negative: scheduled workflow is not triggered per change",
+    "files": {
+      ".github/workflows/nightly.yml": "name: Nightly\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-07",
+    "title": "boundary: push limited to tags is not a per-change trigger",
+    "files": {
+      ".github/workflows/release-tests.yml": "name: Release tests\non:\n  push:\n    tags: ['v*']\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-08",
+    "title": "known positive: unfiltered push trigger running npm test",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:test:tests-unfiltered",
+          "line": 8,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-10-09",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "CI-10-10",
+    "title": "similar negative: installing pytest is not running the suite",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: pip install pytest-xdist pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-11",
+    "title": "legitimate exception: job gated by an if on another job's change-detection output",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  info:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./detect-changes.sh\n  tests:\n    needs: info\n    if: needs.info.outputs.run_tests == 'true'\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-12",
+    "title": "legitimate exception: push limited to main (post-merge run) with pull_request path-filtered",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\n  pull_request:\n    paths-ignore:\n      - 'doc/**'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-13",
+    "title": "legitimate exception: job gated by an opt-in pull request label does not run on every change (pydantic third-party tests)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  t:\n    runs-on: ubuntu-latest\n    if: contains(github.event.pull_request.labels.*.name, 'third-party-tests')\n    steps:\n      - run: pytest tests\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-14",
+    "title": "similar negative: uninstalling pytest-speed is not running the tests (pydantic codspeed job)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: uv pip uninstall pytest-speed\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-15",
+    "title": "similar negative: tool name that only starts like a test runner (pytest-benchmark) is not the suite",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pip download pytest-benchmark\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-10-16",
+    "title": "similar negative: python -c that only prints the pytest version is not a test run (scikit-learn lint)",
+    "files": {
+      ".github/workflows/ci.yml": "name: Lint\non:\n  pull_request:\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: python -c \"from importlib.metadata import version; print(version('pytest'))\"\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  }
+]

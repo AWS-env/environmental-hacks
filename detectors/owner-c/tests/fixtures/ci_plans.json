@@ -29,6 +29,16 @@
     "unsupported": "Tools with their own remote caches are not evaluated (Turborepo, Nx Cloud, Bazel). Build duration is not measured.",
     "challenge": "A clean build before a release-candidate PR check may be required for reproducibility."
   },
+  "CI-10": {
+    "issue": 24,
+    "formats": "GitHub Actions workflow YAML.",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the first test step of the job.",
+    "rule": "The workflow runs on `pull_request` with no `paths`/`paths-ignore`, or on `push` with no branch/tag/path filter at all, and a job runs a test command (`pytest`, `npm test`, `go test`, `mvn test|verify`, `gradle test`, `cargo test`, `jest`, `vitest`, `rspec`, `dotnet test`, `make test`, `tox`, `nox`); installing a test tool (`pip install pytest`) is not running tests. Exceptions: path filters, test selection (`--onlyChanged`, `--changedSince`, `--testmon`, `nx affected`), `dorny/paths-filter` or `tj-actions/changed-files`, a job or step gated by an `if` on changes or on other jobs'/steps' outputs, schedule/dispatch-only, tag-only and branch-limited push workflows. Confidence low: required status checks may need the workflow to run on every change (UNVERIFIED: branch-protection interaction). GitHub documents that a required status check whose workflow is skipped by path/branch/commit-message filters stays Pending and blocks merging (verified), so the finding recommends job-level change detection when the workflow may be required. The taxonomy's own note: skipping tests by path risks missing tests the change needs.",
+    "identity": "`job:<job id>:tests-unfiltered`.",
+    "context": "None.",
+    "unsupported": "History half dropped: the run/job objects carry no changed-file lists, so docs-only runs cannot be confirmed.",
+    "challenge": "A required status check configured on this workflow would block merges if a path filter skipped it."
+  },
   "CI-11": {
     "issue": 25,
     "formats": "GitHub Actions workflow YAML (`on` as string, list or mapping).",
