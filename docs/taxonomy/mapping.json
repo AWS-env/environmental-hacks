@@ -1,0 +1,1789 @@
+{
+  "repo": "AWS-env/environmental-hacks",
+  "generated_at": "2026-10-09T07:38:15.124235+00:00",
+  "epics": {
+    "A": {
+      "number": null,
+      "node_id": null,
+      "title": "[Owner A] In-process code efficiency",
+      "hash": null
+    },
+    "B": {
+      "number": null,
+      "node_id": null,
+      "title": "[Owner B] Data & external I/O",
+      "hash": null
+    },
+    "C": {
+      "number": null,
+      "node_id": null,
+      "title": "[Owner C] Language, client & build",
+      "hash": null
+    },
+    "D": {
+      "number": null,
+      "node_id": null,
+      "title": "[Owner D] Runtime ops & AI",
+      "hash": null
+    }
+  },
+  "checks": {
+    "CI-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-01] Repeated builds during code review (recheck)",
+      "owner": "C",
+      "hash": "ce1066cb"
+    },
+    "CI-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-02] Blind rechecking without diagnosis",
+      "owner": "C",
+      "hash": "8648439c"
+    },
+    "CI-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-03] Flaky / non-deterministic tests",
+      "owner": "C",
+      "hash": "2daedd02"
+    },
+    "CI-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-05] Brown builds (build fails then succeeds on rerun)",
+      "owner": "C",
+      "hash": "2b43ba12"
+    },
+    "CI-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-06] No dependency caching",
+      "owner": "C",
+      "hash": "7c10662d"
+    },
+    "CI-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-07] Docker layers not cached / unchanged layers rebuilt",
+      "owner": "C",
+      "hash": "739f052c"
+    },
+    "CI-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-08] Full builds where incremental/cached builds are possible",
+      "owner": "C",
+      "hash": "2f19b61a"
+    },
+    "CI-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-10] Full test suite on every change",
+      "owner": "C",
+      "hash": "6c1cca8e"
+    },
+    "CI-11": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-11] Redundant triggers / no cancellation of superseded runs",
+      "owner": "C",
+      "hash": "940b31c1"
+    },
+    "CI-12": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-12] Scheduled pipelines run when nothing changed",
+      "owner": "C",
+      "hash": "0e26b015"
+    },
+    "CI-13": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-13] Redundant matrix jobs",
+      "owner": "C",
+      "hash": "6e25fd39"
+    },
+    "CI-14": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-14] Oversized runners / overprovisioning",
+      "owner": "C",
+      "hash": "629aae1d"
+    },
+    "CI-15": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-15] Static runner pools (idle low / bottleneck peak)",
+      "owner": "C",
+      "hash": "15b37237"
+    },
+    "CI-16": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-16] Cache misconfiguration (bad keys / inconsistency)",
+      "owner": "C",
+      "hash": "5b76ea24"
+    },
+    "CI-17": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-17] No CI observability over build times/queue",
+      "owner": "C",
+      "hash": "a4b7d410"
+    },
+    "CI-18": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-18] Sequential test execution",
+      "owner": "C",
+      "hash": "1e30d071"
+    },
+    "CI-19": {
+      "number": null,
+      "node_id": null,
+      "title": "[CI-19] Artifacts/images retained forever",
+      "owner": "C",
+      "hash": "0e3a4cea"
+    },
+    "CODE-C1.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C1.1] Dead code / unused results",
+      "owner": "A",
+      "hash": "0995c256"
+    },
+    "CODE-C1.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C1.2] Redundant assignment",
+      "owner": "A",
+      "hash": "f3370b24"
+    },
+    "CODE-C1.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C1.3] Redundant control flow",
+      "owner": "A",
+      "hash": "6587d1d8"
+    },
+    "CODE-C1.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C1.4] Repeated computation",
+      "owner": "A",
+      "hash": "1440096c"
+    },
+    "CODE-C1.5": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C1.5] Resultless computation",
+      "owner": "A",
+      "hash": "586104cb"
+    },
+    "CODE-C1.6": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C1.6] Unnecessary initialization",
+      "owner": "A",
+      "hash": "6a3ae437"
+    },
+    "CODE-C1.7": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C1.7] Unnecessary variable",
+      "owner": "A",
+      "hash": "64b88ca3"
+    },
+    "CODE-C1.8": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C1.8] Excessive runtime management",
+      "owner": "A",
+      "hash": "19eba62d"
+    },
+    "CODE-C10.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C10.1] Skipping optimized built-ins",
+      "owner": "A",
+      "hash": "24669aa9"
+    },
+    "CODE-C10.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C10.2] Inefficient built-in choice",
+      "owner": "A",
+      "hash": "5cb16aef"
+    },
+    "CODE-C10.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C10.3] Missing bulk primitive usage",
+      "owner": "A",
+      "hash": "2bc19734"
+    },
+    "CODE-C10.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C10.4] Inefficient string concatenation",
+      "owner": "A",
+      "hash": "8b85f6d2"
+    },
+    "CODE-C10.5": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C10.5] Inefficient scope lookup",
+      "owner": "A",
+      "hash": "5312c95f"
+    },
+    "CODE-C10.6": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C10.6] Expensive operator overloads",
+      "owner": "A",
+      "hash": "87a37df8"
+    },
+    "CODE-C11.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C11.1] Excessive lock contention",
+      "owner": "A",
+      "hash": "8da17003"
+    },
+    "CODE-C11.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C11.2] Forced serial bottleneck",
+      "owner": "A",
+      "hash": "4b437952"
+    },
+    "CODE-C11.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C11.3] Leaked background threads",
+      "owner": "A",
+      "hash": "cbc1a526"
+    },
+    "CODE-C11.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C11.4] Blocking the main thread",
+      "owner": "A",
+      "hash": "46b247ad"
+    },
+    "CODE-C11.5": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C11.5] Missed parallelism",
+      "owner": "A",
+      "hash": "4668afd9"
+    },
+    "CODE-C12.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C12.1] Inefficient large-stride access",
+      "owner": "A",
+      "hash": "66b2d66e"
+    },
+    "CODE-C12.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C12.2] Sparse element access",
+      "owner": "A",
+      "hash": "40ac5f68"
+    },
+    "CODE-C12.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C12.3] Unpredictable branches",
+      "owner": "A",
+      "hash": "6cbc2d15"
+    },
+    "CODE-C12.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C12.4] Inefficient array declaration",
+      "owner": "A",
+      "hash": "926c4676"
+    },
+    "CODE-C2.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C2.1] Unnecessary delegation",
+      "owner": "A",
+      "hash": "f9bf7581"
+    },
+    "CODE-C2.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C2.2] Missing static declaration",
+      "owner": "A",
+      "hash": "83d5d9fd"
+    },
+    "CODE-C2.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C2.3] Excessive modularization",
+      "owner": "A",
+      "hash": "fbfa6808"
+    },
+    "CODE-C3.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C3.1] Inefficient iteration construct",
+      "owner": "A",
+      "hash": "bb8a6030"
+    },
+    "CODE-C3.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C3.2] Recomputing loop-invariant",
+      "owner": "A",
+      "hash": "ca9f69e4"
+    },
+    "CODE-C3.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C3.3] Inefficient per-iteration setup",
+      "owner": "A",
+      "hash": "9253ad3c"
+    },
+    "CODE-C3.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C3.4] Inefficient nested iteration",
+      "owner": "A",
+      "hash": "13f6c219"
+    },
+    "CODE-C3.5": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C3.5] Missing loop early exit",
+      "owner": "A",
+      "hash": "cc9fad41"
+    },
+    "CODE-C3.6": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C3.6] Unfiltered bulk iteration",
+      "owner": "A",
+      "hash": "d39cde9a"
+    },
+    "CODE-C3.7": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C3.7] Inefficient array mutation",
+      "owner": "A",
+      "hash": "66f46cc5"
+    },
+    "CODE-C4.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C4.1] Poor short-circuit ordering",
+      "owner": "A",
+      "hash": "749500b9"
+    },
+    "CODE-C4.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C4.2] Redundant conditional",
+      "owner": "A",
+      "hash": "1cdac6e1"
+    },
+    "CODE-C4.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C4.3] Inefficient conditional nesting",
+      "owner": "A",
+      "hash": "4cdda3d2"
+    },
+    "CODE-C4.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C4.4] Missing else-if",
+      "owner": "A",
+      "hash": "943944c4"
+    },
+    "CODE-C4.5": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C4.5] Expensive comparison",
+      "owner": "A",
+      "hash": "d397ff03"
+    },
+    "CODE-C4.6": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C4.6] Expensive exception flow",
+      "owner": "A",
+      "hash": "cdf134db"
+    },
+    "CODE-C4.7": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C4.7] Missing edge-case guards",
+      "owner": "A",
+      "hash": "91d00523"
+    },
+    "CODE-C4.8": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C4.8] Non-idiomatic condition",
+      "owner": "A",
+      "hash": "a196a2da"
+    },
+    "CODE-C5.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C5.1] Inefficient structure choice",
+      "owner": "A",
+      "hash": "8ab01ff4"
+    },
+    "CODE-C5.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C5.2] Missing helper type",
+      "owner": "A",
+      "hash": "0b7a2658"
+    },
+    "CODE-C5.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C5.3] Over-provisioned data type",
+      "owner": "A",
+      "hash": "a652a61a"
+    },
+    "CODE-C5.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C5.4] Unnecessary representation",
+      "owner": "A",
+      "hash": "f2520f05"
+    },
+    "CODE-C6.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C6.1] Unnecessary object",
+      "owner": "A",
+      "hash": "f284c145"
+    },
+    "CODE-C6.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C6.2] Unnecessary copying",
+      "owner": "A",
+      "hash": "cc6f8f68"
+    },
+    "CODE-C6.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C6.3] Unnecessary materialization",
+      "owner": "A",
+      "hash": "c48f4c7b"
+    },
+    "CODE-C6.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C6.4] Oversized data retaining",
+      "owner": "A",
+      "hash": "116f610f"
+    },
+    "CODE-C6.5": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C6.5] Over-allocation",
+      "owner": "A",
+      "hash": "70e2677f"
+    },
+    "CODE-C6.6": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C6.6] Leaked resource handles",
+      "owner": "A",
+      "hash": "d9e8d739"
+    },
+    "CODE-C6.7": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C6.7] Leaking mutable defaults",
+      "owner": "A",
+      "hash": "36e1de34"
+    },
+    "CODE-C7.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C7.1] Suboptimal algorithm choice",
+      "owner": "A",
+      "hash": "7702044b"
+    },
+    "CODE-C7.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C7.2] Inefficient decomposition",
+      "owner": "A",
+      "hash": "74b43dbc"
+    },
+    "CODE-C7.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C7.3] Avoidable recursion",
+      "owner": "A",
+      "hash": "2d7d5dd9"
+    },
+    "CODE-C7.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C7.4] Inefficient operation ordering",
+      "owner": "A",
+      "hash": "c519a480"
+    },
+    "CODE-C7.5": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C7.5] Unsimplified operation",
+      "owner": "A",
+      "hash": "ecf47724"
+    },
+    "CODE-C8.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C8.1] Missing memoization cache",
+      "owner": "A",
+      "hash": "679f073b"
+    },
+    "CODE-C8.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C8.2] Missing derived-value reuse",
+      "owner": "A",
+      "hash": "bf967058"
+    },
+    "CODE-C8.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C8.3] Missing local lookup caching",
+      "owner": "A",
+      "hash": "8061ce27"
+    },
+    "CODE-C8.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C8.4] Redundant data fetching",
+      "owner": "A",
+      "hash": "ab142d93"
+    },
+    "CODE-C9.1": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C9.1] Fragmented I/O calls",
+      "owner": "A",
+      "hash": "7b33c918"
+    },
+    "CODE-C9.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C9.2] Oversized data retrieval",
+      "owner": "A",
+      "hash": "36c1a087"
+    },
+    "CODE-C9.3": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C9.3] Inefficient retrieval paths",
+      "owner": "A",
+      "hash": "283d90c4"
+    },
+    "CODE-C9.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-C9.4] Expensive query pattern",
+      "owner": "A",
+      "hash": "7a70f98c"
+    },
+    "CODE-RT.2": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-RT.2] Unneeded offload wrapper immediately awaited (asyncio.to_thread / run_in_executor / worker hop)",
+      "owner": "C",
+      "hash": "78e8f67e"
+    },
+    "CODE-RT.4": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-RT.4] Unoptimized hot code paths (logging, auth, serialization helpers)",
+      "owner": "C",
+      "hash": "59f663fa"
+    },
+    "CODE-RT.5": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-RT.5] Synchronous iteration of lazy collections inside async serializers",
+      "owner": "C",
+      "hash": "de462f55"
+    },
+    "CODE-RT.6": {
+      "number": null,
+      "node_id": null,
+      "title": "[CODE-RT.6] Outdated runtime/interpreter version",
+      "owner": "C",
+      "hash": "f878fc38"
+    },
+    "DB-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-01] Inefficient queries",
+      "owner": "B",
+      "hash": "52a60120"
+    },
+    "DB-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-02] Moving computation to the DBMS",
+      "owner": "B",
+      "hash": "650397e3"
+    },
+    "DB-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-03] Moving computation to the server",
+      "owner": "B",
+      "hash": "5449d6c9"
+    },
+    "DB-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-04] Loop-invariant queries",
+      "owner": "B",
+      "hash": "f754a2ca"
+    },
+    "DB-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-05] Dead-store queries",
+      "owner": "B",
+      "hash": "146cf4c7"
+    },
+    "DB-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-06] Queries with known results",
+      "owner": "B",
+      "hash": "316201a4"
+    },
+    "DB-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-07] Redundant condition check",
+      "owner": "B",
+      "hash": "5fee6827"
+    },
+    "DB-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-08] Not caching",
+      "owner": "B",
+      "hash": "cd8394c5"
+    },
+    "DB-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-09] Inefficient lazy loading (N+1)",
+      "owner": "B",
+      "hash": "6178ac28"
+    },
+    "DB-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-10] Not merging selection predicates",
+      "owner": "B",
+      "hash": "8cbddebf"
+    },
+    "DB-11": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-11] Not merging projection predicates",
+      "owner": "B",
+      "hash": "31b83329"
+    },
+    "DB-12": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-12] Inefficient eager loading",
+      "owner": "B",
+      "hash": "3a4fc3e0"
+    },
+    "DB-13": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-13] Inefficient updating (row-by-row)",
+      "owner": "B",
+      "hash": "123bd768"
+    },
+    "DB-14": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-14] Unnecessary column retrieval",
+      "owner": "B",
+      "hash": "334323b8"
+    },
+    "DB-15": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-15] Unnecessary row retrieval",
+      "owner": "B",
+      "hash": "97198693"
+    },
+    "DB-16": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-16] Unnecessary whole queries",
+      "owner": "B",
+      "hash": "d6556e57"
+    },
+    "DB-17": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-17] Inefficient rendering (view-layer API)",
+      "owner": "B",
+      "hash": "09d7a9fc"
+    },
+    "DB-18": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-18] Missing fields",
+      "owner": "B",
+      "hash": "ac6804e4"
+    },
+    "DB-19": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-19] Missing indexes",
+      "owner": "B",
+      "hash": "21267b85"
+    },
+    "DB-20": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-20] Table denormalization",
+      "owner": "B",
+      "hash": "b720d422"
+    },
+    "DB-21": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-21] Partial evaluation of projections",
+      "owner": "B",
+      "hash": "131b0c43"
+    },
+    "DB-22": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-22] Partial evaluation of selections",
+      "owner": "B",
+      "hash": "c2a26336"
+    },
+    "DB-23": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-23] Unbounded queries",
+      "owner": "B",
+      "hash": "0a6e4f49"
+    },
+    "DB-24": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-24] Functionality trade-offs",
+      "owner": "B",
+      "hash": "002fe8db"
+    },
+    "DB-25": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-25] Existing indexes not leveraged",
+      "owner": "B",
+      "hash": "f35eadc7"
+    },
+    "DB-26": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-26] Non-optimal force index",
+      "owner": "B",
+      "hash": "bb7ec7cc"
+    },
+    "DB-27": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-27] Changing subqueries to join operations",
+      "owner": "B",
+      "hash": "df694714"
+    },
+    "DB-28": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-28] Changing join operations to subqueries",
+      "owner": "B",
+      "hash": "e47e59e8"
+    },
+    "DB-29": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-29] Joining unused tables",
+      "owner": "B",
+      "hash": "05d3a2c6"
+    },
+    "DB-30": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-30] Unnecessary locks",
+      "owner": "B",
+      "hash": "8b40e539"
+    },
+    "DB-31": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-31] Subquery returning duplicated rows",
+      "owner": "B",
+      "hash": "daa4d7fc"
+    },
+    "DB-32": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-32] Conditions containing subsuming clauses",
+      "owner": "B",
+      "hash": "9fe6cb6c"
+    },
+    "DB-33": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-33] Unnecessary WHERE when all values selected",
+      "owner": "B",
+      "hash": "e5e7e6d3"
+    },
+    "DB-34": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-34] Unnecessary query construction",
+      "owner": "B",
+      "hash": "18ad47c4"
+    },
+    "DB-35": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-35] Cartesian explosion loading multiple collections in one query",
+      "owner": "B",
+      "hash": "1e232f35"
+    },
+    "DB-36": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-36] Buffering entire result instead of streaming",
+      "owner": "B",
+      "hash": "92f6cf49"
+    },
+    "DB-37": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-37] ORM session / identity-map overhead on read-only queries",
+      "owner": "B",
+      "hash": "69c4837f"
+    },
+    "DB-38": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-38] Client-side evaluation / lazy-evaluation surprises",
+      "owner": "B",
+      "hash": "5ceadf34"
+    },
+    "DB-39": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-39] Offset pagination (Skip/Take) on large tables",
+      "owner": "B",
+      "hash": "ece1ae97"
+    },
+    "DB-40": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-40] Non-eager loading causes extra round trips",
+      "owner": "B",
+      "hash": "71489021"
+    },
+    "DB-41": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-41] Synchronous DB APIs",
+      "owner": "B",
+      "hash": "0a629a03"
+    },
+    "DB-42": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-42] Untranslatable / less-optimal generated ORM SQL",
+      "owner": "B",
+      "hash": "6eed3100"
+    },
+    "DB-43": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-43] Full sequential scan (no usable filter/index)",
+      "owner": "B",
+      "hash": "81727984"
+    },
+    "DB-44": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-44] Leading-column selectivity / skip-scan",
+      "owner": "B",
+      "hash": "db67ea74"
+    },
+    "DB-45": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-45] Sort spilling to disk / large external sort",
+      "owner": "B",
+      "hash": "581a276d"
+    },
+    "DB-46": {
+      "number": null,
+      "node_id": null,
+      "title": "[DB-46] Nested-loop inner child executed per outer row",
+      "owner": "B",
+      "hash": "9222623b"
+    },
+    "FE-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-01] Eager loading of offscreen images",
+      "owner": "C",
+      "hash": "329f4cab"
+    },
+    "FE-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-02] Too much lazy-loading (LCP image deferred)",
+      "owner": "C",
+      "hash": "1a7a3f30"
+    },
+    "FE-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-03] Missing width/height on images",
+      "owner": "C",
+      "hash": "e6166102"
+    },
+    "FE-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-04] Third-party JS lazy-load library instead of native",
+      "owner": "C",
+      "hash": "444b087f"
+    },
+    "FE-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-06] Hidden images still load (opacity:0 / carousel)",
+      "owner": "C",
+      "hash": "b6c9a717"
+    },
+    "FE-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-07] Shipping all JavaScript at startup (no code splitting)",
+      "owner": "C",
+      "hash": "e33d74b8"
+    },
+    "FE-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-08] Statically importing modules not needed initially",
+      "owner": "C",
+      "hash": "a53e5ab4"
+    },
+    "FE-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-09] Third-party deps not split into a cacheable vendor bundle",
+      "owner": "C",
+      "hash": "eaf6f872"
+    },
+    "FE-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-10] Client-side rendering delays LCP resource discovery",
+      "owner": "C",
+      "hash": "da0b9d58"
+    },
+    "FE-11": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-11] Render-blocking CSS (all CSS upfront)",
+      "owner": "C",
+      "hash": "d5e39ac3"
+    },
+    "FE-12": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-12] Unnecessarily large style sheets",
+      "owner": "C",
+      "hash": "95576add"
+    },
+    "FE-13": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-13] Unused CSS shipped",
+      "owner": "C",
+      "hash": "0a921a04"
+    },
+    "FE-14": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-14] Moving CSS link to bottom still blocks",
+      "owner": "C",
+      "hash": "662ec2f1"
+    },
+    "FE-15": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-15] Forced synchronous layout / layout thrashing",
+      "owner": "C",
+      "hash": "b461fad6"
+    },
+    "FE-16": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-16] Large/complex layouts & large DOM size",
+      "owner": "C",
+      "hash": "14a6b3d9"
+    },
+    "FE-17": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-17] Animating layout/paint properties instead of transform/opacity",
+      "owner": "C",
+      "hash": "4894fbef"
+    },
+    "FE-18": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-18] Layer explosion (over-promotion)",
+      "owner": "C",
+      "hash": "88971eea"
+    },
+    "FE-19": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-19] Long lists without virtualization",
+      "owner": "C",
+      "hash": "5c793c65"
+    },
+    "FE-20": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-20] Unnecessary component re-renders",
+      "owner": "C",
+      "hash": "0a316097"
+    },
+    "FE-21": {
+      "number": null,
+      "node_id": null,
+      "title": "[FE-21] Heavy client-side computation / large payloads on low-end devices",
+      "owner": "C",
+      "hash": "aad75602"
+    },
+    "INF-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-01] Over-provisioning for unforeseen demand spikes",
+      "owner": "D",
+      "hash": "2647f92a"
+    },
+    "INF-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-02] Static replicas without demand-based autoscaling",
+      "owner": "D",
+      "hash": "0242b5f3"
+    },
+    "INF-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-04] Unused/no-use components kept running",
+      "owner": "D",
+      "hash": "2c5acd05"
+    },
+    "INF-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-05] Exceeding SLAs / over-delivering reliability",
+      "owner": "D",
+      "hash": "368a0172"
+    },
+    "INF-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-06] One-size-fits-all design pattern across workloads",
+      "owner": "D",
+      "hash": "6c8c84c7"
+    },
+    "INF-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-07] Less efficient instance/processor family",
+      "owner": "D",
+      "hash": "d8976533"
+    },
+    "INF-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-08] Missing CPU/memory limits (noisy neighbor)",
+      "owner": "D",
+      "hash": "cb2b1d0a"
+    },
+    "INF-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-09] Oversized container images / unneeded packages",
+      "owner": "D",
+      "hash": "a6b54512"
+    },
+    "INF-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-10] Storage without lifecycle/retention management",
+      "owner": "D",
+      "hash": "1dbf9a56"
+    },
+    "INF-12": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-12] Redundancy/failover resources (SCI boundary)",
+      "owner": "D",
+      "hash": "fb1a4683"
+    },
+    "INF-14": {
+      "number": null,
+      "node_id": null,
+      "title": "[INF-14] Non-elastic / non-modular design",
+      "owner": "D",
+      "hash": "3a0662c1"
+    },
+    "JOB-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[JOB-01] Heavy work on the request path instead of queued/background",
+      "owner": "B",
+      "hash": "8491bcfa"
+    },
+    "JOB-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[JOB-03] Idle workers waiting for input",
+      "owner": "B",
+      "hash": "f002f67b"
+    },
+    "JOB-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[JOB-04] Simultaneous scheduled tasks cause load spikes",
+      "owner": "B",
+      "hash": "5735e21a"
+    },
+    "JOB-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[JOB-05] Scheduled jobs run unconditionally when nothing changed",
+      "owner": "B",
+      "hash": "64642da3"
+    },
+    "JOB-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[JOB-06] No messaging decoupling between senders and receivers",
+      "owner": "B",
+      "hash": "e9532eb7"
+    },
+    "JS-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-01] await inside for/for-of loops",
+      "owner": "C",
+      "hash": "e823b651"
+    },
+    "JS-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-02] Array.includes/indexOf/find inside loops",
+      "owner": "C",
+      "hash": "bd3d867a"
+    },
+    "JS-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-03] JSON.parse(JSON.stringify(x)) cloning",
+      "owner": "C",
+      "hash": "2caf631e"
+    },
+    "JS-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-04] *Sync fs/crypto/child_process in handlers",
+      "owner": "C",
+      "hash": "f20a4054"
+    },
+    "JS-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-05] Chained map/filter/reduce on large arrays",
+      "owner": "C",
+      "hash": "cea48bd1"
+    },
+    "JS-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-06] Listeners/timers/effects not cleaned up",
+      "owner": "C",
+      "hash": "52b19428"
+    },
+    "JS-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-07] Spreading accumulators in reduce/loops",
+      "owner": "C",
+      "hash": "eae17c54"
+    },
+    "JS-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-08] new RegExp / Intl formatter per call or render",
+      "owner": "C",
+      "hash": "a8d7be10"
+    },
+    "JS-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[JS-09] throw/catch for expected control flow",
+      "owner": "C",
+      "hash": "276bb96d"
+    },
+    "LLM-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-01] No prompt caching for stable prompt prefixes",
+      "owner": "D",
+      "hash": "9084e110"
+    },
+    "LLM-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-02] No response/semantic cache for repeated requests",
+      "owner": "D",
+      "hash": "e31c90c3"
+    },
+    "LLM-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-03] Bloated system prompts / redundant instructions",
+      "owner": "D",
+      "hash": "b5035180"
+    },
+    "LLM-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-04] Whole context passed to every pipeline step",
+      "owner": "D",
+      "hash": "631b1a59"
+    },
+    "LLM-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-05] Redundant chained calls in multi-step pipelines",
+      "owner": "D",
+      "hash": "d0cbe723"
+    },
+    "LLM-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-06] Parallel calls defeating prompt cache",
+      "owner": "D",
+      "hash": "34e98d1b"
+    },
+    "LLM-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-07] Unbounded or verbose outputs",
+      "owner": "D",
+      "hash": "6249231e"
+    },
+    "LLM-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-08] Over-sized model for simple tasks (no routing)",
+      "owner": "D",
+      "hash": "3dccc180"
+    },
+    "LLM-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-09] No token/cost observability",
+      "owner": "D",
+      "hash": "7a19eb29"
+    },
+    "LLM-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-10] Unbounded agent/tool loops and repeated tool calls",
+      "owner": "D",
+      "hash": "d9169b2a"
+    },
+    "LLM-11": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-11] Re-embedding or re-running inference on unchanged inputs",
+      "owner": "D",
+      "hash": "e62794d7"
+    },
+    "LLM-12": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-12] Per-agent isolated caches not shared across the fleet",
+      "owner": "D",
+      "hash": "87d93313"
+    },
+    "LLM-13": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-13] Cache without TTL/invalidation",
+      "owner": "D",
+      "hash": "b30c9ec6"
+    },
+    "LLM-14": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-14] Unbounded agent memory / detailed history reprocessed each turn",
+      "owner": "D",
+      "hash": "5f6b1058"
+    },
+    "LLM-15": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-15] Tool-definition sprawl (large tool registries in every call)",
+      "owner": "D",
+      "hash": "2d300337"
+    },
+    "LLM-16": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-16] No streaming (full response buffered in memory)",
+      "owner": "D",
+      "hash": "efd94110"
+    },
+    "LLM-17": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-17] Static provisioning / sizing for theoretical max for agent workloads",
+      "owner": "D",
+      "hash": "23df5528"
+    },
+    "LLM-18": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-18] Deploying agent infra far from its dependencies",
+      "owner": "D",
+      "hash": "76587a08"
+    },
+    "LLM-19": {
+      "number": null,
+      "node_id": null,
+      "title": "[LLM-19] Inference-engine inefficiencies (KV-cache growth, attention, quantization)",
+      "owner": "D",
+      "hash": "e79123c6"
+    },
+    "NET-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-01] Chatty I/O (many small remote calls)",
+      "owner": "B",
+      "hash": "ef934d91"
+    },
+    "NET-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-02] Extraneous fetching (oversized payloads)",
+      "owner": "B",
+      "hash": "e3bc1f26"
+    },
+    "NET-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-03] No HTTP/response caching",
+      "owner": "B",
+      "hash": "eb64ee7f"
+    },
+    "NET-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-04] Improper client instantiation (new HTTP session/agent per request)",
+      "owner": "B",
+      "hash": "5f922187"
+    },
+    "NET-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-05] Retry storm (retries without backoff/jitter)",
+      "owner": "B",
+      "hash": "e13fc27d"
+    },
+    "NET-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-06] Polling/webhooks where events would do",
+      "owner": "B",
+      "hash": "7800c502"
+    },
+    "NET-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-07] Uncompressed responses",
+      "owner": "B",
+      "hash": "5f41b274"
+    },
+    "NET-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-08] JSON heavier/slower than binary formats on hot paths",
+      "owner": "B",
+      "hash": "9132e81c"
+    },
+    "NET-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-09] Large messages loaded into memory / memory spikes",
+      "owner": "B",
+      "hash": "6bdf4107"
+    },
+    "NET-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-10] No built-in compression / poor fit for large numeric arrays",
+      "owner": "B",
+      "hash": "e770919e"
+    },
+    "NET-11": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-11] Duplicate or serial client data fetching (request waterfalls)",
+      "owner": "B",
+      "hash": "36154480"
+    },
+    "NET-12": {
+      "number": null,
+      "node_id": null,
+      "title": "[NET-12] Repeated parse/serialize across layers",
+      "owner": "B",
+      "hash": "32936f0b"
+    },
+    "OBS-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-01] DEBUG/TRACE logging enabled in production",
+      "owner": "D",
+      "hash": "91a0a7e3"
+    },
+    "OBS-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-02] Eager log message construction when level disabled",
+      "owner": "D",
+      "hash": "975cbbc6"
+    },
+    "OBS-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-03] Logging inside hot loops / per-iteration",
+      "owner": "D",
+      "hash": "fa71d994"
+    },
+    "OBS-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-04] Unstructured logs requiring query-time parsing",
+      "owner": "D",
+      "hash": "f709c18d"
+    },
+    "OBS-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-05] Tracing without sampling / head-only sampling",
+      "owner": "D",
+      "hash": "092a35ee"
+    },
+    "OBS-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-06] High-cardinality metric labels",
+      "owner": "D",
+      "hash": "eafa47e2"
+    },
+    "OBS-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-07] Uniform retention (no tiering)",
+      "owner": "D",
+      "hash": "e78b3dcb"
+    },
+    "OBS-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-08] Raw high-resolution metrics not downsampled",
+      "owner": "D",
+      "hash": "85c1d7fd"
+    },
+    "OBS-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-09] Uncompressed/unbatched telemetry export",
+      "owner": "D",
+      "hash": "8ad00fc9"
+    },
+    "OBS-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-10] Filtering after ingestion",
+      "owner": "D",
+      "hash": "2c8afbc8"
+    },
+    "OBS-11": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-11] Duplicate/repeated log lines (retry loops, flapping checks)",
+      "owner": "D",
+      "hash": "257400b1"
+    },
+    "OBS-12": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-12] Unused default integrations enabled",
+      "owner": "D",
+      "hash": "91697573"
+    },
+    "OBS-13": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-13] Noisy health-checks/probes/k8s events/static 404s",
+      "owner": "D",
+      "hash": "904b0106"
+    },
+    "OBS-14": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-14] Dev/QA/staging telemetry ingested by default",
+      "owner": "D",
+      "hash": "42abc291"
+    },
+    "OBS-15": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-15] Duplicate/overlapping observability tools (Frankenstack)",
+      "owner": "D",
+      "hash": "3fb2b08b"
+    },
+    "OBS-16": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-16] Per-unit billing models (per-host/GB/span/seat)",
+      "owner": "D",
+      "hash": "44f979e1"
+    },
+    "OBS-17": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-17] Verbose fields retained (full stack traces, request bodies)",
+      "owner": "D",
+      "hash": "29daa106"
+    },
+    "OBS-18": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-18] Inconsistent field names / over-structuring",
+      "owner": "D",
+      "hash": "3ebc55c0"
+    },
+    "OBS-19": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-19] CPU-heavy / leaky application code found via continuous profiling",
+      "owner": "D",
+      "hash": "dfa1402a"
+    },
+    "OBS-20": {
+      "number": null,
+      "node_id": null,
+      "title": "[OBS-20] Sampling-induced blind spots",
+      "owner": "D",
+      "hash": "c7851b64"
+    },
+    "PY-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-01] `x in list` inside a loop",
+      "owner": "C",
+      "hash": "8f8bb0ae"
+    },
+    "PY-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-02] list.pop(0)/insert(0) as a queue",
+      "owner": "C",
+      "hash": "b511bc96"
+    },
+    "PY-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-03] pandas iterrows()/row-wise apply",
+      "owner": "C",
+      "hash": "66c20719"
+    },
+    "PY-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-04] String += in loops",
+      "owner": "C",
+      "hash": "0437018f"
+    },
+    "PY-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-05] sum([...]) / list(map()) for a single pass",
+      "owner": "C",
+      "hash": "e588b7a1"
+    },
+    "PY-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-06] re.compile inside functions/loops",
+      "owner": "C",
+      "hash": "5ad7899a"
+    },
+    "PY-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-07] Blocking calls inside async def (requests/time.sleep/sync DB)",
+      "owner": "C",
+      "hash": "63f1df6d"
+    },
+    "PY-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-08] open()/connections without context managers",
+      "owner": "C",
+      "hash": "f17448f7"
+    },
+    "PY-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-09] Mutable default arguments",
+      "owner": "C",
+      "hash": "310d9d2f"
+    },
+    "PY-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-10] Unused heavy imports (numpy/pandas/torch)",
+      "owner": "C",
+      "hash": "fe2dfb7c"
+    },
+    "PY-11": {
+      "number": null,
+      "node_id": null,
+      "title": "[PY-11] Unneeded copy.deepcopy / DataFrame.copy()",
+      "owner": "C",
+      "hash": "9f9cf773"
+    },
+    "TST-01": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-01] Assertion Roulette (AR)",
+      "owner": "D",
+      "hash": "05797dfa"
+    },
+    "TST-02": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-02] Lazy Test (LT)",
+      "owner": "D",
+      "hash": "f0892da5"
+    },
+    "TST-03": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-03] Eager Test (ET)",
+      "owner": "D",
+      "hash": "922a5b12"
+    },
+    "TST-04": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-04] Magic Number Test (MNT)",
+      "owner": "D",
+      "hash": "3b8bd69c"
+    },
+    "TST-05": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-05] Duplicate Assert (DA)",
+      "owner": "D",
+      "hash": "cde51985"
+    },
+    "TST-06": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-06] Unknown Test (UT)",
+      "owner": "D",
+      "hash": "11d34051"
+    },
+    "TST-07": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-07] Verbose Test (VT)",
+      "owner": "D",
+      "hash": "4ba8d67c"
+    },
+    "TST-08": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-08] Sensitive Equality (SE)",
+      "owner": "D",
+      "hash": "f75155cd"
+    },
+    "TST-09": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-09] Conditional Test Logic (CTL)",
+      "owner": "D",
+      "hash": "1e5a6c53"
+    },
+    "TST-10": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-10] Redundant Assertion (RA)",
+      "owner": "D",
+      "hash": "7ae4d40a"
+    },
+    "TST-11": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-11] General Fixture (GF)",
+      "owner": "D",
+      "hash": "026beb34"
+    },
+    "TST-12": {
+      "number": null,
+      "node_id": null,
+      "title": "[TST-12] Heavy fixtures, sleeps and real network calls in unit tests",
+      "owner": "D",
+      "hash": "118179b1"
+    }
+  }
+}

@@ -94,6 +94,20 @@ git push --force-with-lease
 
 If the conflict is in a file another open PR also touches, coordinate on Discord before rebasing to avoid ping-pong.
 
+## Taxonomy checks (the detector issues)
+
+Checks live in `docs/taxonomy/checks.yaml` (source of truth) with `mapping.json` linking each
+`KEY` to its GitHub issue. Issues are created/updated idempotently:
+
+```bash
+export GITHUB_TOKEN=...                      # token with issues:write (classic: repo)
+node scripts/taxonomy-sync.mts setup        # labels + CODEOWNERS (dry-run; add --apply)
+node scripts/taxonomy-sync.mts sync         # epics + 251 checks (dry-run; add --apply)
+```
+
+Work a check like any issue: branch `owner-x/<issue>-feat-<key>-<slug>`, PR `Closes #<issue>`.
+Owner→handle mapping lives in one place: `docs/taxonomy/owners.json`.
+
 ## Hotfixes
 
 Same loop. If `main` is broken, open a `fix` issue, branch `NN-fix-<slug>`, and PR with `priority: p0`. Squash-merge once CI is green.
