@@ -97,3 +97,7 @@ Adds large messages loaded into memory. See checks/net-09/SPEC.md and NETWORK.md
 ## NET-10 registration (#222)
 
 Adds compression and numeric-array format fit. See checks/net-10/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
+
+## NET-11 registration (#223)
+
+Adds duplicate or serial client fetching. See checks/net-11/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.

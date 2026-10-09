@@ -1,0 +1,94 @@
+{
+  "check_id": "NET-11",
+  "issue": 223,
+  "region": "ap-south-1",
+  "integration_build": {
+    "source_commit": "bdf10d2aa1b00a86b62726649a2c8d071b66d867",
+    "source_tree": "1fa273e5a2f52c0973b5d700e347925a33707535",
+    "archive_sha256": "e3b265bf82bc6f5fe4cf0d63acb61716d010fe2565cf413f8b1f37a3ae03e48f",
+    "code_sha256_base64": "47Jlv4K8b1/kzw1jrLYXFtAQ/iVlz0E/ix83o64D5I8=",
+    "package_lock_sha256": "157c77be469ec044a593fe2e2bd53a60ee04c19b91288f86d1de1f38e1a34582",
+    "source_state": "clean-committed"
+  },
+  "build_reference": "owner-b-network-build-v3-2026-10-10",
+  "transport": "authenticated signer -> conditional S3 PUT -> versioned S3 event -> published Lambda -> EventBridge -> hub -> DynamoDB readback",
+  "synthetic_case_count": 6,
+  "production_workload_confirmed": false,
+  "hub_verified_means": "Contract validation and persistence only; capture origin is retained.",
+  "cases": [
+    {
+      "check_id": "NET-11",
+      "scan_id": "aws-network-2026-10-10-net-11-01-ready-v3",
+      "status": "completed",
+      "finding_count": 1,
+      "input_sha256": "3b5d877015ffdeca2f8fc2618311dd0c46d8c69e693bd8d1c854be1e3798ff02",
+      "pair_sha256": "d08fece5b2eec053883b8cf811105f4a2682e72b21324152b76ed26002af9939",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-11",
+      "scan_id": "aws-network-2026-10-10-net-11-02-ready-v3",
+      "status": "completed",
+      "finding_count": 0,
+      "input_sha256": "9cff43580c50186ccf7f2efcdd6284febabde338131705a8642f8a6caa4f6491",
+      "pair_sha256": "4a3de4d4d0ef388b4ac25946b4853ee094663720dd496454ccb82a364f369371",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-11",
+      "scan_id": "aws-network-2026-10-10-net-11-03-ready-v3",
+      "status": "completed",
+      "finding_count": 0,
+      "input_sha256": "15ac2f388a7ea3cc597d43d4d77486c6a5a15c2f2f0423111f5ce37258030554",
+      "pair_sha256": "7acb981fb9082a5f3ec0114a1220ff62cd6bb6a91bb968f58787c43f12535b67",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-11",
+      "scan_id": "aws-network-2026-10-10-net-11-04-ready-v3",
+      "status": "unavailable",
+      "finding_count": 0,
+      "input_sha256": "80b0bebd5763fcdd3d8308ac7af6c6c5be836fb2ab005cbc638937535e33a7d2",
+      "pair_sha256": "fb0fc9bbd7fdd032bd853023d8acc4f919f0b3cc7de19752c15fd91ed6b9350f",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-11",
+      "scan_id": "aws-network-2026-10-10-net-11-05-ready-v3",
+      "status": "unavailable",
+      "finding_count": 0,
+      "input_sha256": "7f863b9ef8f130b6cb2633895b32f9641c7ece176262f05eebd1d9c40b4d38db",
+      "pair_sha256": "aed8f92e0f78f927cc8b99b7cf682c48757551b4fb07fbb8efdb15dc9b8c4ae7",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    },
+    {
+      "check_id": "NET-11",
+      "scan_id": "aws-network-2026-10-10-net-11-06-ready-v3",
+      "status": "completed",
+      "finding_count": 0,
+      "input_sha256": "56ae616da4bab22957ced09d8acde9d326e76e61e195e892d4002ab72f66872b",
+      "pair_sha256": "95ef573d87ea73d48bf61e652052a353e12aa65221ab4e4254802430e8ded6be",
+      "persisted": true,
+      "evidence": "verified",
+      "capture_origin": "synthetic",
+      "production_workload_confirmed": false
+    }
+  ],
+  "live_acquisition": [],
+  "initial_transport_attempt": "Uploads immediately after notification update had no readback. Fresh uploads after propagation passed; failed attempt is not acceptance evidence."
+}
