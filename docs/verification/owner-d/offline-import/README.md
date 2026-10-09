@@ -37,6 +37,14 @@ files. This report contains no credentials or concrete deployment metadata.
 The supplied-pair integrity checks do not authenticate authorship. Runtime-only
 DB checks and jobs checks retain their documented client-evidence requirements.
 
-Code verification passed: hub 25 tests, shared contracts 20, Owner D 53, Owner C
-49, Owner A 112 with types, and the latest-main Owner B 12 with lint/types.
+Initial full local validation at base `f8df650` passed: hub 25 tests, shared
+contracts 20, Owner D 53, Owner C 49, Owner A 112 with types, and Owner B 12
+with lint/types.
 The jobs development stack separately passed Owner B 112 tests with lint/types.
+
+After rebasing on `90c3f25`, hub 25 and Owner C 49 tests passed locally; GitHub's
+Linux CI build, metadata and labeling checks also passed. The newly merged
+Owner D suite has four Windows failures among 145 tests: OBS-01 fixtures use
+literal slash paths while Windows fixture preparation returns backslashes.
+Owner D detector files are unchanged in this PR; no tests were skipped or
+weakened to hide those platform failures.
