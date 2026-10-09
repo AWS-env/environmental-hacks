@@ -1,0 +1,42 @@
+# Synthetic fixture for OBS-09: production gateway collector.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+  hostmetrics:
+    collection_interval: 30s
+    scrapers:
+      cpu:
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+
+exporters:
+  otlp/backend:
+    endpoint: tempo.example.com:4317
+  otlphttp:
+    endpoint: https://logs.example.com:4318
+    compression: none
+  otlp_grpc:
+    endpoint: ${env:METRICS_ENDPOINT}
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter]
+      exporters: [otlp/backend, debug]
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp]
+    metrics:
+      receivers: [hostmetrics, otlp]
+      processors:
+        - memory_limiter
+      exporters:
+        - otlp_grpc

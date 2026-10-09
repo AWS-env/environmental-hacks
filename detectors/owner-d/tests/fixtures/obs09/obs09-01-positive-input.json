@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs09-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "OBS-09",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "otel-config"
+  },
+  "scope": [
+    "file:positive.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.yaml",
+      "scope_id": "file:positive.yaml",
+      "kind": "static",
+      "locator": "positive.yaml",
+      "content": "# Synthetic fixture for OBS-09: production gateway collector.\nreceivers:\n  otlp:\n    protocols:\n      grpc:\n        endpoint: 0.0.0.0:4317\n  hostmetrics:\n    collection_interval: 30s\n    scrapers:\n      cpu:\n\nprocessors:\n  memory_limiter:\n    check_interval: 1s\n    limit_percentage: 80\n\nexporters:\n  otlp/backend:\n    endpoint: tempo.example.com:4317\n  otlphttp:\n    endpoint: https://logs.example.com:4318\n    compression: none\n  otlp_grpc:\n    endpoint: ${env:METRICS_ENDPOINT}\n  debug:\n    verbosity: basic\n\nservice:\n  pipelines:\n    traces:\n      receivers: [otlp]\n      processors: [memory_limiter]\n      exporters: [otlp/backend, debug]\n    logs:\n      receivers: [otlp]\n      exporters: [otlphttp]\n    metrics:\n      receivers: [hostmetrics, otlp]\n      processors:\n        - memory_limiter\n      exporters:\n        - otlp_grpc\n"
+    }
+  ]
+}

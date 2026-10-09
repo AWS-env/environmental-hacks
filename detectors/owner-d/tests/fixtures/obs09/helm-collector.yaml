@@ -1,0 +1,9 @@
+# Synthetic fixture for OBS-09: Helm-templated collector config (not parsed).
+exporters:
+  otlp:
+    endpoint: {{ .Values.backend }}
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp]

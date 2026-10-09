@@ -1,0 +1,41 @@
+# Synthetic fixture for OBS-09: operator-managed (e.g. ADOT add-on) collectors.
+apiVersion: opentelemetry.io/v1alpha1
+kind: OpenTelemetryCollector
+metadata:
+  name: adot-gateway
+spec:
+  mode: deployment
+  config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+    exporters:
+      otlp:
+        endpoint: collector.observability.svc:4317
+        compression: none
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp]
+---
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: agent
+spec:
+  config:
+    receivers:
+      otlp:
+        protocols:
+          http: {}
+    exporters:
+      otlphttp:
+        endpoint: https://otlp.example.com
+    service:
+      pipelines:
+        logs:
+          receivers: [otlp]
+          exporters: [otlphttp]
