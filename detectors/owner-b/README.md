@@ -56,3 +56,6 @@ This increment adds the DB-05 public registry entry, detection specification, si
 ## DB-16 registration (#118)
 
 This increment adds the DB-16 public registry entry, detection specification, six synthetic regression pairs and sanitized historical AWS receipts. See `checks/db-16/SPEC.md` for exact supported rules and exceptions. Public-repository scans are execution-unverified candidates; runtime confirmation requires authorized correlated CloudWatch query events.
+## Background jobs and scheduling interfaces
+
+[JOBS.md](JOBS.md) defines Group 3 formats, evidence levels and AWS integration. Each dependent issue registers its own check. Public source scans provide candidates; missing runtime data never counts as clean coverage.

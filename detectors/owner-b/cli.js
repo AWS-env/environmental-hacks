@@ -1,6 +1,6 @@
 'use strict';
 const fs=require('node:fs');
-const {evaluate}=require('./core/g01');
+const {evaluate}=require('./core/dispatch');
 if(require.main===module) {
   try {
     const file=process.argv[2];
