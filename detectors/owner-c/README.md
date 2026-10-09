@@ -28,6 +28,7 @@ stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`)
 | JS-03 | `JSON.parse(JSON.stringify(x))` deep clone | static candidate + heap profile | #187 |
 | JS-05 | Chained `map`/`filter`/... building intermediate arrays | static candidate + heap profile | #189 |
 | JS-07 | Spreading the accumulator in `reduce`/loops | static candidate + heap profile | #191 |
+| JS-09 | `throw`/`catch` used as local control flow | static | #193 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
@@ -257,6 +258,12 @@ profile. Identity: `qualname:map.filter` (the chain's method names).
 `[...acc, x]` / `{...acc, k: v}` / `acc.concat` / `Object.assign({}, acc, ...)` inside `reduce` callbacks, and
 `name = [...name, x]` inside loops; mutating the accumulator (`acc.push`) is fine. Confirmed by the heap profile.
 Identity: `qualname:reduce-spread` / `reduce-copy` / `loop-spread:name`.
+
+### JS-09 - `throw`/`catch` as local control flow
+
+Static only (V8 profiles cannot attribute exception cost). Flags a `throw` caught in the same function when the try body has
+no other call, `await` or `new` (otherwise the catch is shared error handling), and a loop `try` whose catch only
+`continue`s (an empty catch isolating callbacks is not flagged). Identity: `qualname:throw-in-try` / `try-skip-in-loop`.
 
 ## AWS deployment (Free Plan, project Region)
 
