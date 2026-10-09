@@ -55,3 +55,4 @@ venv/
 .mcp.json
 opencode.json
 GEMINI.md
+cdk/owner-c/build/

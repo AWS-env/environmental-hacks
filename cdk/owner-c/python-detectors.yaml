@@ -1,0 +1,171 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Owner C Category 1 (Python) detector stack: read-only static-scan Lambda that parses
+  source with ast and publishes findings to the shared findings-hub bus, plus a private
+  short-lived S3 bucket for client-uploaded profiler artifacts. Never executes user code.
+
+Metadata:
+  AWSToolsMetrics:
+    AWSAgentToolkit: aws-cloudformation@3
+  com.aws.cloudformation.Context:
+    arch: "client CI -> presigned PUT -> S3 artifacts; repo zip/files -> static-scan fn -> PutEvents findings-hub"
+    must:
+      - "all resources prefixed owner-c- & tagged owner=C (docs/aws_service_mapping_v1.6.md guardrails)"
+      - "deploy in the same Region as owner D's findings-hub (ap-south-1); no cross-region calls"
+      - "findings-hub bus is owned by owner D; this stack only publishes, never creates it"
+      - "never execute user code; fn parses only"
+      - "PutEvents to a missing bus succeeds silently, so fn must DescribeEventBus first"
+    ref:
+      - docs/ARCHITECTURE_FLOWS.md
+      - docs/aws_service_mapping_v1.6.md
+      - docs/research/category-1-decisions.md
+    owner: Medhansh-741
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: S3 bucket holding the Lambda zip built by scripts/build-owner-c-lambda.sh.
+  CodeKey:
+    Type: String
+    Description: S3 key of the Lambda zip.
+  FindingsBusName:
+    Type: String
+    Default: findings-hub
+    Description: Name of the existing EventBridge bus owned by owner D.
+  ArtifactRetentionDays:
+    Type: Number
+    Default: 7
+    MinValue: 1
+    MaxValue: 30
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30]
+
+Resources:
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "landing zone for client-CI profiler artifacts (py-spy/memray); parse-only"
+        must:
+          - "private; TLS only; expire objects to bound retention (auditor spec sec 6)"
+        mutable: change-with-constraints
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Suspended
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-artifacts
+            Status: Enabled
+            ExpirationInDays: !Ref ArtifactRetentionDays
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      Tags:
+        - { Key: owner, Value: C }
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub "${ArtifactBucket.Arn}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+
+  StaticScanLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-c-static-scan
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: C }
+
+  StaticScanRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "least-privilege exec role for static-scan fn"
+        must:
+          - "only: write own logs, PutEvents to findings-hub, GetObject on uploads/ prefix"
+    Properties:
+      RoleName: owner-c-static-scan-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-c-static-scan
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${StaticScanLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: [events:PutEvents, events:DescribeEventBus]
+                Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${ArtifactBucket.Arn}/uploads/*"
+      Tags:
+        - { Key: owner, Value: C }
+
+  StaticScanFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: StaticScanLogGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "runs the Category 1 static ast checks and publishes contract v1 results; arm64 for lower cost"
+        must:
+          - "fixed name owner-c-static-scan per guardrail naming"
+          - "code zip from scripts/build-owner-c-lambda.sh, uploaded to CodeBucket/CodeKey (zip root holds owner_c/)"
+    Properties:
+      FunctionName: owner-c-static-scan
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: owner_c.aws.handler.lambda_handler
+      Role: !GetAtt StaticScanRole.Arn
+      MemorySize: 512
+      Timeout: 60
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          FINDINGS_BUS_NAME: !Ref FindingsBusName
+      LoggingConfig:
+        LogGroup: !Ref StaticScanLogGroup
+      Tags:
+        - { Key: owner, Value: C }
+
+Outputs:
+  StaticScanFunctionArn:
+    Value: !GetAtt StaticScanFunction.Arn
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket

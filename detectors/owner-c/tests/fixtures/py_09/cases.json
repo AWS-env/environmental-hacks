@@ -1,0 +1,219 @@
+[
+  {
+    "id": "PY-09-01",
+    "title": "known positive: list default",
+    "files": {
+      "app.py": "def f(a=[]):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f(a)",
+          "line": 1,
+          "confidence": "high"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-09-02",
+    "title": "keyword-only dict default",
+    "files": {
+      "app.py": "def f(*, a={}):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f(a)",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-09-03",
+    "title": "set() call default",
+    "files": {
+      "app.py": "def f(a=set()):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f(a)",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-09-04",
+    "title": "defaultdict default resolved through its import",
+    "files": {
+      "app.py": "from collections import defaultdict\n\n\ndef f(a=defaultdict(list)):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f(a)",
+          "line": 4
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-09-05",
+    "title": "lambda default",
+    "files": {
+      "app.py": "g = lambda a=[]: a\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "<lambda>(a)",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-09-06",
+    "title": "method identity is class-qualified",
+    "files": {
+      "app.py": "class C:\n    def m(self, a=[]):\n        pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "C.m(a)",
+          "line": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-09-07",
+    "title": "two mutable defaults in one signature",
+    "files": {
+      "app.py": "def f(a=[], b={}):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f(a)",
+          "line": 1
+        },
+        {
+          "identity": "f(b)",
+          "line": 1
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-09-08",
+    "title": "similar negative: None default",
+    "files": {
+      "app.py": "def f(a=None):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-09-09",
+    "title": "similar negative: tuple default",
+    "files": {
+      "app.py": "def f(a=()):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-09-10",
+    "title": "legitimate exception: immutable annotation",
+    "files": {
+      "app.py": "from typing import Sequence\n\n\ndef f(a: Sequence[int] = []):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-09-11",
+    "title": "similar negative: scalar defaults",
+    "files": {
+      "app.py": "def f(a=1, b='x'):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-09-12",
+    "title": "legitimate exception: author suppressed with noqa B006",
+    "files": {
+      "app.py": "def f(a=[]):  # noqa: B006\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-09-13",
+    "title": "boundary: frozenset() is immutable",
+    "files": {
+      "app.py": "def f(a=frozenset()):\n    pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-09-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "PY-09-91",
+    "title": "unparsable file next to a good one -> partial coverage",
+    "files": {
+      "ok.py": "x = 1\n",
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [],
+      "evaluated": [
+        "ok.py"
+      ],
+      "limitations_contain": [
+        "broken.py",
+        "could not be parsed"
+      ]
+    }
+  }
+]
