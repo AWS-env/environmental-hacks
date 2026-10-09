@@ -1,0 +1,194 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Owner D telemetry demo workload (simulated client): one Lambda that, when invoked, emits labeled synthetic
+  CloudWatch Logs lines, OwnerD/Demo custom metrics and X-Ray subsegments for OBS-11, OBS-17, OBS-04, OBS-06
+  and LLM-10, so owner D's telemetry analyzers have real evidence to read. No VPC, no always-on compute; the
+  optional schedule is created DISABLED. See detectors/owner-d/examples/telemetry-demo/README.md.
+
+Metadata:
+  com.aws.cloudformation.Context:
+    arch: "manual invoke or (disabled) EventBridge Scheduler -> owner-d-telemetry-demo -> Logs + PutMetricData + X-Ray"
+    must:
+      - "all resources named owner-d-telemetry-demo* and tagged owner=D"
+      - "project Region ap-south-1 only; no cross-region calls"
+      - "metric series bounded (<= 42 in OwnerD/Demo); every emitted item labeled synthetic=true"
+      - "no real LLM/Bedrock calls; demo data only"
+    ref:
+      - detectors/owner-d/examples/telemetry-demo/README.md
+      - docs/aws_service_mapping_v1.6.md
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: S3 bucket (in this Region) holding the zip built by scripts/build-owner-d-telemetry-demo.sh.
+  CodeKey:
+    Type: String
+    Description: S3 key of owner-d-telemetry-demo-<sha>.zip (content-addressed so a new build redeploys).
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7]
+  ReservedConcurrency:
+    Type: Number
+    Default: 1
+    MinValue: 0
+    MaxValue: 1
+    Description: >-
+      1 caps the demo at one concurrent run. 0 = no reservation, for projects whose account concurrency quota
+      is 10, where Lambda refuses any reservation (it must keep 10 unreserved).
+  ScheduleState:
+    Type: String
+    Default: DISABLED
+    AllowedValues: [DISABLED, ENABLED]
+    Description: State of the optional schedule. Keep DISABLED unless you want recurring evidence (see README cost).
+  ScheduleExpression:
+    Type: String
+    Default: rate(1 day)
+    Description: EventBridge Scheduler expression used when ScheduleState is ENABLED.
+
+Rules:
+  ProjectRegionOnly:
+    Assertions:
+      - Assert: !Equals [!Ref "AWS::Region", ap-south-1]
+        AssertDescription: Deploy in the project Region (ap-south-1) only.
+
+Conditions:
+  Reserve: !Not [!Equals [!Ref ReservedConcurrency, 0]]
+
+Resources:
+  DemoLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: /aws/lambda/owner-d-telemetry-demo
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: D }
+
+  DemoRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "least-privilege exec role for the demo workload"
+        must:
+          - "only: write own log group, PutMetricData into OwnerD/Demo, put X-Ray segments"
+    Properties:
+      RoleName: owner-d-telemetry-demo-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-d-telemetry-demo
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${DemoLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: cloudwatch:PutMetricData
+                Resource: "*"
+                Condition:
+                  StringEquals:
+                    "cloudwatch:namespace": OwnerD/Demo
+              - Effect: Allow
+                Action: [xray:PutTraceSegments, xray:PutTelemetryRecords]
+                Resource: "*"
+      Tags:
+        - { Key: owner, Value: D }
+
+  DemoFunction:
+    Type: AWS::Lambda::Function
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "simulated client: emits waste + control telemetry for owner D's log/metric/trace analyzers"
+        must:
+          - "Active tracing; invoked only by us or the disabled-by-default schedule; no downstream calls"
+    Properties:
+      FunctionName: owner-d-telemetry-demo
+      Description: Synthetic telemetry demo (OBS-11/17/04/06, LLM-10). Emits labeled synthetic=true data only.
+      Runtime: python3.12
+      Architectures: [arm64]
+      Handler: handler.lambda_handler
+      Role: !GetAtt DemoRole.Arn
+      MemorySize: 128
+      Timeout: 15
+      ReservedConcurrentExecutions: !If [Reserve, !Ref ReservedConcurrency, !Ref "AWS::NoValue"]
+      TracingConfig:
+        Mode: Active
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      LoggingConfig:
+        LogGroup: !Ref DemoLogGroup
+      Tags:
+        - { Key: owner, Value: D }
+
+  # Scheduler invokes asynchronously; a retry would only duplicate the synthetic signals.
+  DemoInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref DemoFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 0
+      MaximumEventAgeInSeconds: 3600
+
+  # ---- optional schedule (DISABLED by default) ------------------------------------------------------
+  ScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: owner-d-telemetry-demo-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-d-telemetry-demo-scheduler
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt DemoFunction.Arn
+      Tags:
+        - { Key: owner, Value: D }
+
+  DemoSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: owner-d-telemetry-demo-schedule
+      Description: Optional recurring run of the telemetry demo. Created DISABLED; see README for cost.
+      State: !Ref ScheduleState
+      ScheduleExpression: !Ref ScheduleExpression
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      Target:
+        Arn: !GetAtt DemoFunction.Arn
+        RoleArn: !GetAtt ScheduleRole.Arn
+        Input: '{"scenario": "all", "source": "schedule"}'
+        RetryPolicy:
+          MaximumRetryAttempts: 0
+
+Outputs:
+  DemoFunctionName:
+    Value: !Ref DemoFunction
+  DemoFunctionArn:
+    Value: !GetAtt DemoFunction.Arn
+  DemoLogGroupName:
+    Value: !Ref DemoLogGroup
+  MetricNamespace:
+    Value: OwnerD/Demo
+  ScheduleName:
+    Value: !Ref DemoSchedule
