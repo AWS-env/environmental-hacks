@@ -249,3 +249,59 @@ frequency.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs02/obs02-01-positive-input.json
 ```
+
+## OBS-03 — Logging inside hot loops
+
+Flags Python logging calls that run on every iteration of a loop or
+comprehension in the same function, so log volume and logging CPU grow with
+the number of items. Static only (same runner and logger recognition as
+OBS-02); the profiler half of OBS-03 is not implemented in v1.
+
+### Input
+
+Same as OBS-02: one `static` source per `file:<path>` scope item, `.py` only,
+no context settings.
+
+### Detection rule
+
+A recognised logger call (see OBS-02) is flagged when it is at
+`trace`/`debug`/`info` level (or a `.log(level, ...)` whose level cannot be
+resolved) and sits in a per-iteration position of a `for`/`async for`/`while`
+body or `while` test, or a comprehension element, without crossing a
+function, lambda or class boundary.
+
+Confidence is `medium` for an unconditional call in a bounded loop and `low`
+when the call is conditional (`if`, ternary, `and`/`or`, `match`, filtered
+comprehension), the level is unresolved, or every enclosing loop is a
+`while True` / `async for` loop (request or message loops, where per-event
+logging is often intended). Nested loops are named in the summary.
+
+Not flagged:
+
+- WARNING and above, and any call inside an `except` handler within the loop:
+  volume follows failures, not items (retry loops are OBS-11).
+- Calls in the loop's iterable, `else` clause or a nested function.
+- Calls guarded by a level check (`isEnabledFor`, `getEffectiveLevel`,
+  `.level`, or a flag assigned from one), by a sampling test using `%`
+  (`if i % 1000 == 0`), or by an opt-in verbosity switch (`if self.debug:`,
+  `if verbose:`, `if options.log_*:`).
+- Loops that are not hot: a literal collection or constant `range()` of at
+  most 10 items, a body that ends in `break`/`return`/`raise` at top level, or
+  a loop that calls `sleep`/`wait` each pass (polling).
+- Calls followed by `return`/`raise` on their path to the loop (a final
+  message). A following `break` drops only the innermost loop, so the call is
+  still flagged against an enclosing hot loop.
+- Lines with `# noqa` or `# noqa: OBS-03`.
+
+The identity is `<qualified function>:<receiver>.<method>` with `#n` for
+repeats, as in OBS-02. A call can legitimately match both OBS-02 (eager
+formatting) and OBS-03 (per-iteration call); they are separate checks. No
+measurements are emitted: the loop's iteration count, the call frequency of
+the enclosing function and the production log level are unknown.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs03/obs03-01-positive-input.json
+```
