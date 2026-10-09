@@ -1788,6 +1788,90 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs04/obs04-01-positive-input.json
 ```
 
+## OBS-18 — Inconsistent log field names / over-structuring
+
+The counterpart of OBS-04 for code that already logs structured fields. Flags
+one field written under several spellings across the scanned project
+(`user_id` / `userId` / `usr_id`), single calls that write very many fields, and
+whole objects dumped as fields. Backends such as CloudWatch Logs Insights index
+each spelling as its own field, so filters, stats and field indexes on one name
+miss the others. Static only: real log events are not read.
+
+### Input
+
+One `static` source per `file:<path>` scope item (`.py` only) and the context
+settings below. Field spellings are collected from every evaluable Python
+source in the payload, because one payload is one project.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_field_spellings` | Most spellings one field concept may have in the project | `1` |
+| `max_fields_per_event` | Most literal fields one call may write | `20` |
+
+The thresholds are judgment calls, so they are required; missing or invalid
+settings make the result `unavailable`. OpenTelemetry names are lowercase
+snake_case and reuse existing conventions; ECS field names are lowercase, use
+underscores and avoid abbreviations. SRC-22: "`user_id` in one service and
+`userId` in another breaks aggregation" and "Don't create 50 fields when 10 will
+do". Hard ceilings: Logs Insights extracts at most 200 fields from a JSON event,
+and OpenTelemetry SDKs keep 128 attributes per record by default. Powertools
+already adds about 9 keys (14 with `inject_lambda_context`) to every record.
+
+### Detection rule
+
+Field sites (logger recognition as in OBS-02):
+
+- keyword fields on log calls (structlog, Powertools `Logger`, loguru), except
+  the stdlib keywords (`exc_info`, `stack_info`, `stacklevel`, `extra`, ...);
+- `extra={...}` and `extra=dict(...)` literals;
+- `append_keys`, `thread_safe_append_keys`, `append_context_keys`, `bind`, `new`
+  on a logger, and structlog `bind_contextvars`;
+- `json.dumps({...})` passed to a log call, or to `print()` in a Lambda handler
+  module.
+
+Nested dict literals are flattened with dots (`{"user": {"id": u}}` is
+`user.id`), as Logs Insights does.
+
+| Identity | Finding | Confidence |
+| --- | --- | --- |
+| `drift:<concept>` | The concept has more than `max_field_spellings` distinct spellings in the project. One finding per file that uses a spelling other than the most used one (tie: lower snake_case, then alphabetical). Evidence is the first such key. | `medium` for case/separator variants (`userId`, `user.id`), `low` for synonyms only |
+| `wide:<qualname>:<receiver>.<method>` | One call writes more than `max_fields_per_event` literal fields (flattened leaves). `**spread` counts 0, so it is a lower bound. | `medium` |
+| `dump:<qualname>:<receiver>.<method>` | A field set or value is a whole, schema-less object: `vars(x)`, `x.__dict__`, `locals()`. Typed records (`asdict(x)`, `x._asdict()`, `x.model_dump()`) have declared fields and are not flagged. | `medium`; `low` inside `json.dumps` (a JSON log format keeps it as one `message` string) |
+
+Keys are normalised (camelCase split, `.`/`-`/space to `_`, lowercase) and
+mapped through a short synonym list of abbreviations of one concept:
+`user_id` (`usr_id`, `userid`), `request_id` (`req_id`), `correlation_id`
+(`corr_id`), `session_id` (`sess_id`), `customer_id` (`cust_id`), `account_id`
+(`acct_id`, `acc_id`), `status_code` (`http_status`, `http_code`, ...),
+`error_message` (`err_msg`, `errmsg`, ...), and `duration_ms`, `duration_s`,
+`duration` with `elapsed`/`latency`/`took` in the same unit. Different units,
+qualified names (`user_id` vs `user_name`) and ambiguous words (`user`, `id`, `uid`,
+`status`, `error`) are never merged.
+
+Not counted or not judged:
+
+- non-literal keys and non-literal `extra=`;
+- Embedded Metric Format documents (a dict with an `_aws` key);
+- vendored code, samples, tests, scripts and CLIs (same rules as OBS-04), and
+  calls inside `if __name__ == "__main__":`;
+- a key on a line with `# noqa` or `# noqa: OBS-18` (it leaves the drift count),
+  and `wide`/`dump` calls whose first line carries one.
+
+Missing, non-Python or unparseable files are left out of `evaluated_scope` and
+contribute no spellings. Fields added by formatters or processors, logging
+configuration outside Python and other languages are not visible. Two services
+in one repository with different conventions are reported. No measurements are
+emitted.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs18/obs18-01-positive-input.json
+```
+
 
 ## OBS-09 — Uncompressed/unbatched telemetry export
 
