@@ -164,7 +164,79 @@ Resources:
       Tags:
         - { Key: owner, Value: C }
 
+  ProfileParserLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-c-profile-parser
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: C }
+
+  ProfileParserRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "least-privilege exec role for profile-parser fn (PY-01/05/11 artifact confirmation)"
+        must:
+          - "only: write own logs, publish to findings-hub, read uploads/ prefix"
+    Properties:
+      RoleName: owner-c-profile-parser-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-c-profile-parser
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${ProfileParserLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: [events:PutEvents, events:DescribeEventBus]
+                Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource: !Sub "${ArtifactBucket.Arn}/uploads/*"
+      Tags:
+        - { Key: owner, Value: C }
+
+  ProfileParserFunction:
+    Type: AWS::Lambda::Function
+    DependsOn: ProfileParserLogGroup
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "parse-only: confirms static candidates with py-spy speedscope / memray stats uploaded by client CI"
+        must:
+          - "never execute client code or artifacts; JSON parse only, size-capped"
+    Properties:
+      FunctionName: owner-c-profile-parser
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: owner_c.aws.profile_handler.lambda_handler
+      Role: !GetAtt ProfileParserRole.Arn
+      MemorySize: 1024
+      Timeout: 120
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          FINDINGS_BUS_NAME: !Ref FindingsBusName
+      LoggingConfig:
+        LogGroup: !Ref ProfileParserLogGroup
+      Tags:
+        - { Key: owner, Value: C }
+
 Outputs:
+  ProfileParserFunctionArn:
+    Value: !GetAtt ProfileParserFunction.Arn
   StaticScanFunctionArn:
     Value: !GetAtt StaticScanFunction.Arn
   ArtifactBucketName:
