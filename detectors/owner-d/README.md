@@ -956,3 +956,57 @@ reported clean.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm15/llm15-01-positive-input.json
 ```
+
+## TST-04 — Magic Number Test
+
+Flags tests whose assertions compare against bare numeric literals that
+nothing in the test names or explains. This follows PyNose's Magic Number
+Test rule ("an assertion method that contains a numeric literal as an
+argument"; [Wang et al., ASE 2021](https://arxiv.org/abs/2108.04639), adopted
+from [tsDetect](https://testsmells.org/pages/testsmells.html)). It is static
+(`ast` only), uses the same input, test recognition and per-file "nothing to
+flag" note as TST-06, and needs no context settings.
+
+### Detection rule
+
+A literal is counted when it is a direct operand (optionally signed, or inside
+`pytest.approx(...)`) of:
+
+- a `unittest` assert method (the compared operands only, not `msg`,
+  `places` or `delta`);
+- a numpy.testing comparison such as `assert_equal`/`assert_allclose` (first
+  two positional arguments, not `rtol`/`atol`);
+- a comparison in an `assert` statement or in `assertTrue`/`assertFalse`
+  (`x == 5`, `0 < x < 10`, `a == 2 and b == 3`). PyNose only checks
+  unittest method arguments; this extends the same rule to pytest.
+
+These are not counted:
+
+- `-1`, `0`, `1` and booleans;
+- literals inside expressions or call arguments (`f(3)`, `3 * 14`, `xs[2]`),
+  because the expression shows where the value comes from;
+- assertions with a message, a trailing comment, or a comment-only line
+  directly above them (`# noqa`, `# type:` and `# pragma` are directives, not
+  explanations);
+- lines with `# noqa: TST-04` (or ruff's `PLR2004`).
+
+One finding per test; evidence starts at the `def` line and the summary lists
+each literal with its line. `# noqa: TST-04` on the `def` line suppresses the
+whole test. Confidence:
+
+- `medium` when at least one literal is unexplained;
+- `low` when every literal is compared with `len(...)`, compared with a
+  `status`/`status_code`/`returncode`/`errno`-like name, or repeats a literal
+  from the test's own setup (`make_rows(5)` ... `== 5`).
+
+The identity is the qualified test name, with `#n` for a redefined name. The
+taxonomy's energy association (Kendall tau 0.385, SRC-15) comes from
+JUnit/Maven projects and is not shown to transfer to Python, so no
+measurements are emitted. The JS proxy (`no-magic-numbers`) is out of scope.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst04/tst04-01-positive-input.json
+```
