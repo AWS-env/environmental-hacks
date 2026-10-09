@@ -61,6 +61,9 @@ python -m shared.contracts.verify
 
 ## Static checks
 
+- **CI-06** a job installs dependencies (npm/yarn/pnpm, pip from a requirements file or the project, poetry, pipenv,
+  maven, gradle, bundler, dotnet, cargo) with no cache in the job. Not flagged: local/composite actions, self-hosted
+  runners, single-tool installs (`pip install build`), `npm install -g`.
 - **CI-11** push+pull_request double runs; pull request workflows with no `concurrency`; `concurrency` without
   `cancel-in-progress`; a cancelling group made only of context expressions without the workflow name (for example
   `${{ github.ref }}`). Not flagged: `workflow_call`, `pull_request_target`, `pull_request` types without

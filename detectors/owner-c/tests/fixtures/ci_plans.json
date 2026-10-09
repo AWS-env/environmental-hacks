@@ -1,4 +1,14 @@
 {
+  "CI-06": {
+    "issue": 21,
+    "formats": "GitHub Actions workflow files `.github/workflows/*.yml|yaml` (parsed with PyYAML, never executed).",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the first install step's lines.",
+    "rule": "A job has a dependency-install command (`npm ci|install`, `yarn`, `pnpm install`, `pip install` of a requirements/constraints file or the project itself (`-r`, `-c`, `-e .`, `.[extra]`), `poetry install`, `pipenv install|sync`, `mvn`/`mvnw`, `gradle`/`gradlew`, `bundle install`, `dotnet restore`, `cargo build|test|fetch`) and no cache evidence anywhere in the job (`actions/cache*`, a `setup-*` step with `cache`, `ruby/setup-ruby` `bundler-cache`, Gradle setup actions, `Swatinem/rust-cache`). Exceptions: job uses a local/composite action (cache may be hidden), self-hosted runner, `npm install -g`, `pip install --upgrade pip`, a single tool install such as `pip install build` (too small to cache). Confidence medium. Reported once per (job, ecosystem). Release, publish and deploy workflows and tag-triggered workflows are not evaluated (release workflows should not read caches: zizmor `cache-poisoning`). An npm install in a job with `actions/setup-node` v6+ (or an unparsable, commit-pinned version) and no `cache` input is low confidence: setup-node caches npm by itself when package.json sets `packageManager` to npm (package.json is not read). Yarn and pnpm are never cached automatically.",
+    "identity": "`job:<job id>:deps:<ecosystem>`.",
+    "context": "None.",
+    "unsupported": "`go` modules (cache default not verified), reusable-workflow jobs (`uses:` at job level), caches configured outside the workflow (org/runner images).",
+    "challenge": "setup-node npm auto-caching via `packageManager` in package.json is invisible here and would be a false positive."
+  },
   "CI-11": {
     "issue": 25,
     "formats": "GitHub Actions workflow YAML (`on` as string, list or mapping).",
