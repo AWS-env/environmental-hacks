@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs03-001",
+  "commit_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "check_id": "OBS-03",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic OBS-03 fixture: logging on every loop iteration. Never executed.\nimport logging\n\nlogger = logging.getLogger(__name__)\naudit = logging.getLogger(\"audit\")\n\n\ndef import_rows(rows, level):\n    for row in rows:\n        logger.debug(\"importing row %s\", row.id)\n        audit.info(\"row %s imported\", row.id)\n        logger.log(level, \"row %s stored\", row.id)\n    return [logger.debug(\"validated %s\", row) for row in rows]\n\n\ndef drain(queue):\n    while queue:\n        job = queue.pop()\n        logger.info(\"processing job %s\", job)\n\n\ndef score(matrix):\n    for line in matrix:\n        for cell in line:\n            logger.debug(\"cell %s\", cell)\n\n\ndef sync(items):\n    for item in items:\n        if not item.changed:\n            logger.debug(\"unchanged %s\", item)\n            continue\n\n\ndef serve(sock):\n    while True:\n        request = sock.recv()\n        logger.info(\"request %s\", request)\n\n\nclass Consumer:\n    def __init__(self):\n        self.logger = logging.getLogger(type(self).__name__)\n\n    async def consume(self, stream):\n        async for message in stream:\n            self.logger.debug(\"message %s\", message)\n\n    def handle(self, batch):\n        for event in batch:\n            self.logger.debug(\"event %s\", event)\n"
+    }
+  ]
+}
