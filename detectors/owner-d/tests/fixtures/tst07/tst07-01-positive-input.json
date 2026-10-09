@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst07-001",
+  "commit_sha": "7777777777777777777777777777777777777777",
+  "check_id": "TST-07",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python",
+    "max_test_statements": 30
+  },
+  "scope": [
+    "file:tests/test_checkout.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_checkout.py",
+      "kind": "static",
+      "locator": "tests/test_checkout.py",
+      "content": "# Synthetic TST-07 fixture: tests with more statements than the limit (30). Never executed.\nimport unittest\n\n\nclass CheckoutTest(unittest.TestCase):\n    def test_full_checkout(self):\n        store = Store()\n        store.open()\n        catalog = store.catalog\n        catalog.add(Item(\"pen\", 2))\n        catalog.add(Item(\"ink\", 5))\n        catalog.add(Item(\"pad\", 3))\n        user = User(\"ada\")\n        user.verify()\n        address = Address(\"1 Main St\")\n        user.addresses.append(address)\n        card = Card(\"4242\")\n        card.expiry = \"12/30\"\n        user.cards.append(card)\n        cart = store.cart_for(user)\n        cart.add(\"pen\", 3)\n        cart.add(\"ink\", 1)\n        cart.add(\"pad\", 2)\n        coupon = Coupon(\"TEN\", 10)\n        cart.apply(coupon)\n        shipping = Shipping(\"standard\")\n        cart.ship_with(shipping)\n        order = cart.checkout(card)\n        receipt = order.receipt()\n        lines = receipt.lines\n        total = receipt.total\n        tax = receipt.tax\n        self.assertEqual(len(lines), 3)\n        self.assertEqual(total, 16)\n        self.assertEqual(tax, 1)\n        self.assertEqual(order.status, \"paid\")\n        self.assertIn(\"TEN\", receipt.coupons)\n        self.assertEqual(order.address, address)\n\n\ndef test_report_pipeline(tmp_path):\n    source = tmp_path / \"in.csv\"\n    source.write_text(\"a,b\\n1,2\\n\")\n    target = tmp_path / \"out.csv\"\n    config = load_config()\n    config.delimiter = \",\"\n    config.header = True\n    pipeline = Pipeline(config)\n    pipeline.add(Reader(source))\n    pipeline.add(Cleaner())\n    pipeline.add(Writer(target))\n    pipeline.validate()\n    pipeline.warm_up()\n    with pipeline.session() as session:\n        session.start()\n        session.process()\n        session.flush()\n        session.stop()\n        session.commit()\n    for stage in pipeline.stages:\n        stage.close()\n        stage.release()\n        assert stage.closed\n    pipeline.close()\n    report = pipeline.report()\n    summary = report.summary()\n    rows = report.rows\n    errors = report.errors\n    assert target.exists()\n    assert rows == 1\n    assert errors == []\n    assert report.duration >= 0\n    assert pipeline.closed\n\n\ndef test_everything():\n    a = make(1); b = make(2); c = make(3); d = make(4); e = make(5); f = make(6); g = make(7); h = make(8)\n    a.link(b); b.link(c); c.link(d); d.link(e); e.link(f); f.link(g); g.link(h); h.link(a)\n    a.tick(); b.tick(); c.tick(); d.tick(); e.tick(); f.tick(); g.tick(); h.tick()\n    a.tock(); b.tock(); c.tock(); d.tock(); e.tock(); f.tock(); g.tock(); h.tock()\n    a.save(); b.save(); c.save(); d.save(); e.save(); f.save(); g.save(); h.save()\n    a.load(); b.load(); c.load(); d.load(); e.load(); f.load(); g.load(); h.load()\n    a.dump(); b.dump(); c.dump(); d.dump(); e.dump(); f.dump(); g.dump(); h.dump()\n    a.stop(); b.stop(); c.stop(); d.stop(); e.stop(); f.stop(); g.stop(); h.stop()\n    assert a.ticks == 1\n    assert h.ticks == 1\n\n\ndef test_smoke_all_formats():\n    for name in (\"csv\", \"json\", \"xml\"):\n        writer = make_writer(name)\n        writer.open()\n        writer.header()\n        writer.row(1)\n        writer.row(2)\n        writer.row(3)\n        writer.footer()\n        writer.flush()\n        writer.close()\n    reader = make_reader(\"csv\")\n    reader.open()\n    reader.read()\n    reader.close()\n    reader = make_reader(\"json\")\n    reader.open()\n    reader.read()\n    reader.close()\n    reader = make_reader(\"xml\")\n    reader.open()\n    reader.read()\n    reader.close()\n    reader = make_reader(\"yaml\")\n    reader.open()\n    reader.read()\n    reader.close()\n    reader = make_reader(\"toml\")\n    reader.open()\n    reader.read()\n    reader.close()\n    cleanup()\n"
+    }
+  ]
+}
