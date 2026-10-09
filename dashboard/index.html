@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Compute-waste audit</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="top">
+    <div class="wrap top-row">
+      <div>
+        <p class="eyebrow">Read-only software sustainability audit</p>
+        <h1 id="repo-title">No report loaded</h1>
+        <p class="meta" id="repo-meta"></p>
+      </div>
+      <label class="button">
+        Load report.json
+        <input type="file" id="file-input" accept=".json,application/json" hidden>
+      </label>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div id="message" class="message" hidden></div>
+    <div id="adapter-alert" class="alert" hidden></div>
+
+    <section aria-labelledby="summary-h" id="summary" hidden>
+      <h2 id="summary-h" class="visually-hidden">Summary</h2>
+      <div class="tiles" id="finding-tiles"></div>
+      <div class="tiles tiles-status" id="status-tiles"></div>
+    </section>
+
+    <div class="two-col" id="overview" hidden>
+      <section class="card" aria-labelledby="bycheck-h">
+        <h2 id="bycheck-h">Findings by check</h2>
+        <p class="hint">Click a bar to filter the findings list.</p>
+        <div id="by-check" class="bars" role="list"></div>
+      </section>
+      <section class="card impact" aria-labelledby="impact-h">
+        <h2 id="impact-h">Environmental impact</h2>
+        <p class="impact-status">Not quantified</p>
+        <p id="impact-text"></p>
+        <p class="hint" id="impact-method"></p>
+      </section>
+    </div>
+
+    <section aria-labelledby="findings-h" id="findings-section" hidden>
+      <div class="section-head">
+        <h2 id="findings-h">Findings</h2>
+        <p class="hint" id="findings-count" aria-live="polite"></p>
+      </div>
+      <div class="filters" role="group" aria-label="Filter findings">
+        <label>Layer <select id="f-layer"></select></label>
+        <label>Owner <select id="f-owner"></select></label>
+        <label>Check <select id="f-check"></select></label>
+        <label>Confidence <select id="f-confidence"></select></label>
+        <label class="grow">Search <input type="search" id="f-text" placeholder="file, summary, identity"></label>
+      </div>
+      <div id="findings"></div>
+    </section>
+
+    <section aria-labelledby="coverage-h" id="coverage-section" hidden>
+      <h2 id="coverage-h">Coverage &amp; limitations</h2>
+      <p class="hint">Every check that ran, and why some could not evaluate anything. Only <em>completed</em> means the whole scope was evaluated; nothing else is a pass.</p>
+      <div class="card"><div class="table-scroll"><table id="checks-table"></table></div></div>
+      <div class="two-col">
+        <div class="card"><h3>Files</h3><dl id="files-dl" class="dl"></dl></div>
+        <div class="card"><h3>Detectors (adapters)</h3><div class="table-scroll"><table id="adapters-table"></table></div></div>
+      </div>
+      <div class="card"><h3>Limits of this report</h3><ul id="limitations"></ul></div>
+    </section>
+  </main>
+
+  <footer class="wrap foot">
+    Static analysis only: repository code is never executed. Findings are evidence for a review, not proof of runtime cost.
+  </footer>
+
+  <script src="sample-report.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
