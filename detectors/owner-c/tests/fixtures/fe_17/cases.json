@@ -1,0 +1,199 @@
+[
+  {
+    "id": "FE-17-01",
+    "title": "known positive: transition on width (layout property)",
+    "files": {
+      "style.css": ".box {\n  transition: width 0.3s ease;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "transition:.box:width",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-17-02",
+    "title": "similar negative: transition only on transform and opacity (compositor-only)",
+    "files": {
+      "style.css": ".box {\n  transition: transform 0.3s ease, opacity 0.3s;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-17-03",
+    "title": "known positive: @keyframes animating left",
+    "files": {
+      "style.css": "@keyframes slide {\n  from { left: 0; }\n  to { left: 300px; }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "keyframes:slide:left",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-17-04",
+    "title": "paint property (box-shadow) in transition-property: reported at low confidence",
+    "files": {
+      "style.css": ".card {\n  transition-property: box-shadow;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "transition:.card:box-shadow",
+          "line": 2,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-17-05",
+    "title": "legitimate exception: transition: all cannot be resolved statically (declared limitation)",
+    "files": {
+      "style.css": ".box {\n  transition: all 0.3s;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-17-06",
+    "title": "transition-property list: only the layout entry is reported",
+    "files": {
+      "style.css": ".menu {\n  transition-property: opacity, margin-left;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "transition:.menu:margin-left",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-17-07",
+    "title": "comma shorthand: height reported, opacity not",
+    "files": {
+      "style.css": ".panel {\n  transition: opacity .2s, height .3s;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "transition:.panel:height",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-17-08",
+    "title": "boundary: the property name only appears in a comment",
+    "files": {
+      "style.css": "/* transition: width 1s */\n.box {\n  color: red;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-17-09",
+    "title": "identity boundary: the same property in several keyframes is one finding per animation",
+    "files": {
+      "style.css": "@keyframes grow {\n  from { width: 1px; }\n  to { width: 2px; }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "keyframes:grow:width",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-17-10",
+    "title": "boundary: a custom property named like a layout property is not an animation",
+    "files": {
+      "style.css": ":root {\n  --width: 10px;\n}\n.box {\n  transition: transform 1s;\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "FE-17-13",
+    "title": "real-world syntax: a range media query (width < 576px), which tree-sitter-css cannot parse, must not make the file unavailable (found on bootstrap.css)",
+    "files": {
+      "style.css": "@media (width < 576px) {\n  .menu {\n    transition: height 0.2s;\n  }\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "transition:.menu:height",
+          "line": 3,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "FE-17-90",
+    "title": "malformed input: only an unparsable stylesheet -> unavailable, no clean claim",
+    "files": {
+      "broken.css": ".a { transition: width 1s\n.b { color: red\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "limitations_contain": [
+        "broken.css",
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "FE-17-91",
+    "title": "unparsable stylesheet next to a good one -> partial coverage",
+    "files": {
+      "ok.css": ".a {\n  transition: transform 1s;\n}\n",
+      "broken.css": ".a { transition: width 1s\n.b { color: red\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [],
+      "evaluated": [
+        "ok.css"
+      ],
+      "limitations_contain": [
+        "broken.css",
+        "could not be parsed"
+      ]
+    }
+  }
+]
