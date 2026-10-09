@@ -1,0 +1,64 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "file:fixture.php"
+    ],
+    "limitations": [
+      "Bounded PHP local analysis; declared API and ordinary-table identities are connector assertions. No measured CPU, energy or carbon savings. No customer code is executed."
+    ]
+  },
+  "findings": [],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "synthetic:g01-fixtures",
+  "scan_id": "synthetic:DB-16-02",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "DB-16",
+  "detector_version": "1.0.0",
+  "context": {
+    "cache_apis": {
+      "cache": {
+        "family": "psr16",
+        "version": "3.0"
+      },
+      "mem": {
+        "family": "memcached",
+        "version": "3.2"
+      },
+      "pool": {
+        "family": "psr6",
+        "version": "3.0"
+      }
+    },
+    "db_apis": {
+      "db": {
+        "family": "joomla",
+        "version": "4.4"
+      },
+      "pdo": {
+        "family": "pdo",
+        "version": "8.2"
+      }
+    },
+    "language": "php",
+    "limits": {
+      "max_ast_depth": 128,
+      "max_ast_nodes": 20000,
+      "max_source_bytes": 262144,
+      "max_sql_bytes": 8192
+    },
+    "mode": "runtime",
+    "ordinary_tables": [
+      "users",
+      "articles"
+    ],
+    "php_version": "8.2",
+    "rule_version": "g01-1",
+    "sql_dialect": "mysql-8.0"
+  },
+  "scope": [
+    "file:fixture.php"
+  ]
+}

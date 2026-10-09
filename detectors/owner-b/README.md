@@ -52,3 +52,7 @@ This increment adds the DB-06 public registry entry, detection specification, si
 ## DB-05 registration (#107)
 
 This increment adds the DB-05 public registry entry, detection specification, six synthetic regression pairs and sanitized historical AWS receipts. See `checks/db-05/SPEC.md` for exact supported rules and exceptions. Public-repository scans are execution-unverified candidates; runtime confirmation requires authorized correlated CloudWatch query events.
+
+## DB-16 registration (#118)
+
+This increment adds the DB-16 public registry entry, detection specification, six synthetic regression pairs and sanitized historical AWS receipts. See `checks/db-16/SPEC.md` for exact supported rules and exceptions. Public-repository scans are execution-unverified candidates; runtime confirmation requires authorized correlated CloudWatch query events.
