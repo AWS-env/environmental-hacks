@@ -1881,3 +1881,117 @@ StatefulSets are flagged at `low` because many of them are sized for quorum
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/inf02/inf02-01-positive-input.json
 ```
+
+## INF-10 — Storage without lifecycle/retention management
+
+Flags storage resources in CloudFormation/SAM templates that declare no
+lifecycle or retention, so their data is kept indefinitely. This v1 is a
+static IaC proxy. It proves "no retention/lifecycle declared in this
+template", not that data grows, is old or is unused. Templates are read as
+text and are never deployed, resolved or sent to AWS. It uses the
+`textstatic.py` runner and `owner_d/miniyaml.py`. YAML tags such as `!Ref`,
+`!Sub` and `!If` are read, and JSON keeps its line numbers.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Supported files:
+
+- **CloudFormation/SAM YAML**: `.yaml`/`.yml`
+- **CloudFormation JSON**: `.json`, including CDK-synthesized
+  `cdk.out/*.template.json`
+- **`.template`** files in either syntax
+
+A file counts as a template when it has a `Resources` mapping. No context
+settings are required.
+
+### Detection rule
+
+| Resource | Identity | Flagged when | Confidence |
+| --- | --- | --- | --- |
+| `AWS::S3::Bucket` | `<LogicalId>:s3-lifecycle` | No enabled lifecycle rule expires or transitions objects (see the cases below) | low |
+| `AWS::S3::Bucket` (versioning `Enabled`) | `<LogicalId>:s3-noncurrent-versions` | Enabled rules expire/transition current objects, but none expires or transitions noncurrent versions | low |
+| `AWS::Logs::LogGroup` | `<LogicalId>:log-retention` | No `RetentionInDays` (the CloudWatch Logs default is never expire) | medium |
+| `AWS::ECR::Repository` | `<LogicalId>:ecr-lifecycle` | No `LifecyclePolicy`, or one without `LifecyclePolicyText` | medium |
+
+The `s3-lifecycle` rule fires when any of these holds:
+
+- there is no `LifecycleConfiguration`
+- every rule is `Status: Disabled`
+- the enabled rules only use `AbortIncompleteMultipartUpload` or
+  `ExpiredObjectDeleteMarker`
+- the enabled rules only act on noncurrent versions and the bucket is not
+  versioned
+
+Rules that only abort incomplete uploads or remove delete markers clean up
+upload parts and delete markers, but never object data, so they do not count.
+A rule with a prefix, tag or size filter counts, because the template does not
+show which prefixes hold data. `VersioningConfiguration.Status: Suspended`
+still holds earlier versions, so noncurrent rules count on it.
+
+S3 findings are `low` because many buckets keep durable data on purpose:
+website assets, release artifacts and compliance archives. Log groups and ECR
+repositories are `medium`. Logs rarely need to be kept forever, and ECR keeps
+every pushed image, including untagged ones, until a lifecycle policy expires
+it. The check does not judge how long a declared retention is; that is OBS-07.
+
+These count as declared and are not flagged:
+
+- values set by intrinsic functions, e.g. `RetentionInDays: !Ref Days` or
+  `Status: !Ref RuleStatus`
+- `Fn::If` around `Properties`, `LifecycleConfiguration`, `Rules` or a single
+  rule. This is conservative: a branch that resolves to `AWS::NoValue` is
+  not flagged.
+- `LogGroupClass: DELIVERY` log groups, which have a fixed 1-day retention
+
+Legitimate exceptions:
+
+- buckets with S3 Object Lock (`ObjectLockEnabled: true` or
+  `ObjectLockConfiguration.ObjectLockEnabled: Enabled`), which signals
+  compliance retention
+- `# noqa` / `# noqa: INF-10` on the cited line or in the comment lines
+  directly above the resource (YAML only; JSON has no comments)
+
+`DeletionPolicy`/`UpdateReplacePolicy` are ignored because they control stack
+deletion, not object retention. A resource-level `Condition` does not change
+the outcome.
+
+Evidence is the logical-ID line through the `Type` line. Only the logical-ID
+line is cited when `Type` is 8 or more lines below it. For
+`s3-noncurrent-versions`, evidence is the `VersioningConfiguration` line
+through its `Status` line. CDK logical IDs include a hash of the construct
+path, so moving a construct changes the identity.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- invalid JSON, or YAML outside the miniyaml subset (this includes
+  flow-mapping keys with `::` such as `{Fn::Join: ...}`)
+- YAML/JSON files without CloudFormation `Resources`
+- templates with a macro `Transform` other than
+  `AWS::Serverless-2016-10-31`/`AWS::LanguageExtensions`, or with
+  `Fn::Transform`/`AWS::Include` or `Fn::ForEach`, because these can rewrite
+  resources
+- Terraform/HCL (`.tf`). There is no sound HCL parser without a new
+  dependency.
+- CDK source code (synthesize it first), Pulumi and Serverless Framework files
+
+### Limitations
+
+No inventory or telemetry is read. The taxonomy's AWS Config / Resource
+Explorer half needs a client read-only role and is blocked on OQ-7. No
+measurements are emitted.
+
+The check cannot see:
+
+- lifecycle applied outside the template: console/CLI, `put-lifecycle-policy`,
+  other stacks or Config remediation
+- implicit Lambda/SAM function log groups and `Custom::LogRetention`
+- DynamoDB TTL, Kinesis retention, EBS/RDS snapshots and S3 directory buckets
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/inf10/inf10-01-positive-input.json
+```

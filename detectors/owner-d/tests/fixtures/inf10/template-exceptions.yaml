@@ -1,0 +1,25 @@
+# Synthetic fixture (INF10-03): legitimate exceptions and suppressions.
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  ComplianceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: COMPLIANCE
+            Years: 7
+  # Static website assets are kept on purpose.
+  # noqa: INF-10
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      WebsiteConfiguration:
+        IndexDocument: index.html
+  AuditLogGroup:  # noqa: INF-10 (retention is enforced by the central logging account)
+    Type: AWS::Logs::LogGroup
+  # noqa: E501
+  OtherBucket:
+    Type: AWS::S3::Bucket

@@ -1,0 +1,6 @@
+# Synthetic fixture (INF10-05): a macro can rewrite resources, so the template is not evaluated.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: [AWS::Serverless-2016-10-31, CompanyDefaults]
+Resources:
+  LogsBucket:
+    Type: AWS::S3::Bucket

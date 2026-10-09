@@ -1,0 +1,44 @@
+# Synthetic fixture (INF10-06): boundary cases.
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  OneEnabledBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      LifecycleConfiguration:
+        Rules:
+          - {Id: a, Status: Disabled, ExpirationInDays: 1}
+          - {Id: b, Status: Enabled, ExpirationInDays: 30}
+  EmptyRetention:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      RetentionInDays:
+  SuspendedBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Suspended
+      LifecycleConfiguration:
+        Rules:
+          - {Id: old, Status: Enabled, NoncurrentVersionExpiration: {NoncurrentDays: 7}}
+  MarkerOnlyBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          - {Id: markers, Status: Enabled, ExpiredObjectDeleteMarker: true}
+  LateTypeRepository:
+    Metadata:
+      Owner: platform
+      Notes:
+        - first
+        - second
+        - third
+      Ticket: OPS-1
+    Type: AWS::ECR::Repository
+  PolicyWithoutText:
+    Type: AWS::ECR::Repository
+    Properties:
+      LifecyclePolicy:
+        RegistryId: "111111111111"
