@@ -302,7 +302,7 @@ function collectGlobalOrNonlocal(node: Parser.SyntaxNode): Set<string> {
       }
     }
     // Don't descend into nested functions
-    if (n !== scopeRoot && (n.type === "function_definition" || n.type === "class_definition")) {
+    if (n.id !== scopeRoot?.id && (n.type === "function_definition" || n.type === "class_definition")) {
       return;
     }
     for (const child of n.children) {
@@ -371,7 +371,7 @@ function analyzeLoopBody(
 
   // 2. Walk body statements (do not descend into nested function or class definitions)
   function walk(n: Parser.SyntaxNode) {
-    if (n !== bodyNode && (n.type === "function_definition" || n.type === "class_definition")) {
+    if (n.id !== bodyNode?.id && (n.type === "function_definition" || n.type === "class_definition")) {
       return;
     }
 
@@ -426,7 +426,7 @@ function analyzeLoopBody(
     }
 
     // Nested for statement loop target
-    if (n !== loopNode && n.type === "for_statement") {
+    if (n.id !== loopNode.id && n.type === "for_statement") {
       const target = n.childForFieldName("left");
       if (target) {
         for (const id of collectAllIdentifiers(target)) {

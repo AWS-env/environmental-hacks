@@ -216,7 +216,7 @@ export function analyzePythonScope(
 
       // Find imported symbols in `from x import a, b as c`
       for (const child of node.namedChildren) {
-        if (child === moduleNode) continue;
+        if (child.id === moduleNode?.id) continue;
 
         if (child.type === "dotted_name" || child.type === "identifier") {
           const importedName = child.text;

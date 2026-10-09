@@ -43,9 +43,9 @@ interface InvariantCandidate {
  * Check if an AST node is located inside any kind of comprehension or generator expression.
  */
 function isInsideComprehension(node: Parser.SyntaxNode, loopBody: Parser.SyntaxNode): boolean {
-  if (node === loopBody) return false;
+  if (node.id === loopBody.id) return false;
   let curr: Parser.SyntaxNode | null = node.parent;
-  while (curr && curr !== loopBody) {
+  while (curr && curr.id !== loopBody.id) {
     if (
       curr.type === "list_comprehension" ||
       curr.type === "dictionary_comprehension" ||
@@ -63,9 +63,9 @@ function isInsideComprehension(node: Parser.SyntaxNode, loopBody: Parser.SyntaxN
  * Check if an AST node is inside a nested function or class definition within the loop body.
  */
 function isInsideNestedDef(node: Parser.SyntaxNode, loopBody: Parser.SyntaxNode): boolean {
-  if (node === loopBody) return false;
+  if (node.id === loopBody.id) return false;
   let curr: Parser.SyntaxNode | null = node.parent;
-  while (curr && curr !== loopBody) {
+  while (curr && curr.id !== loopBody.id) {
     if (curr.type === "function_definition" || curr.type === "class_definition") {
       return true;
     }
@@ -80,7 +80,7 @@ function isInsideNestedDef(node: Parser.SyntaxNode, loopBody: Parser.SyntaxNode)
 function isDescendantOf(child: Parser.SyntaxNode, ancestor: Parser.SyntaxNode): boolean {
   let curr: Parser.SyntaxNode | null = child.parent;
   while (curr) {
-    if (curr === ancestor) {
+    if (curr.id === ancestor.id) {
       return true;
     }
     curr = curr.parent;
@@ -96,7 +96,7 @@ function isInCalleePosition(node: Parser.SyntaxNode): boolean {
   if (!parent) return false;
   if (parent.type === "call") {
     const func = parent.childForFieldName("function");
-    if (func === node) return true;
+    if (func?.id === node.id) return true;
   }
   return false;
 }
@@ -109,7 +109,7 @@ function isInAssignmentTargetPosition(node: Parser.SyntaxNode): boolean {
   if (!parent) return false;
   if (parent.type === "assignment" || parent.type === "augmented_assignment") {
     const left = parent.childForFieldName("left");
-    if (left && (left === node || isDescendantOf(node, left))) return true;
+    if (left && (left.id === node.id || isDescendantOf(node, left))) return true;
   }
   return false;
 }
@@ -181,7 +181,7 @@ function checkCandidateInvariance(
       if (loop.callArguments.has(id)) {
         const calls = loop.callArguments.get(id)!;
         for (const c of calls) {
-          if (c !== node && !isDescendantOf(c, node)) {
+          if (c.id !== node.id && !isDescendantOf(c, node)) {
             // If the other call is a different function or outside this node, conservative suppress
             const otherFunc = c.childForFieldName("function")?.text.trim();
             if (otherFunc !== calleeText) {
