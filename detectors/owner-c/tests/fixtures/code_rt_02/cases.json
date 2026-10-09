@@ -1,0 +1,192 @@
+{
+  "check_id": "CODE-RT.2",
+  "cases": [
+    {
+      "id": "CODE-RT-2-01",
+      "title": "known positive: cheap builtin wrapped in a thread and awaited at once",
+      "files": {
+        "app.py": "import asyncio\n\n\nasync def handler(items):\n    return await asyncio.to_thread(len, items)\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "handler:to_thread(len)",
+            "line": 5,
+            "confidence": "low"
+          }
+        ]
+      }
+    },
+    {
+      "id": "CODE-RT-2-02",
+      "title": "trivial lambda through run_in_executor",
+      "files": {
+        "app.py": "import asyncio\n\n\nasync def handler(cfg):\n    loop = asyncio.get_running_loop()\n    return await loop.run_in_executor(None, lambda: cfg['x'])\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "handler:run_in_executor(lambda)",
+            "line": 6,
+            "confidence": "low"
+          }
+        ]
+      }
+    },
+    {
+      "id": "CODE-RT-2-03",
+      "title": "a coroutine function handed to a thread (it can never be awaited there)",
+      "files": {
+        "app.py": "import asyncio\n\n\nasync def fetch():\n    return 1\n\n\nasync def handler():\n    return await asyncio.to_thread(fetch)\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "handler:to_thread(fetch)",
+            "line": 9,
+            "confidence": "medium"
+          }
+        ]
+      }
+    },
+    {
+      "id": "CODE-RT-2-04",
+      "title": "to_thread imported by name",
+      "files": {
+        "app.py": "from asyncio import to_thread\n\n\nasync def handler(x):\n    return await to_thread(str, x)\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "handler:to_thread(str)",
+            "line": 5
+          }
+        ]
+      }
+    },
+    {
+      "id": "CODE-RT-2-05",
+      "title": "repeated hops in one function get unique identities",
+      "files": {
+        "app.py": "import asyncio\n\n\nasync def handler(a, b):\n    x = await asyncio.to_thread(len, a)\n    y = await asyncio.to_thread(len, b)\n    return x + y\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "handler:to_thread(len)",
+            "line": 5
+          },
+          {
+            "identity": "handler:to_thread(len)#2",
+            "line": 6
+          }
+        ]
+      }
+    },
+    {
+      "id": "CODE-RT-2-06",
+      "title": "legitimate exception: a genuinely blocking call",
+      "files": {
+        "app.py": "import asyncio\n\n\nimport time\n\n\nasync def handler():\n    await asyncio.to_thread(time.sleep, 1)\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      }
+    },
+    {
+      "id": "CODE-RT-2-07",
+      "title": "similar negative: an unknown user function is never flagged",
+      "files": {
+        "app.py": "import asyncio\n\n\nasync def handler(data):\n    return await asyncio.to_thread(heavy_compute, data)\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      }
+    },
+    {
+      "id": "CODE-RT-2-08",
+      "title": "legitimate exception: lambda that calls something",
+      "files": {
+        "app.py": "import asyncio\n\n\nimport json\n\n\nasync def handler(t):\n    return await asyncio.to_thread(lambda: json.loads(t))\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      }
+    },
+    {
+      "id": "CODE-RT-2-09",
+      "title": "boundary: not awaited immediately (scheduled and gathered later)",
+      "files": {
+        "app.py": "import asyncio\n\n\nasync def handler(a, b):\n    t = asyncio.to_thread(len, a)\n    return await asyncio.gather(t, asyncio.to_thread(len, b))\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      }
+    },
+    {
+      "id": "CODE-RT-2-10",
+      "title": "similar negative: sorted() is not trivial work",
+      "files": {
+        "app.py": "import asyncio\n\n\nasync def handler(big):\n    return await asyncio.to_thread(sorted, big)\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      }
+    },
+    {
+      "id": "CODE-RT-2-11",
+      "title": "similar negative: a shadowing import is not the builtin",
+      "files": {
+        "app.py": "import asyncio\n\n\nfrom utils import len\n\n\nasync def handler(x):\n    return await asyncio.to_thread(len, x)\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      }
+    },
+    {
+      "id": "CODE-RT-2-90",
+      "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+      "files": {
+        "broken.py": "def (\n"
+      },
+      "expect": {
+        "status": "unavailable",
+        "findings": [],
+        "evaluated": [],
+        "limitations_contain": [
+          "could not be parsed"
+        ]
+      }
+    },
+    {
+      "id": "CODE-RT-2-91",
+      "title": "unparsable file next to a good one -> partial coverage",
+      "files": {
+        "ok.py": "x = 1\n",
+        "broken.py": "def (\n"
+      },
+      "expect": {
+        "status": "partial",
+        "findings": [],
+        "evaluated": [
+          "ok.py"
+        ],
+        "limitations_contain": [
+          "broken.py",
+          "could not be parsed"
+        ]
+      }
+    }
+  ]
+}
