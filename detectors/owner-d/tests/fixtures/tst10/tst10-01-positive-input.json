@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst10-001",
+  "commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "check_id": "TST-10",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:tests/test_jobs.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_jobs.py",
+      "kind": "static",
+      "locator": "tests/test_jobs.py",
+      "content": "# Synthetic TST-10 fixture: assertions that always pass. Never executed.\nimport unittest\n\nimport numpy as np\n\n\nclass PlaceholderTest(unittest.TestCase):\n    def test_placeholder(self):\n        self.assertTrue(True)\n\n    def test_same_literal(self):\n        self.assertEqual(1, 1)\n\n    def test_literal_none(self):\n        self.assertIsNone(None)\n\n    def test_not_empty_literal(self):\n        self.assertFalse([])\n\n\ndef test_bare_true():\n    run_job()\n    assert True\n\n\ndef test_tuple_mistake():\n    result = run_job()\n    assert (result.ok, \"job must succeed\")\n\n\ndef test_same_string():\n    assert \"ready\" == \"ready\"\n\n\ndef test_numpy_same_literal():\n    np.testing.assert_equal([1, 2], [1, 2])\n"
+    }
+  ]
+}

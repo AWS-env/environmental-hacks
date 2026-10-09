@@ -673,3 +673,52 @@ plus maintenance, a weak environmental link.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst05/tst05-01-positive-input.json
 ```
+
+## TST-10 — Redundant Assertion
+
+Flags assertions that always pass whatever the code under test does, following
+PyNose's Redundant Assertion rule. PyNose describes it as "the expected and
+actual parameters of equality are the same, e.g. `assertEqual(X, X)`, or the
+assertion of truth is carried out on the unchangeable object, e.g.
+`assertTrue(True)`" ([Wang et al., ASE 2021](https://arxiv.org/abs/2108.04639),
+adopted from [tsDetect](https://testsmells.org/pages/testsmells.html)). It is
+static (`ast` only), uses the same input, test recognition and per-file
+"nothing to flag" note as TST-06, and needs no context settings.
+
+### Detection rule
+
+An assertion in a test is flagged when its outcome is fixed and true:
+
+- the asserted condition is a literal (`assert True`, `self.assertTrue(1)`,
+  `self.assertFalse([])`, `self.assertIsNone(None)`);
+- `assert (cond, "msg")`, a non-empty tuple that is always truthy (pyflakes
+  F631);
+- a comparison of a literal with the same literal (identical source tokens):
+  `assertEqual(1, 1)`, `assert "a" == "a"`, `assert None is None`,
+  `assertLessEqual("ant", "ant")`, `np.testing.assert_equal([1, 2], [1, 2])`.
+  `not` is followed.
+
+These are not flagged:
+
+- always-false assertions (`assert False, "unreachable"`,
+  `self.assertTrue(False, msg)`), which are explicit failure markers;
+- literals spelled differently (`0o20 == 16`, `'a' in 'abc'`), which exercise
+  the language itself;
+- `assertEqual(obj, obj)` / `x == x` on non-literals, which tests use to check
+  `__eq__`, NaN handling or identity caching. PyNose's textual rule includes
+  them. On real suites these were about half of the matches, and every sampled
+  one was a deliberate reflexivity test;
+- `is` between equal non-singleton literals (interning is an implementation
+  detail);
+- `# noqa: TST-10` (or `F631`/`PT009`).
+
+The identity is `<qualified test>:<assertion callee>`, with `#n` for repeats.
+Findings are `medium` confidence and no measurements are emitted: the cost is a
+trivial check per run plus misleading coverage.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst10/tst10-01-positive-input.json
+```

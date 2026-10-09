@@ -9,9 +9,7 @@ re-check after a state change. Python only; static only; analysed code is never 
 from __future__ import annotations
 
 import ast
-import io
 import sys
-import tokenize
 
 from . import testsmells
 from .static import EvaluationError, Hit, fingerprint  # noqa: F401  (re-exported for the CLI/tests)
@@ -52,22 +50,6 @@ RUNS_CODE = ("Raises", "Warns", "Logs", "raises", "warns", "deprecated_call")
 _NESTED_SCOPES = (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.ClassDef)
 
 
-_SKIP_TOKENS = {tokenize.COMMENT, tokenize.NL, tokenize.NEWLINE, tokenize.INDENT, tokenize.DEDENT,
-                tokenize.ENDMARKER}
-
-
-def _text(ctx, node):
-    """The node's source tokens, so whitespace and comments are ignored but spelling is not
-    (PyNose compares source text; `f'..'` vs `fr'..'` or `p[:4]` vs `p[:4:]` stay different)."""
-    source = ctx.__dict__.setdefault("_tst_source", "\n".join(ctx.lines))
-    segment = ast.get_source_segment(source, node) or ""
-    try:
-        tokens = tokenize.generate_tokens(io.StringIO(segment).readline)
-        return " ".join(tok.string for tok in tokens if tok.type not in _SKIP_TOKENS)
-    except (tokenize.TokenError, SyntaxError):
-        return " ".join(segment.split())
-
-
 def _key(ctx, assertion):
     """What an assertion checks: callee, operands and non-message keywords, compared both
     structurally and as source tokens.
@@ -76,10 +58,10 @@ def _key(ctx, assertion):
     keywords = ()
     if isinstance(node, ast.Call):
         keywords = tuple(
-            (kw.arg, ast.dump(kw.value), _text(ctx, kw.value))
+            (kw.arg, ast.dump(kw.value), testsmells.source_tokens(ctx, kw.value))
             for kw in node.keywords if kw.arg not in testsmells.MESSAGE_KEYWORDS
         )
-    operands = tuple((ast.dump(op), _text(ctx, op)) for op in assertion.operands)
+    operands = tuple((ast.dump(op), testsmells.source_tokens(ctx, op)) for op in assertion.operands)
     return assertion.name, operands, keywords
 
 
