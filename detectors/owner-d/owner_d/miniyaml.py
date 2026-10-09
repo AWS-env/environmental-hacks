@@ -396,6 +396,13 @@ class _Flow:
         if pos >= len(self.text):
             raise YamlError(f"unexpected end of flow collection on line {self.line}")
         char = self.text[pos]
+        if char == "!":  # tag such as !Sub / !Ref: ignore it and parse the tagged value
+            tag_end = pos
+            while tag_end < len(self.text) and self.text[tag_end] not in " \t\n\r,]}":
+                tag_end += 1
+            if tag_end < len(self.text) and self.text[tag_end] in " \t\n\r":
+                return self.parse(tag_end)
+            return self._scalar(pos)
         if char == "[":
             return self._seq(pos)
         if char == "{":
@@ -419,6 +426,8 @@ class _Flow:
             node.items.append(item)
             if pos < len(self.text) and self.text[pos] == ",":
                 pos = self._skip(pos + 1)
+            elif pos < len(self.text) and self.text[pos] != "]":
+                raise YamlError(f"unexpected {self.text[pos]!r} in flow sequence on line {self._line(pos)}")
 
     def _map(self, pos):
         node = Mapping({}, self._line(pos))
@@ -442,6 +451,8 @@ class _Flow:
                 node.key_lines[key.value] = key.line
             if pos < len(self.text) and self.text[pos] == ",":
                 pos = self._skip(pos + 1)
+            elif pos < len(self.text) and self.text[pos] != "}":
+                raise YamlError(f"unexpected {self.text[pos]!r} in flow mapping on line {self._line(pos)}")
 
     def _scalar(self, pos, key=False):
         line = self._line(pos)
