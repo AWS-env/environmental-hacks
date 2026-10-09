@@ -1,0 +1,144 @@
+{
+  "total_num_allocations": 102113,
+  "total_bytes_allocated": 1133183246,
+  "allocation_size_histogram": [
+    {
+      "min_bytes": 0,
+      "max_bytes": 3,
+      "count": 5
+    },
+    {
+      "min_bytes": 4,
+      "max_bytes": 19,
+      "count": 0
+    },
+    {
+      "min_bytes": 20,
+      "max_bytes": 89,
+      "count": 6
+    },
+    {
+      "min_bytes": 90,
+      "max_bytes": 403,
+      "count": 0
+    },
+    {
+      "min_bytes": 404,
+      "max_bytes": 1813,
+      "count": 28534
+    },
+    {
+      "min_bytes": 1814,
+      "max_bytes": 8137,
+      "count": 48310
+    },
+    {
+      "min_bytes": 8138,
+      "max_bytes": 36497,
+      "count": 24468
+    },
+    {
+      "min_bytes": 36498,
+      "max_bytes": 163692,
+      "count": 260
+    },
+    {
+      "min_bytes": 163693,
+      "max_bytes": 734151,
+      "count": 260
+    },
+    {
+      "min_bytes": 734152,
+      "max_bytes": 3292607,
+      "count": 270
+    }
+  ],
+  "allocator_type_distribution": {
+    "REALLOC": 97660,
+    "MALLOC": 4407,
+    "CALLOC": 36,
+    "MMAP": 10
+  },
+  "top_allocations_by_size": [
+    {
+      "location": "<module>:mem.py:5",
+      "size": 592115200
+    },
+    {
+      "location": "_deepcopy_list:/usr/local/lib/python3.12/copy.py:196",
+      "size": 526611840
+    },
+    {
+      "location": "<module>:mem.py:2",
+      "size": 13693152
+    },
+    {
+      "location": "_deepcopy_list:/usr/local/lib/python3.12/copy.py:193",
+      "size": 354720
+    },
+    {
+      "location": "_keep_alive:/usr/local/lib/python3.12/copy.py:242",
+      "size": 184960
+    }
+  ],
+  "top_allocations_by_count": [
+    {
+      "location": "_deepcopy_list:/usr/local/lib/python3.12/copy.py:196",
+      "count": 100140
+    },
+    {
+      "location": "<module>:mem.py:5",
+      "count": 1400
+    },
+    {
+      "location": "<module>:mem.py:2",
+      "count": 217
+    },
+    {
+      "location": "_keep_alive:/usr/local/lib/python3.12/copy.py:242",
+      "count": 160
+    },
+    {
+      "location": "_deepcopy_list:/usr/local/lib/python3.12/copy.py:193",
+      "count": 100
+    }
+  ],
+  "top_modules_by_allocation_size": [
+    {
+      "module": "mem",
+      "num_allocations": 102017,
+      "total_bytes": 1132959872
+    },
+    {
+      "module": "<root>",
+      "num_allocations": 96,
+      "total_bytes": 223374
+    }
+  ],
+  "top_modules_by_allocation_count": [
+    {
+      "module": "mem",
+      "num_allocations": 102017,
+      "total_bytes": 1132959872
+    },
+    {
+      "module": "<root>",
+      "num_allocations": 96,
+      "total_bytes": 223374
+    }
+  ],
+  "metadata": {
+    "start_time": "2026-10-09 14:39:23.934000+00:00",
+    "end_time": "2026-10-09 14:39:37.203000+00:00",
+    "total_allocations": 204208,
+    "total_frames": 0,
+    "peak_memory": 20220486,
+    "command_line": "/usr/local/lib/python3.12/site-packages/memray/__main__.py run -f -o mem.bin mem.py",
+    "pid": 11,
+    "main_thread_id": 1,
+    "python_allocator": "pymalloc",
+    "has_native_traces": false,
+    "trace_python_allocators": false,
+    "file_format": 0
+  }
+}
