@@ -12,6 +12,7 @@ detector (see `owner_c/connector.py` and `owner_c/normalize/`).
 | PY-04 | String `+=` inside loops | static | #248 |
 | PY-02 | `list.pop(0)` / `insert(0, x)` as a queue | static | #246 |
 | PY-03 | pandas `iterrows()` / row-wise `apply(axis=1)` | static | #247 |
+| PY-08 | `open()` / connections without a context manager | static | #252 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open.
@@ -109,6 +110,12 @@ Flags `.iterrows()` and, in files that import pandas, `.apply(..., axis=1 | 'col
 Identity: `qualname:recv.iterrows` / `qualname:recv.apply(axis=1)`. Confidence: medium.
 Limitation: frame size unknown.
 
+## PY-08 - unmanaged resources
+
+Flags `open()`, `io.open()`, `sqlite3/psycopg2/pymysql/mysql.connector.connect()` not used as a `with`
+item. Treated as managed: closed in the same scope, used in `with`, returned (the handle itself),
+stored on an object, passed to a constructor or `append/add/enter_context`-style call, `__enter__`.
+`return f.read()` does not transfer ownership. Identity: `qualname:callee`. Confidence: high.
 
 
 
