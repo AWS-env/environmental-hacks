@@ -12,7 +12,8 @@ rm -rf "$out"
 mkdir -p "$out/py"
 python3 -m pip install --quiet --target "$out/py" --platform manylinux2014_aarch64 --platform manylinux_2_17_aarch64 \
   --python-version 3.12 --implementation cp --only-binary=:all: --no-warn-conflicts \
-  -r "$root/shared/contracts/requirements.txt" -r "$root/detectors/owner-c/requirements.txt"
+  -r "$root/shared/contracts/requirements.txt" -r "$root/detectors/owner-c/requirements.txt" \
+  "typing_extensions>=4.4"  # referencing needs it on Python < 3.13; pip skips that marker when the build interpreter is newer
 python3 - "$root" "$out" <<'PY'
 import hashlib
 import pathlib
