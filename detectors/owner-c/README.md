@@ -17,6 +17,7 @@ detector (see `owner_c/connector.py` and `owner_c/normalize/`).
 | PY-10 | Unused heavy imports (numpy, pandas, torch, ...) | static | #254 |
 | PY-01 | `x in <list>` inside a loop | static candidate + py-spy artifact | #245 |
 | PY-05 | Temporary list for a single pass (`sum([...])`) | static candidate + memray artifact | #249 |
+| PY-11 | Needless `deepcopy` / `.copy()` | static candidate + memray artifact | #255 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open.
@@ -150,6 +151,12 @@ Candidate: `sum|min|max|any|all([...])`, `sum(list(map(...)))`, `for x in list(m
 memray (`memray stats --json`) attributes at least `min_alloc_bytes` to that line. Identity:
 `qualname:sum(listcomp)`. Confidence: medium. Limitation: memray lists only the top allocation sites.
 
+## PY-11 - needless copies (memray)
+
+Candidate: `copy.deepcopy(...)` anywhere, `x.copy()` inside loops. Reported only when memray attributes at
+least `min_alloc_bytes` to the line, or - for deepcopy, which memray attributes to `copy.py` internals - to
+`copy.deepcopy`. Identity: `qualname:callee`. Confidence: medium. Limitation: whether the copy is needed
+is a judgement the artifact cannot prove.
 
 ## AWS deployment (Free Plan, project Region)
 
