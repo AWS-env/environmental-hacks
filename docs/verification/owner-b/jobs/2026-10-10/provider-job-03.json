@@ -1,0 +1,63 @@
+{
+  "input": {
+    "check_id": "JOB-03",
+    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "context": {
+      "max_busy_fraction": 0.05,
+      "minimum_window_seconds": 3600,
+      "mode": "runtime",
+      "rule_version": "jobs-1"
+    },
+    "detector_version": "1.0.0",
+    "kind": "input",
+    "repository_id": "synthetic:job-fixtures",
+    "scan_id": "aws-provider-JOB-03",
+    "schema_version": "1.0",
+    "scope": [
+      "unit"
+    ],
+    "sources": [
+      {
+        "data": {
+          "acquisition": {
+            "reason": "Missing metric sample; not idle",
+            "status": "unavailable"
+          },
+          "format": "worker-capacity-v1"
+        },
+        "kind": "telemetry",
+        "locator": "aws:job-evidence",
+        "scope_id": "unit",
+        "source_id": "provider-cea68066daa384ae"
+      }
+    ]
+  },
+  "result": {
+    "check_id": "JOB-03",
+    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "context": {
+      "max_busy_fraction": 0.05,
+      "minimum_window_seconds": 3600,
+      "mode": "runtime",
+      "rule_version": "jobs-1"
+    },
+    "coverage": {
+      "evaluated_scope": [],
+      "limitations": [
+        "unit: Acquisition incomplete or unavailable: Missing metric sample; not idle",
+        "Read-only bounded evidence analysis; connector policy assertions require review. No inferred CPU, energy or carbon savings."
+      ]
+    },
+    "detector_version": "1.0.0",
+    "findings": [],
+    "kind": "result",
+    "measurements": [],
+    "repository_id": "synthetic:job-fixtures",
+    "scan_id": "aws-provider-JOB-03",
+    "schema_version": "1.0",
+    "scope": [
+      "unit"
+    ],
+    "status": "unavailable"
+  }
+}
