@@ -32,7 +32,7 @@ class VerificationCases(unittest.TestCase):
                     include_tests=case.get("include_tests", False))
                 expect = case["expect"]
                 self.assertEqual(result["status"], expect["status"], case["title"])
-                got = sorted((f["identity"], f["evidence"][0]["line_start"]) for f in result["findings"])
+                got = sorted((f["identity"], f["evidence"][0].get("line_start", 0)) for f in result["findings"])
                 want = sorted((f["identity"], f["line"]) for f in expect["findings"])
                 self.assertEqual(got, want, case["title"])
                 for finding, wanted in zip(sorted(result["findings"], key=lambda f: f["identity"]),
