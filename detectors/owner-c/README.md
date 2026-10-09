@@ -14,6 +14,7 @@ detector (see `owner_c/connector.py` and `owner_c/normalize/`).
 | PY-03 | pandas `iterrows()` / row-wise `apply(axis=1)` | static | #247 |
 | PY-08 | `open()` / connections without a context manager | static | #252 |
 | PY-07 | Blocking calls inside `async def` | static | #251 |
+| PY-10 | Unused heavy imports (numpy, pandas, torch, ...) | static | #254 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open.
@@ -125,6 +126,13 @@ Flags `time.sleep`, `requests.*`, `httpx.<verb>`, `urllib.request.urlopen`, `sub
 `async def`. Not flagged: nested sync functions, `asyncio.to_thread(time.sleep, 1)`.
 Identity: `qualname:callee`. Limitation: blocking calls made through helpers are not detected.
 
+## PY-10 - unused heavy imports
+
+Flags imports from numpy, pandas, torch, tensorflow, scipy, sklearn, matplotlib, seaborn, cv2,
+transformers, jax, keras, plotly whose bound name is never used. Not flagged: `__init__.py`, the library's
+own package, `import x as x` re-exports, names in `__all__`, string annotations or type strings
+(`cast("pd.DataFrame", x)`), `TYPE_CHECKING` blocks, `try/except ImportError`, `# noqa` (bare/F401).
+Identity: `qualname:import:name`. Confidence: high.
 
 
 
