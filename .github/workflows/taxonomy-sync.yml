@@ -1,0 +1,54 @@
+name: Taxonomy sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: "setup = labels + CODEOWNERS (labels only in CI); sync = epics + checks"
+        type: choice
+        options:
+          - sync
+          - setup
+        default: sync
+      limit:
+        description: "Only the first N checks (0 = all)"
+        type: string
+        default: "0"
+      dry_run:
+        description: "Dry run (no writes)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: taxonomy-sync
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+
+      - name: Run taxonomy sync
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ARGS="${{ inputs.mode }}"
+          if [ "${{ inputs.limit }}" != "0" ]; then ARGS="$ARGS --limit ${{ inputs.limit }}"; fi
+          if [ "${{ inputs.dry_run }}" != "true" ]; then ARGS="$ARGS --apply"; fi
+          node scripts/taxonomy-sync.mts $ARGS
+
+      - name: Upload mapping.json (commit it via a PR)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: taxonomy-mapping
+          path: docs/taxonomy/mapping.json
