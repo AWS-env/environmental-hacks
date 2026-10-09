@@ -7,6 +7,7 @@ export * from "./checks/code-c1-1/index.js";
 export * from "./checks/code-c3-1/index.js";
 export * from "./checks/code-c3-2/index.js";
 export * from "./checks/code-c3-3/index.js";
+export * from "./checks/code-c3-7/index.js";
 export * from "./checks/code-c3-5/index.js";
 export * from "./contract.js";
 export * from "./registry.js";

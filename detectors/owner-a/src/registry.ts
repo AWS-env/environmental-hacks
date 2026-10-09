@@ -9,6 +9,7 @@ import { checkCodeC11 } from "./checks/code-c1-1/index.js";
 import { checkCodeC31 } from "./checks/code-c3-1/index.js";
 import { checkCodeC32 } from "./checks/code-c3-2/index.js";
 import { checkCodeC33 } from "./checks/code-c3-3/index.js";
+import { checkCodeC37 } from "./checks/code-c3-7/index.js";
 import { checkCodeC35 } from "./checks/code-c3-5/index.js";
 
 export interface RegisteredCheck {
@@ -56,6 +57,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC33(parsed),
       limitations: [
         "Setup cost and freshness are not verified statically: hoist only objects that are safe to share across iterations.",
+      ],
+    },
+  ],
+  [
+    "CODE-C3.7",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC37(parsed),
+      limitations: [
+        "Container type is inferred only from bindings visible in the file; a deque passed in from elsewhere looks like a list.",
       ],
     },
   ],

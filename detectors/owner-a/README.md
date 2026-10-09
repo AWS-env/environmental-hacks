@@ -25,6 +25,10 @@ This package contains lightweight, read-only static code detectors for **Owner A
 - **`CODE-C3.5`**: Missing loop early exit (#64)
   - `missing-early-exit`: Loops that set a sticky flag (S1), store a match (S2) or store-then-return (S3) without `break`/`return`, so they keep scanning after the result is decided.
 
+- **`CODE-C3.7`**: Inefficient array mutation (#66)
+  - `mutate-during-iteration`: A `for` loop that removes from (S1), grows (S3, Low) or clears / slice-stores (S4) the collection it iterates.
+  - `front-reindex-in-loop`: `pop(0)` / `insert(0, …)` / `del x[0]` on a list inside any loop (S2, O(n²)); `collections.deque` bindings are skipped.
+
 ## Shared contract v1
 
 `evaluate(input)` (`src/contract.ts`) is the entry point for the shared detector contract
