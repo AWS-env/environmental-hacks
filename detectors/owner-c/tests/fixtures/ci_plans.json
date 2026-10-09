@@ -10,6 +10,17 @@
     "challenge": "A commit re-run 3 times because the runner pool was down is reported as repeated rechecks.",
     "history": true
   },
+  "CI-02": {
+    "issue": 18,
+    "formats": "Same normalized GitHub Actions history artifact as CI-01.",
+    "evidence": "Scope `file:<workflow path>`. Cited field: `repeat_failed_reruns` (runs with a re-run after a failed attempt in which a job that had failed was re-executed and failed again; a failure that was only carried over into the new attempt does not count).",
+    "rule": "Report when `repeat_failed_reruns >= min_repeat_failures` and `runs_total >= min_runs`. A job was re-executed in an attempt when its `started_at` is not before its `created_at` (GitHub lists every job in every attempt and keeps the old timestamps of jobs that were not re-run; measured in a lab). Confidence low: whether a person diagnosed the failure is not observable. Exceptions: too few runs.",
+    "identity": "`workflow:blind-reruns`.",
+    "context": "`min_repeat_failures` (default 2), `min_runs` (default 5).",
+    "unsupported": "Failure text/logs are not collected, so \"same failure\" means the same failing job names. Test-level failures are not visible.",
+    "challenge": "A commit that fails twice because of a still-broken external service is counted as blind rechecking.",
+    "history": true
+  },
   "CI-06": {
     "issue": 21,
     "formats": "GitHub Actions workflow files `.github/workflows/*.yml|yaml` (parsed with PyYAML, never executed).",
