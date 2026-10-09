@@ -22,6 +22,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
   - `loop-invariant-recomputation`: Invariant calls (S1), attribute/subscript chains (S2), and binary arithmetic (S3) recomputed inside `for` and `while` loops.
 - **`CODE-C3.3`**: Inefficient per-iteration setup (#62)
   - `per-iteration-setup`: Pattern/template compiles, connections/sessions/clients/pools, read-mode file opens (Tier A, `src/core/setup-cost.json`) and CapWords construction (Tier B) with loop-invariant arguments, resolved through the file's imports.
+- **`CODE-C1.6`**: Unnecessary initialization (#39)
+  - `overwritten-init` / `init-before-early-exit`: A function-local allocation, call or Tier A setup (`src/core/setup-cost.json`) that every `if`/`elif`/`else` arm overwrites before reading (S1), or that runs before a guard which returns/raises/continues/breaks without using it (S2).
 - **`CODE-C3.5`**: Missing loop early exit (#64)
   - `missing-early-exit`: Loops that set a sticky flag (S1), store a match (S2) or store-then-return (S3) without `break`/`return`, so they keep scanning after the result is decided.
 - **`CODE-C3.6`**: Unfiltered bulk iteration (#65)

@@ -9,6 +9,7 @@ import { checkCodeC11 } from "./checks/code-c1-1/index.js";
 import { checkCodeC31 } from "./checks/code-c3-1/index.js";
 import { checkCodeC32 } from "./checks/code-c3-2/index.js";
 import { checkCodeC33 } from "./checks/code-c3-3/index.js";
+import { checkCodeC16 } from "./checks/code-c1-6/index.js";
 import { checkCodeC37 } from "./checks/code-c3-7/index.js";
 import { checkCodeC35 } from "./checks/code-c3-5/index.js";
 import { checkCodeC36 } from "./checks/code-c3-6/index.js";
@@ -59,6 +60,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC33(parsed),
       limitations: [
         "Setup cost and freshness are not verified statically: hoist only objects that are safe to share across iterations.",
+      ],
+    },
+  ],
+  [
+    "CODE-C1.6",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC16(parsed),
+      limitations: [
+        "Function-local `name = <allocation or call>` only; constants, module/class bodies, `try`/`with` blocks and partial overwrites (no `else`) are not analysed.",
       ],
     },
   ],
