@@ -21,7 +21,8 @@ SKIP_DIRS = {
 BINARY_SUFFIXES = (".png", ".jpg", ".jpeg", ".gif", ".ico", ".pdf", ".zip", ".gz", ".tar", ".woff", ".woff2", ".ttf",
                    ".eot", ".so", ".dll", ".exe", ".pyc", ".whl", ".jar", ".mp4", ".mp3", ".lock", ".map")
 DEFAULT_SETTINGS = {"min_time_share": 0.05, "min_alloc_bytes": 10 * 1024 * 1024, "warn_days": 180,
-                    "min_serial_calls": 3, "min_serial_seconds": 0.05}
+                    "min_serial_calls": 3, "min_serial_seconds": 0.05, "min_blocking_ms": 50,
+                    "min_unused_bytes": 10 * 1024, "max_dom_elements": 1400, "min_reflow_ms": 30}
 
 
 def select_files(files, include_tests=False):
@@ -64,7 +65,10 @@ def build_inputs(*, repository_id, commit_sha, scan_id, files, artifacts=None, i
             kind = getattr(module, "SOURCE_KIND", "artifact")
             paths = {path for path, _ in mine}
             for path, data in sorted(artifacts.get(module.PROFILER, {}).items()):
-                if path in paths:
+                only = getattr(module, "ARTIFACT_ONLY", False)
+                if only and not any(f in data for f in module.FIELDS):
+                    continue  # this entry carries no evidence for this check
+                if path in paths or (path.startswith("page:") and only):
                     sources.append(artifact_source(module.PROFILER, path, data, kind))
         if not sources:
             continue
