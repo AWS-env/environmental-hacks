@@ -25,7 +25,7 @@ const REFERENCES = [
   {
     id: "SRC-01",
     title:
-      "Watts This Smell: An Empirical Study on Energy Smells in Python Software",
+      "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
     url: "https://arxiv.org/abs/2604.04809",
   },
   {
@@ -107,6 +107,15 @@ const PROFILES: Record<SetupSignal | "construction", SignalProfile> = {
     why: (f) =>
       `'${f}(...)' recompiles the same pattern/template on every iteration; compiled objects are immutable, so one compile before the loop serves every iteration.`,
     lifecycle: "Compiled patterns/templates are immutable; no cleanup needed.",
+  },
+  "cached-compile": {
+    label: "regex compile (cached by re)",
+    severity: "low",
+    confidence: "medium",
+    costTier: "light",
+    why: (f) =>
+      `'${f}(...)' is called with loop-invariant arguments on every iteration; the re module caches recently compiled patterns, so each repeat costs a cache lookup rather than a recompile. Hoisting still removes that lookup and states the intent, but the saving is small.`,
+    lifecycle: "Compiled patterns are immutable; no cleanup needed.",
   },
   connection: {
     label: "connection/session/client/pool",

@@ -51,6 +51,6 @@ Constructs that evaluate nothing are style, not compute waste, and are left to l
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809).
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809).
 - **Finding:** Branches that do not alter execution still evaluate their conditions; each is negligible alone, but inside hot paths the wasted evaluations scale with the trip count.
 - **Sanity scan:** run over the CPython 3.13 standard library (574 non-test modules) it yields one finding, a true positive (`platform.py`: `if release < '6': system = 'Solaris' else: system = 'Solaris'`, marked `XXX`).

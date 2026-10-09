@@ -20,7 +20,7 @@ const REFERENCES = [
   {
     id: "SRC-01",
     title:
-      "Watts This Smell: An Empirical Study on Energy Smells in Python Software",
+      "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
     url: "https://arxiv.org/abs/2604.04809",
   },
   {
@@ -385,7 +385,12 @@ function armOutcome(body: Parser.SyntaxNode, name: string): { overwrite: true } 
 
 function costPhrase(init: Init): string {
   if (init.cost === "setup") {
-    const what = { compile: "compiles a pattern", connection: "opens a connection", "file-open": "opens a file" };
+    const what: Record<SetupSignal, string> = {
+      compile: "compiles a pattern",
+      "cached-compile": "compiles a pattern (cached by re)",
+      connection: "opens a connection",
+      "file-open": "opens a file",
+    };
     return `${what[init.signal!]} (\`${init.factory}\`)`;
   }
   if (init.cost === "call") return "runs a call";

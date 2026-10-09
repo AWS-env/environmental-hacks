@@ -76,5 +76,5 @@ Line numbers stay out of the hash.
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809) — C3.S7 inefficient array mutation.
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809) — C3.S7 inefficient array mutation.
 - **Taxonomy caveat:** "Rare but costly; highest mean savings per instance in S01." Findings never quantify savings.

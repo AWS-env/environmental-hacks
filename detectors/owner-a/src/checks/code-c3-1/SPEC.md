@@ -108,7 +108,7 @@ belong to the scan Lambda's file walker.
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809) — Python evidence across profiled pairs.
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809) — Python evidence across profiled pairs.
 - **Taxonomy caveat:** "Engine-dependent; measure before changing." A `range(len())` →
   `enumerate` rewrite is faster on CPython but the gain varies by engine and loop body.
   Static findings never claim measured savings — that is what the R2 half exists to confirm.

@@ -91,5 +91,5 @@ Line numbers stay out of the hash.
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809) — C3.S6 "Processing entire collections when only a subset is needed".
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809) — C3.S6 "Processing entire collections when only a subset is needed".
 - **Taxonomy caveat:** "Filter-first helps if the filter is selective" — findings never quantify savings.

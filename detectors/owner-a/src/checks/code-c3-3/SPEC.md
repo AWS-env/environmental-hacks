@@ -23,7 +23,8 @@
 
 | Signal | Callees | Severity | Confidence | `costTier` |
 |---|---|---|---|---|
-| **S1 compile** | `re.compile`, `regex.compile`, builtin `compile`, `jinja2.Template` / `Environment`, XML parsers, any `<module>.compile` | medium | high | heavy |
+| **S1 compile** | `regex.compile`, builtin `compile`, `jinja2.Template` / `Environment`, XML parsers, any other `<module>.compile` | medium | high | heavy |
+| **S1b cached compile** | `re.compile` (the `re` module caches recently compiled patterns, so a repeat call is a cache lookup, not a recompile; [Python `re` docs](https://docs.python.org/3/library/re.html)). `regex.compile` stays S1 because its docs do not say whether it caches (unverified). | low | medium | light |
 | **S2 connection / session / client / pool** | `requests.Session`, `httpx.Client`, `aiohttp.ClientSession`, `boto3.client` / `resource` / `Session`, DB `connect` (sqlite3, psycopg, pymysql, mysql), `MongoClient`, `redis.Redis`, `create_engine`, `smtplib.SMTP`, gRPC channels, thread/process pools | high | medium | heavy |
 | **S3 read-mode file open** | `open`, `io.open`, `codecs.open`, `gzip/bz2/lzma.open`, any `<obj>.open` | medium | medium | heavy |
 | **S4 other construction (Tier B)** | CapWords callee whose result is bound to a name | low | medium | unknown |
@@ -82,5 +83,5 @@ iterations all share the invariant arguments.
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809) — C3.S3 "Heavy initialization inside loops that could be pre-computed".
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809) — C3.S3 "Heavy initialization inside loops that could be pre-computed".
 - **Taxonomy caveat:** "Wasteful when setup cost is high (objects, connections, patterns)" — hence the cost tiers; findings never quantify savings.

@@ -1,7 +1,7 @@
 {
-  "_comment": "Tier A setup callees for CODE-C3.3 (per-iteration setup). Shared with CODE-C3.2, which skips these so the two checks never both fire. Keys are fully qualified callees after import-alias resolution; signal = compile | connection | file-open. Heuristic v1 list (2026-10-09) — extend from first-repo hit rates.",
+  "_comment": "Tier A setup callees for CODE-C3.3 (per-iteration setup). Shared with CODE-C3.2, which skips these so the two checks never both fire. Keys are fully qualified callees after import-alias resolution; signal = compile | cached-compile | connection | file-open. `re.compile` is cached-compile: the re module caches recently compiled patterns (https://docs.python.org/3/library/re.html), so a repeat call costs a cache lookup, not a recompile. `regex.compile` stays compile because its docs do not say whether it caches (unverified). Heuristic v1 list (2026-10-09) — extend from first-repo hit rates.",
   "callees": {
-    "re.compile": "compile",
+    "re.compile": "cached-compile",
     "regex.compile": "compile",
     "compile": "compile",
     "jinja2.Template": "compile",

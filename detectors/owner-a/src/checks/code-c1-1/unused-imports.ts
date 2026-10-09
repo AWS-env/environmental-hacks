@@ -109,7 +109,7 @@ export function detectUnusedImports(scope: PythonModuleScope): Finding[] {
       references: [
         {
           id: "SRC-01",
-          title: "Watts This Smell: An Empirical Study on Energy Smells in Python Software",
+          title: "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
           url: "https://arxiv.org/abs/2604.04809",
         },
       ],

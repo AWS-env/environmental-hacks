@@ -67,6 +67,6 @@ setup runs code.
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809).
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809).
 - **Finding:** Setup that is overwritten or abandoned on common paths still allocates and runs; the cost matters when the setup is heavy (allocation, I/O) and the discarding path is frequent.
 - **Sanity scan:** run over the CPython 3.13 standard library (559 non-test modules) it yields 7 findings, all S2 and all true positives (e.g. `turtle.py`: a speeds `dict` built before `if speed is None: return self._speed`; `http/cookiejar.py`: `cookies = []` before `return []`). An earlier draft yielded 38; the `raise`-guard, mutator, guard-reads-input and call-order rules above removed the 31 that were error-path validation or reordered side effects.
