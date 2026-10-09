@@ -22,6 +22,7 @@ stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`)
 | CODE-RT.6 | Outdated runtime / interpreter version | static + dated support table | #102 |
 | CODE-RT.2 | Thread/executor hop awaited around trivial work (Python asyncio) | static | #99 |
 | JS-06 | Listeners, timers, subscriptions without cleanup | static | #190 |
+| JS-02 | `includes`/`indexOf`/`find`/`some` inside loops | static candidate + V8 CPU profile | #186 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
@@ -60,6 +61,8 @@ PYTHONPATH=detectors/owner-c .venv/bin/python -m owner_c scan path/to/repo
 PYTHONPATH=detectors/owner-c .venv/bin/python -m owner_c scan path/to/repo --json
 PYTHONPATH=detectors/owner-c .venv/bin/python -m owner_c scan path/to/repo \
   --artifact speedscope=profile.speedscope.json --artifact memray_stats=memray.stats.json
+PYTHONPATH=detectors/owner-c .venv/bin/python -m owner_c scan path/to/repo \
+  --artifact cpuprofile=app.cpuprofile --artifact heapprofile=collected.heapprofile
 
 # evaluate one contract input payload
 PYTHONPATH=detectors/owner-c .venv/bin/python -m owner_c evaluate input.json -o result.json
@@ -81,7 +84,7 @@ declares every exclusion in `context`, so a file left out is a documented choice
 | `exclude_tests` | Test files (`tests/`, `test_*.py`, `conftest.py`) are out of scope; test-suite waste belongs to the TST checks | `true` |
 | `max_file_bytes` | Larger files are out of scope | `1000000` |
 | `excluded_dirs` | Vendored/build directories out of scope | `.git`, `node_modules`, `venv`, ... |
-| `min_time_share` (PY-01) | Fraction of sampled time a line/function must be on the stack | `0.05` |
+| `min_time_share` (PY-01, JS-02) | Fraction of sampled time a line/function must be on the stack | `0.05` |
 | `min_alloc_bytes` (PY-05, PY-11) | Bytes allocated at a line/function that count as significant | `10485760` |
 | `reference_date` (CODE-RT.6) | "As of" date for end-of-life comparisons | today (ISO date) |
 
@@ -193,6 +196,15 @@ tree-sitter-javascript 0.25 does not). `// eslint-disable[-next-line] <rule>` co
 rule suppress a hit. JS candidates are matched to profiles through their nearest enclosing **function** (V8 attributes work
 to functions, not lines); module top-level code is never matched.
 
+### Collecting the evidence (client CI)
+
+| Artifact | How the client produces it | Normalized as |
+| --- | --- | --- |
+| `cpuprofile` | `node --no-opt --cpu-prof app.js` writes `*.cpuprofile` | per-function and per-line time share (`function_time_share_line_N`, `time_share_line_N`) |
+
+**Why `--no-opt`:** V8 inlines small hot functions into their callers, so the profile credits the caller and a hot callee
+is not confirmed. `--no-opt` keeps function boundaries in the profile at the cost of speed; it is only for the profiled run.
+
 ### JS-06 - listeners, timers and subscriptions without cleanup
 
 In `useEffect`/`useLayoutEffect`/`useInsertionEffect` bodies and `componentDidMount`: `addEventListener`, `setInterval`,
@@ -200,6 +212,12 @@ In `useEffect`/`useLayoutEffect`/`useInsertionEffect` bodies and `componentDidMo
 Not flagged: `{once}`/`{signal}` options, cleanup returned by reference. Inline handler functions are flagged because they
 can never be removed. Un-stored `setInterval` is flagged at low confidence. Identity: `qualname:effect:kind`.
 Limitation: handler identity and capture flags are not compared; one-shot `setTimeout` is not analysed.
+
+### JS-02 - `includes`/`indexOf`/`find`/`findIndex`/`some` inside loops
+
+Loop-nested (including `forEach`/`map`/... callbacks) lookups on non-string receivers, confirmed when the enclosing function
+holds at least `min_time_share` of busy CPU samples. Identity: `qualname:method`. Confidence: medium, high when a profiled line
+inside the call is itself on the stack.
 
 ## AWS deployment (Free Plan, project Region)
 

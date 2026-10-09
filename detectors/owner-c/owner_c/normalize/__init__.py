@@ -1,7 +1,7 @@
 """Registry of artifact normalizers, keyed by the artifact name clients upload."""
-from owner_c.normalize import memray, speedscope
+from owner_c.normalize import cpuprofile, memray, speedscope
 
-NORMALIZERS = {"speedscope": speedscope, "memray_stats": memray}
+NORMALIZERS = {"speedscope": speedscope, "memray_stats": memray, "cpuprofile": cpuprofile}
 
 
 def normalize_all(raw_artifacts: dict, files) -> dict:
