@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-after",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "OBS-01",
+  "detector_version": "1.0.0",
+  "context": {"environment": "production", "supported_format": "yaml"},
+  "scope": ["file:config/production.yaml"],
+  "sources": [{
+    "source_id": "production-config",
+    "scope_id": "file:config/production.yaml",
+    "kind": "static",
+    "locator": "config/production.yaml",
+    "content": "service: api\nlog_level: INFO\n"
+  }]
+}

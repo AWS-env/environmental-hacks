@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "kind": "result",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-before",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "OBS-01",
+  "detector_version": "1.0.0",
+  "context": {"environment": "production", "supported_format": "yaml"},
+  "scope": ["file:config/production.yaml"],
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": ["file:config/production.yaml"],
+    "limitations": ["Static configuration does not prove actual log volume or environmental impact"]
+  },
+  "findings": [{
+    "fingerprint": "22ff2e3a29b6270027d8f01268ac9e3683e44f707cbd979fb88af6b33e0c9aab",
+    "scope_id": "file:config/production.yaml",
+    "identity": "production-log-level",
+    "summary": "Production configuration enables DEBUG logging",
+    "confidence": "high",
+    "recommendation": "Use INFO unless DEBUG is temporarily required for an incident",
+    "references": ["https://github.com/AWS-env/environmental-hacks/issues/225"],
+    "evidence": [{
+      "source_id": "production-config",
+      "kind": "static",
+      "locator": "config/production.yaml",
+      "line_start": 2,
+      "value": "log_level: DEBUG"
+    }]
+  }],
+  "measurements": []
+}

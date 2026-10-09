@@ -108,6 +108,11 @@ node scripts/taxonomy-sync.mts sync         # epics + 251 checks (dry-run; add -
 Work a check like any issue: branch `owner-x/<issue>-feat-<key>-<slug>`, PR `Closes #<issue>`.
 Owner→handle mapping lives in one place: `docs/taxonomy/owners.json`.
 
+Before implementing a detector, follow [the shared input/result contract](DETECTOR_CONTRACT.md)
+and add a [verification plan](VERIFICATION_PLAN.md) as a comment on its issue.
+The `build` job always validates contracts; detector-specific behavioral tests
+must be added to CI when their implementations are introduced.
+
 ## Hotfixes
 
 Same loop. If `main` is broken, open a `fix` issue, branch `NN-fix-<slug>`, and PR with `priority: p0`. Squash-merge once CI is green.

@@ -93,6 +93,19 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Set up contract validation
+        uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: shared/contracts/requirements.txt
+
+      - name: Install contract dependencies
+        run: python -m pip install -r shared/contracts/requirements.txt
+
+      - name: Verify detector contracts
+        run: python -m shared.contracts.verify
+
       - name: Detect project manifest
         id: detect
         run: |
@@ -127,4 +140,4 @@ jobs:
 
       - name: No manifest yet
         if: steps.detect.outputs.exists == 'false'
-        run: echo "No package.json yet — governance scaffold only. Skipping build."
+        run: echo "No package.json yet - contract verification completed; application checks skipped."
