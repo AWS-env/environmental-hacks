@@ -1,0 +1,63 @@
+# Synthetic fixture for OBS-12: legitimate exceptions and suppressions.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: env-from-configmap
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1.0.0
+          command: ["opentelemetry-instrument", "python", "app.py"]
+          envFrom:
+            - configMapRef:
+                name: otel-settings
+---
+services:
+  api:
+    image: example/api:3.1.0
+    env_file: otel.env
+    command: opentelemetry-instrument gunicorn app:app
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: comments-and-packages
+spec:
+  template:
+    spec:
+      initContainers:
+        - name: install
+          image: python:3.12-slim
+          command: ["sh", "-c", "pip install opentelemetry-instrumentation-flask && opentelemetry-bootstrap -a install"]
+      containers:
+        - name: app
+          image: example/app:1.0.0
+          # Previously: opentelemetry-instrument python app.py
+          command: ["python", "app.py"]  # see @opentelemetry/auto-instrumentations-node/register docs
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: suppressed
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1.0.0
+          # noqa: OBS-12 -- every instrumentation is wanted during the migration
+          command: ["opentelemetry-instrument", "python", "app.py"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: other-rule
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1.0.0
+          command: ["opentelemetry-instrument", "python", "app.py"]  # noqa: E501

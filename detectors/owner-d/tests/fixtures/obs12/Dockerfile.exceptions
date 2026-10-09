@@ -1,0 +1,11 @@
+# Synthetic fixture for OBS-12: launches that do not ship, RUN lines, comments and noqa.
+FROM python:3.12-slim AS tooling
+CMD ["opentelemetry-instrument", "python", "tool.py"]
+
+FROM python:3.12-slim
+RUN pip install --no-cache-dir opentelemetry-distro opentelemetry-instrumentation \
+    && opentelemetry-bootstrap -a install
+# CMD ["opentelemetry-instrument", "python", "app.py"]
+# noqa: OBS-12 -- the selection is set by the ECS task definition
+ENV NODE_OPTIONS="--require @opentelemetry/auto-instrumentations-node/register"
+CMD ["python", "app.py"]

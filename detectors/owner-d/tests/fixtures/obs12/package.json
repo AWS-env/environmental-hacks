@@ -1,0 +1,13 @@
+{
+  "name": "payment",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node --require @opentelemetry/auto-instrumentations-node/register index.js",
+    "start:dev": "nodemon --require @opentelemetry/auto-instrumentations-node/register index.js",
+    "test": "node --require @opentelemetry/auto-instrumentations-node/register --test"
+  },
+  "dependencies": {
+    "@opentelemetry/auto-instrumentations-node": "0.80.0"
+  }
+}
