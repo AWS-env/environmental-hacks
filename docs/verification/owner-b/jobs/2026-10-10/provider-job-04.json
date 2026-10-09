@@ -1,0 +1,80 @@
+{
+  "input": {
+    "check_id": "JOB-04",
+    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "context": {
+      "horizon": {
+        "end": "2026-10-10T19:23:44.000Z",
+        "start": "2026-10-09T19:23:44.000Z"
+      },
+      "max_occurrences": 100,
+      "mode": "candidate",
+      "rule_version": "jobs-1"
+    },
+    "detector_version": "1.0.0",
+    "kind": "input",
+    "repository_id": "synthetic:job-fixtures",
+    "scan_id": "aws-provider-JOB-04",
+    "schema_version": "1.0",
+    "scope": [
+      "unit"
+    ],
+    "sources": [
+      {
+        "data": {
+          "acquisition": {
+            "group": "<AUTHORIZED_GROUP>",
+            "provider": "eventbridge-scheduler",
+            "receipts": [
+              {
+                "operation": "ListSchedules",
+                "request_id": "<PROVIDER_ID>"
+              }
+            ],
+            "status": "complete"
+          },
+          "complete": true,
+          "format": "schedule-inventory-v1",
+          "jobs": []
+        },
+        "kind": "artifact",
+        "locator": "aws:job-evidence",
+        "scope_id": "unit",
+        "source_id": "provider-c5e0158682e1847e"
+      }
+    ]
+  },
+  "result": {
+    "check_id": "JOB-04",
+    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "context": {
+      "horizon": {
+        "end": "2026-10-10T19:23:44.000Z",
+        "start": "2026-10-09T19:23:44.000Z"
+      },
+      "max_occurrences": 100,
+      "mode": "candidate",
+      "rule_version": "jobs-1"
+    },
+    "coverage": {
+      "evaluated_scope": [
+        "unit"
+      ],
+      "limitations": [
+        "Read-only bounded evidence analysis; connector policy assertions require review. No inferred CPU, energy or carbon savings.",
+        "Candidate evaluation only; completed coverage does not confirm runtime waste or remediation approval."
+      ]
+    },
+    "detector_version": "1.0.0",
+    "findings": [],
+    "kind": "result",
+    "measurements": [],
+    "repository_id": "synthetic:job-fixtures",
+    "scan_id": "aws-provider-JOB-04",
+    "schema_version": "1.0",
+    "scope": [
+      "unit"
+    ],
+    "status": "completed"
+  }
+}

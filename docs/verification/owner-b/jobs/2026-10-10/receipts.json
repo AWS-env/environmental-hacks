@@ -1,0 +1,487 @@
+{
+  "prepared_date": "2026-10-10",
+  "timezone": "Asia/Calcutta",
+  "build": {
+    "build_commit": "f1f6255a8c2cfd87f22e4566500acb8f7c31b986",
+    "working_tree_clean": true,
+    "lock_sha256": "8cdacb14cb7d9c72c0aba35807e8c44fe6d1cd1168bbd08e893986014cfdf3d6",
+    "archive_sha256": "33f6245f5946c3c3d6bae51d817d7fd482e641ca7b39977a96442f129d5b79a1",
+    "bundle_sha256": {
+      "heuristic.js": "bc81820cc736bf340a3e166ccd863c6e32853fbee86ef9fa08ad08f7cdbe7e12",
+      "log.js": "2bc61e968a89e49cab2584845adad17ed834f778f5ffb78a1c51b7c687ad0be8",
+      "static.js": "b3db317292e719918b5bad56063fc3a7324d28c569ffc17abee649ee229af7f8",
+      "telemetry.js": "2701f69a5f5e80897bc6330346681bc418832c7ced4443175c438104625066a8"
+    },
+    "region": "ap-south-1",
+    "source_type": "committed auditor source; test fixtures synthetic"
+  },
+  "verified_deployed_code_matches_clean_build": true,
+  "published_versions": {
+    "static": "1",
+    "log": "1",
+    "telemetry": "1",
+    "heuristic": "1"
+  },
+  "aws_smoke": {
+    "synthetic_cases": 15,
+    "provider_cases": 3,
+    "synthetic_pair_validation": "Node and Python contracts; exact private S3 byte hashes; same local result",
+    "provider_pair_validation": "Node contract, private S3 byte hashes and same local result",
+    "input_route": "Authorized checksummed S3 inputs into immutable Lambda versions",
+    "client_workload_verified": false
+  },
+  "privacy": {
+    "raw_aws_metadata": "Private ignored records only",
+    "public_pairs_byte_identical_to_s3": false,
+    "public_pair_hash_method": "SHA256 of canonical compact input/result JSON; public_file_sha256 is exact exported file bytes",
+    "provider_pairs_redacted": true
+  },
+  "hub": {
+    "event_acceptance_verified": true,
+    "rules_discovered": 1,
+    "persisted_report_verified": true,
+    "report_count": 18,
+    "synthetic_reports": 15,
+    "auditor_provider_reports": 3,
+    "verification": "Actual consistent DynamoDB queries; hub readback reconstruction; exact stored result JSON, result/artifact hashes and findings matched",
+    "region": "ap-south-1",
+    "cross_region_calls": false,
+    "records": [
+      {
+        "check_id": "JOB-04",
+        "scan_id": "aws-smoke-JOB-04-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "d804fe107a781014ff6d89d6d3482b331424ca9e381bff80ac5306b96ebe08b9"
+      },
+      {
+        "check_id": "JOB-04",
+        "scan_id": "aws-smoke-JOB-04-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "e3104b2f3e0588aff6211831312856ba16440a86c525c6aea6a8903c93e28b78"
+      },
+      {
+        "check_id": "JOB-04",
+        "scan_id": "aws-smoke-JOB-04-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "6d0ba3357ca5c9acd0b63c8f6519b732e23adbcdaef46905cd739e3f9085e1f6"
+      },
+      {
+        "check_id": "JOB-03",
+        "scan_id": "aws-smoke-JOB-03-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "0a17d6a078d12eb0f5de793a593937b79df07db16e4f57fcc8a4bc2dd1dbc279"
+      },
+      {
+        "check_id": "JOB-03",
+        "scan_id": "aws-smoke-JOB-03-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "ba9d22c711385e5dfcd2bba068bb925069013511043f5edf0eb6d5d211359db5"
+      },
+      {
+        "check_id": "JOB-03",
+        "scan_id": "aws-smoke-JOB-03-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "cc6532014ce86b46814466f231c9d907eab5c5147d34aac6f7bbaa530dd19a62"
+      },
+      {
+        "check_id": "JOB-05",
+        "scan_id": "aws-smoke-JOB-05-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "6a711ce45d98be182f6d45b7131d4e5e782417fe139c329749e31ab00bc27567"
+      },
+      {
+        "check_id": "JOB-05",
+        "scan_id": "aws-smoke-JOB-05-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "9e5bb0e53158d6f6a611a388d5fe32590bc8b27c8da90e154906b4f1c299bc14"
+      },
+      {
+        "check_id": "JOB-05",
+        "scan_id": "aws-smoke-JOB-05-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "f43dcd19ff9d226da7ab2e3ed3816833d889778422c7dd4c98a1697168177853"
+      },
+      {
+        "check_id": "JOB-01",
+        "scan_id": "aws-smoke-JOB-01-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "5f70018bae272468c08fe8612bb2273d2d94c7ae2b40b3be2befde9272c35aa1"
+      },
+      {
+        "check_id": "JOB-01",
+        "scan_id": "aws-smoke-JOB-01-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "8242c80dc223ada0e92767c4d08664aa614308a2b02c2cfe7035ec9c09992748"
+      },
+      {
+        "check_id": "JOB-01",
+        "scan_id": "aws-smoke-JOB-01-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "12656534fb1d36a52f94084ea24547c89795ebd8b67d40d817d3f86ab116b77d"
+      },
+      {
+        "check_id": "JOB-06",
+        "scan_id": "aws-smoke-JOB-06-positive",
+        "status": "completed",
+        "finding_count": 1,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "032cb60b4ca5d4f7d436752fe710c2c78523f23dbe5852103cf25f19f02c68c1"
+      },
+      {
+        "check_id": "JOB-06",
+        "scan_id": "aws-smoke-JOB-06-negative",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "6154d561f9a59b66e278af1a6207c1558592f49d4e762ddcefc343220a863b30"
+      },
+      {
+        "check_id": "JOB-06",
+        "scan_id": "aws-smoke-JOB-06-unavailable",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "2a6f3bef634357d4ff5436b97aa592d7e3e03e5a4b69ea1f6af27a35f63dfe3f"
+      },
+      {
+        "check_id": "JOB-04",
+        "scan_id": "aws-provider-JOB-04",
+        "status": "completed",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "5b10f7e6c362b06709b012c39634608ab79b979930b535f58ecc844ac5c95fdc"
+      },
+      {
+        "check_id": "JOB-03",
+        "scan_id": "aws-provider-JOB-03",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "191128b757d9c3e8c71dd50a4689f49fe86069b3e8bbc59c7e8078b98d2f2104"
+      },
+      {
+        "check_id": "JOB-05",
+        "scan_id": "aws-provider-JOB-05",
+        "status": "unavailable",
+        "finding_count": 0,
+        "evidence": "verified",
+        "source": "owner-b.detectors",
+        "result_sha256": "ee5068a85efc78eec589249176e28f9e60770f83ca8765011de09fc9b0249f6b"
+      }
+    ]
+  },
+  "acceptance": {
+    "code_and_unit_tests": true,
+    "aws_analyzers_deployed": true,
+    "real_client_data": false,
+    "owner_d_report_readback": true,
+    "job_06_human_business_review": false,
+    "issues_closed": false
+  },
+  "tests": {
+    "owner_b": 110,
+    "owner_a": 112,
+    "owner_c": 44,
+    "shared_contract": 20,
+    "lint": "passed",
+    "typecheck": "passed"
+  },
+  "branches": [
+    {
+      "issue": 182,
+      "check": "JOB-04",
+      "branch": "owner-b/182-feat-job-04-detector",
+      "sha": "29feb252739b9a845c045f793ff1800ccdcdb8f0",
+      "base_sha": "aa3f9adf97ee9711eee9585f0e5e1f7687293c45"
+    },
+    {
+      "issue": 181,
+      "check": "JOB-03",
+      "branch": "owner-b/181-feat-job-03-detector",
+      "sha": "f3dc4e5d6ec2a5ba780e3f4fd3798735f3f756ff",
+      "base_sha": "29feb252739b9a845c045f793ff1800ccdcdb8f0"
+    },
+    {
+      "issue": 183,
+      "check": "JOB-05",
+      "branch": "owner-b/183-feat-job-05-detector",
+      "sha": "e66ef4ba9289e5bd423254e90fd98e901dbc984c",
+      "base_sha": "f3dc4e5d6ec2a5ba780e3f4fd3798735f3f756ff"
+    },
+    {
+      "issue": 180,
+      "check": "JOB-01",
+      "branch": "owner-b/180-feat-job-01-detector",
+      "sha": "6db2e5eeab316fcb772797727a37d490ea285e22",
+      "base_sha": "e66ef4ba9289e5bd423254e90fd98e901dbc984c"
+    },
+    {
+      "issue": 184,
+      "check": "JOB-06",
+      "branch": "owner-b/184-feat-job-06-detector",
+      "sha": "f1f6255a8c2cfd87f22e4566500acb8f7c31b986",
+      "base_sha": "6db2e5eeab316fcb772797727a37d490ea285e22"
+    }
+  ],
+  "synthetic": [
+    {
+      "check": "JOB-04",
+      "case": "positive",
+      "status": "completed",
+      "findings": 1,
+      "private_pair_sha256": "84340cf3343270b4b809ef58107e815706acc57c0bf9a443371cdd886234db6b",
+      "public_pair_sha256": "84340cf3343270b4b809ef58107e815706acc57c0bf9a443371cdd886234db6b",
+      "public_file_sha256": "0446daa06b5d3fd75d0228b7932f5dbbf87e4bb1e1272dc566e83cf5a31239e1",
+      "file": "../job-04/positive.json"
+    },
+    {
+      "check": "JOB-04",
+      "case": "negative",
+      "status": "completed",
+      "findings": 0,
+      "private_pair_sha256": "a265b24bb41c31554c90cb61230411954f097ee147a3c85ac9ff6b69a6c1cc40",
+      "public_pair_sha256": "a265b24bb41c31554c90cb61230411954f097ee147a3c85ac9ff6b69a6c1cc40",
+      "public_file_sha256": "8e475ada5bda04f3db3a7be3a95a44b0fe37bd05cb401bcaf78ba1f28b972a7d",
+      "file": "../job-04/negative.json"
+    },
+    {
+      "check": "JOB-04",
+      "case": "unavailable",
+      "status": "unavailable",
+      "findings": 0,
+      "private_pair_sha256": "8aaddc82a08820dda563a7a1218f1574da2d5f5b502dddba6dc60a59d4d5199e",
+      "public_pair_sha256": "8aaddc82a08820dda563a7a1218f1574da2d5f5b502dddba6dc60a59d4d5199e",
+      "public_file_sha256": "a4764a85fe104392ec2ff0042f545aafa6b7c44ca1cb50617b288a48c9d40b4b",
+      "file": "../job-04/unavailable.json"
+    },
+    {
+      "check": "JOB-03",
+      "case": "positive",
+      "status": "completed",
+      "findings": 1,
+      "private_pair_sha256": "04c49a4f68b016da687cacd8d133a0702f363f804851d2fdfd18db5f7243e522",
+      "public_pair_sha256": "04c49a4f68b016da687cacd8d133a0702f363f804851d2fdfd18db5f7243e522",
+      "public_file_sha256": "d6aff7b9dfac0dde5341c6964315617ac0591663a3b8e0d824b3a3b46f8f37af",
+      "file": "../job-03/positive.json"
+    },
+    {
+      "check": "JOB-03",
+      "case": "negative",
+      "status": "completed",
+      "findings": 0,
+      "private_pair_sha256": "df2458ea10b17ab5a86a2f8390912f19b9c17bbb949022e793b2bbea139c4533",
+      "public_pair_sha256": "df2458ea10b17ab5a86a2f8390912f19b9c17bbb949022e793b2bbea139c4533",
+      "public_file_sha256": "a564567e125d027d16b4c968e7e246861e6a151cb0ce105d8097dddb8203636a",
+      "file": "../job-03/negative.json"
+    },
+    {
+      "check": "JOB-03",
+      "case": "unavailable",
+      "status": "unavailable",
+      "findings": 0,
+      "private_pair_sha256": "f74f9685b40d6f9257c88659919ce35228514b1393eded496c7953a9dcc2532a",
+      "public_pair_sha256": "f74f9685b40d6f9257c88659919ce35228514b1393eded496c7953a9dcc2532a",
+      "public_file_sha256": "228cfb20ebfbee145dd316a15d7e75569e5bfbe1924047fea70afc86427c94c3",
+      "file": "../job-03/unavailable.json"
+    },
+    {
+      "check": "JOB-05",
+      "case": "positive",
+      "status": "completed",
+      "findings": 1,
+      "private_pair_sha256": "5720a57f5af5ff711779f3b177d7249943d6798c715074abf08c19ee040d1958",
+      "public_pair_sha256": "5720a57f5af5ff711779f3b177d7249943d6798c715074abf08c19ee040d1958",
+      "public_file_sha256": "aa2b675a07dffd0fda138281d6b81eb301edcf9e889415fc1ea85c3210aa32fd",
+      "file": "../job-05/positive.json"
+    },
+    {
+      "check": "JOB-05",
+      "case": "negative",
+      "status": "completed",
+      "findings": 0,
+      "private_pair_sha256": "078ecdbbd12a439558c613c4c4aad5f243b54fdb915f8520964c5da3331f66d2",
+      "public_pair_sha256": "078ecdbbd12a439558c613c4c4aad5f243b54fdb915f8520964c5da3331f66d2",
+      "public_file_sha256": "ce93cec69ead5d6f3234cf906968f99a0857720cf80ed7386bb5973c77060c0f",
+      "file": "../job-05/negative.json"
+    },
+    {
+      "check": "JOB-05",
+      "case": "unavailable",
+      "status": "unavailable",
+      "findings": 0,
+      "private_pair_sha256": "32bee3baed6ffac18d62f4da34f8234074ff8d9541ebc97be08468348734b340",
+      "public_pair_sha256": "32bee3baed6ffac18d62f4da34f8234074ff8d9541ebc97be08468348734b340",
+      "public_file_sha256": "229a6cfc3739b7ca53b52a06ce10240cd0d3ea48bd3b3f99d55c18f81acbf5e1",
+      "file": "../job-05/unavailable.json"
+    },
+    {
+      "check": "JOB-01",
+      "case": "positive",
+      "status": "completed",
+      "findings": 1,
+      "private_pair_sha256": "9fd9340f8565ecbd907843ade2200a38db07f8308ebd15f8fa44090a5fd59694",
+      "public_pair_sha256": "9fd9340f8565ecbd907843ade2200a38db07f8308ebd15f8fa44090a5fd59694",
+      "public_file_sha256": "48844d989f5c32226d98ed86cb1da241e468a4b129703ecfce4b599c83314126",
+      "file": "../job-01/positive.json"
+    },
+    {
+      "check": "JOB-01",
+      "case": "negative",
+      "status": "completed",
+      "findings": 0,
+      "private_pair_sha256": "4e46c0cd8521b9dd66188f77924032b550357fcf317855298228e78a96c43902",
+      "public_pair_sha256": "4e46c0cd8521b9dd66188f77924032b550357fcf317855298228e78a96c43902",
+      "public_file_sha256": "c8fdbc44dced440498c4ebe12a2364883569ddf8ab6b5c7974347a14086d21a0",
+      "file": "../job-01/negative.json"
+    },
+    {
+      "check": "JOB-01",
+      "case": "unavailable",
+      "status": "unavailable",
+      "findings": 0,
+      "private_pair_sha256": "13b8f51655319b89a12436c283c9cac2fcedcea2d315235c7ecd4d63bce26e89",
+      "public_pair_sha256": "13b8f51655319b89a12436c283c9cac2fcedcea2d315235c7ecd4d63bce26e89",
+      "public_file_sha256": "e85bda32d751681b26805cf7e8572defb8eb2469fe8123fffb50bf8de8a532a9",
+      "file": "../job-01/unavailable.json"
+    },
+    {
+      "check": "JOB-06",
+      "case": "positive",
+      "status": "completed",
+      "findings": 1,
+      "private_pair_sha256": "5c51d19ffaebd6fa958fc8b10dc2c1ab23497270f025490953ebf49a899828d5",
+      "public_pair_sha256": "5c51d19ffaebd6fa958fc8b10dc2c1ab23497270f025490953ebf49a899828d5",
+      "public_file_sha256": "fa812861106fe4ed60b2750b5fa5d15aa4c476b6f739535e2f63e9c01fb82ce8",
+      "file": "../job-06/positive.json"
+    },
+    {
+      "check": "JOB-06",
+      "case": "negative",
+      "status": "completed",
+      "findings": 0,
+      "private_pair_sha256": "f5fcd5a769baf713481b100e418762928788225afa696e624700a71969b6f6b7",
+      "public_pair_sha256": "f5fcd5a769baf713481b100e418762928788225afa696e624700a71969b6f6b7",
+      "public_file_sha256": "a7949b33f55fa07b8d08868a601e139e2b5487f50f0c0aea12455344e9508c9b",
+      "file": "../job-06/negative.json"
+    },
+    {
+      "check": "JOB-06",
+      "case": "unavailable",
+      "status": "unavailable",
+      "findings": 0,
+      "private_pair_sha256": "ae45cec653ffbc403cb5be4575842563928d8625087361ec991248898d2a51f6",
+      "public_pair_sha256": "ae45cec653ffbc403cb5be4575842563928d8625087361ec991248898d2a51f6",
+      "public_file_sha256": "2c74acf9167083b83ed65d40c52cb6ed3b6ecc87483c3cfbf6b4169b096cc460",
+      "file": "../job-06/unavailable.json"
+    }
+  ],
+  "provider": [
+    {
+      "check": "JOB-04",
+      "status": "completed",
+      "findings": 0,
+      "public_pair_sha256": "f1c611f3420b9643ad8760eef932032f991e92893c7b6652fface1fb3ce5c2b4",
+      "private_pair_sha256": "9c5515634c3043b81c32473c30038d4d89aa319023b61d0a4b317d40952610a1",
+      "file": "provider-job-04.json",
+      "acquisition": {
+        "group": "<AUTHORIZED_GROUP>",
+        "provider": "eventbridge-scheduler",
+        "receipts": [
+          {
+            "operation": "ListSchedules",
+            "request_id": "<PROVIDER_ID>"
+          }
+        ],
+        "status": "complete"
+      }
+    },
+    {
+      "check": "JOB-03",
+      "status": "unavailable",
+      "findings": 0,
+      "public_pair_sha256": "017757bec5bde9607e7cb16c4912e687ff199c45e93d31b94e28b177078ec267",
+      "private_pair_sha256": "017757bec5bde9607e7cb16c4912e687ff199c45e93d31b94e28b177078ec267",
+      "file": "provider-job-03.json",
+      "acquisition": {
+        "reason": "Missing metric sample; not idle",
+        "status": "unavailable"
+      }
+    },
+    {
+      "check": "JOB-05",
+      "status": "unavailable",
+      "findings": 0,
+      "public_pair_sha256": "feb77664eeebe923b6e798e564dae591c742aaa77fc8539b70531d0216850843",
+      "private_pair_sha256": "7ba49787e3e2af0b47d738a00d6fb994045db269d47183dde1ae3d2d0aefcabd",
+      "file": "provider-job-05.json",
+      "acquisition": {
+        "end": "2026-10-09T19:20:00.000Z",
+        "group": "<AUTHORIZED_GROUP>",
+        "provider": "cloudwatch-logs-insights",
+        "query": "fields @message | filter format = \"job-run-event-v1\" and event.repository_id = \"synthetic:job-fixtures\" and event.commit_sha = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" and event.job_id = \"integration-smoke\" | sort @timestamp asc | limit 1000",
+        "query_id": "<PROVIDER_ID>",
+        "start": "2026-10-09T18:20:00.000Z",
+        "statistics": {
+          "bytesScanned": 583,
+          "estimatedBytesSkipped": 0,
+          "estimatedRecordsSkipped": 0,
+          "logGroupsScanned": 1,
+          "recordsMatched": 0,
+          "recordsScanned": 4,
+          "resultCount": 0
+        },
+        "status": "complete"
+      }
+    }
+  ],
+  "limitations": [
+    "Scheduler inventory was empty; GetSchedule needs an existing permitted schedule.",
+    "Metric API smoke used an empty auditor integration namespace; no occupancy was invented.",
+    "Logs API smoke queried auditor operational logs; no client job runs were found.",
+    "JOB-01/JOB-06 real request-span correlation remains unverified without a client capture.",
+    "No per-function reserved concurrency: project quota leaves minimum unreserved capacity.",
+    "No customer jobs, capacity, queues or source code were changed."
+  ],
+  "publication_base": "aa3f9adf97ee9711eee9585f0e5e1f7687293c45"
+}

@@ -36,7 +36,7 @@ Deploy immutable S3 code versions through inspected CloudFormation change sets. 
 
 Server-side allowlists configure `WORKER_POOLS`, `JOB_LOG_SOURCES` and `SCHEDULE_GROUPS`; invocation payloads cannot grant themselves access. `event.acquisition` supplies only an approved pool/job/group and bounded window. Existing Scheduler inventories are listed then individually described. CloudWatch metrics are paginated; Logs Insights queries poll to a terminal status, reject truncation and cancel abandoned queries. Missing configuration/acquisition returns unavailable. Occupancy/response semantics are connector assertions requiring review. For JOB-01/JOB-06 a connector submits an existing correlated trace artifact; no runtime trace is invented or produced by executing customer code.
 
-Results are pair-validated before storage/publication. The existing shared EventBridge bus accepts `DetectorResultPointer.v1` events from `owner-b.detectors`. An accepted event does **not** prove ingestion: at discovery the shared bus had no rules or writer target. Owner D must supply compatible pointer ingestion and persisted report readback. JOB-06 also needs the separately recorded business review. Public source scans cannot runtime-confirm JOB-03/JOB-05/JOB-06; JOB-01 emits only labelled candidates without observations. No issue is called fully AWS accepted while these gates remain missing.
+Results are pair-validated before storage/publication. The shared EventBridge bus accepts `DetectorResultPointer.v1` events from `owner-b.detectors`. An accepted event does **not** prove ingestion. On 2026-10-10 the deployed Owner D writer allowlisted this same-Region artifact bucket, and all 18 existing test reports were republished and verified through actual persisted report reads. See the dated verification report. JOB-06 still needs the separately recorded business review. Public source scans cannot runtime-confirm JOB-03/JOB-05/JOB-06; JOB-01 emits only labelled candidates without observations. Runtime acceptance requires actual client evidence.
 
 ## Research references
 
@@ -44,7 +44,14 @@ The implementation uses a bounded parser and original detection rules. Design re
 
 ## Publication and provenance rules
 
+To reproduce the deployment archive, start from the recorded clean build commit,
+run `npm ci`, `npm run build:owner-b`, then `python scripts/package-owner-b.py`.
+The packer sorts the four bundles, fixes ZIP timestamps/permissions and uses
+DEFLATE level 9. It emits the source commit, lockfile, bundle and archive hashes;
+compare them with the receipt before deployment. Test fixture commit identities
+describe synthetic input snapshots, not the deployed auditor source revision.
+
 One issue per branch and incremental commit; dependent changes use a linear stack retaining every earlier registry entry. No duplicated independent foundation copies. Rebase the next dependent branch after each squash merge. Public receipts contain only checks, results, code/context/lock hashes, clean build commit and explicit limitations. Raw project IDs, ARNs, team-member IDs, profiles, buckets, stack names, request IDs and query IDs stay in ignored private records. Sanitized pairs have separately labelled public hashes; they are not claimed byte-identical to private S3 pairs. Commit messages use the repository convention and omit all assistant co-author trailers. No independent reviewer approval is fabricated.
 ## Implemented registry at this revision
 
-JOB-04, JOB-03, JOB-05, JOB-01. Remaining Group 3 checks are introduced by their own dependent issue increments. Runtime/hub acceptance remains separate from implementation.
+JOB-04, JOB-03, JOB-05, JOB-01, JOB-06. Remaining Group 3 checks are introduced by their own dependent issue increments. Runtime/hub acceptance remains separate from implementation.
