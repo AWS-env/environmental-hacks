@@ -20,6 +20,7 @@ stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`)
 | PY-05 | Temporary list for a single pass (`sum([...])`) | static candidate + memray artifact | #249 |
 | PY-11 | Needless `deepcopy` / `.copy()` | static candidate + memray artifact | #255 |
 | CODE-RT.6 | Outdated runtime / interpreter version | static + dated support table | #102 |
+| CODE-RT.2 | Thread/executor hop awaited around trivial work (Python asyncio) | static | #99 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
@@ -173,6 +174,13 @@ from the AWS Lambda runtimes page and endoflife.date; Lambda config uses the Lam
 upstream end of life). Identity: `runtime:source` (`node:setup-node`, `node:engines.node`). Flags only versions past end
 of life or within `warn_days`. Limitation: aliases (`lts/*`, `latest`) and variables are not resolved; a library's CI matrix
 can list old versions on purpose.
+
+## CODE-RT.2 - thread hop around trivial work (Python asyncio)
+
+Flags `await asyncio.to_thread(f, ...)` / `await loop.run_in_executor(ex, f, ...)` when `f` is a call-free lambda, a cheap
+builtin (`len`, `str`, `int`, ...) or a coroutine function defined in the same file. Unknown functions are never flagged.
+Identity: `qualname:to_thread(len)`. Confidence: low (medium for the coroutine case). Limitation: static only; there is no
+precedent rule in Ruff or flake8-async (they flag the opposite).
 
 ## AWS deployment (Free Plan, project Region)
 
