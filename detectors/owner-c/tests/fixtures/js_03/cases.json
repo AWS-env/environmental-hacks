@@ -1,0 +1,277 @@
+[
+  {
+    "id": "JS-03-01",
+    "title": "known positive: JSON clone with big allocations",
+    "files": {
+      "app.js": "function cloneRows(rows) {\n  return rows.map((r) => JSON.parse(JSON.stringify(r)));\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "cloneRows.<anonymous>:JSON.parse(JSON.stringify)",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-02",
+    "title": "plain function (not a callback)",
+    "files": {
+      "app.js": "function copy(x) {\n  return JSON.parse(JSON.stringify(x));\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "copy:JSON.parse(JSON.stringify)",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 15728640
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-03",
+    "title": "boundary: exactly 10 MiB is reported",
+    "files": {
+      "app.js": "function cloneRows(rows) {\n  return rows.map((r) => JSON.parse(JSON.stringify(r)));\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "cloneRows.<anonymous>:JSON.parse(JSON.stringify)",
+          "line": 2
+        }
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 10485760
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-04",
+    "title": "boundary: one byte under 10 MiB is not reported",
+    "files": {
+      "app.js": "function cloneRows(rows) {\n  return rows.map((r) => JSON.parse(JSON.stringify(r)));\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 10485759
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-05",
+    "title": "recommended form: structuredClone",
+    "files": {
+      "app.js": "function copy(x) {\n  return structuredClone(x);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-06",
+    "title": "legitimate exception: pretty-printing round trip is not a plain clone",
+    "files": {
+      "app.js": "function norm(x) {\n  return JSON.parse(JSON.stringify(x, null, 2));\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-07",
+    "title": "similar negative: parsing text",
+    "files": {
+      "app.js": "function load(t) {\n  return JSON.parse(t);\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-08",
+    "title": "boundary: clone at module level has no enclosing function",
+    "files": {
+      "app.js": "const copy = JSON.parse(JSON.stringify(config));\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-09",
+    "title": "legitimate exception: author suppressed it",
+    "files": {
+      "app.js": "function copy(x) {\n  // eslint-disable-next-line unicorn/prefer-structured-clone\n  return JSON.parse(JSON.stringify(x));\n}\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_1": 20971520
+        }
+      }
+    }
+  },
+  {
+    "id": "JS-03-10",
+    "title": "malformed settings: threshold missing -> unavailable",
+    "files": {
+      "app.js": "function cloneRows(rows) {\n  return rows.map((r) => JSON.parse(JSON.stringify(r)));\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "context.min_alloc_bytes must be a number"
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 20971520
+        }
+      }
+    },
+    "context": {
+      "min_alloc_bytes": null
+    }
+  },
+  {
+    "id": "JS-03-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.js": "function (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "JS-03-91",
+    "title": "no profiler artifact -> unavailable, not clean",
+    "files": {
+      "app.js": "function cloneRows(rows) {\n  return rows.map((r) => JSON.parse(JSON.stringify(r)));\n}\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "no node-heap artifact"
+      ]
+    }
+  },
+  {
+    "id": "JS-03-92",
+    "title": "artifact covers only one of two files -> partial",
+    "files": {
+      "app.js": "function cloneRows(rows) {\n  return rows.map((r) => JSON.parse(JSON.stringify(r)));\n}\n",
+      "cold.js": "let x = 1;\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [
+        {
+          "identity": "cloneRows.<anonymous>:JSON.parse(JSON.stringify)",
+          "line": 2
+        }
+      ],
+      "evaluated": [
+        "app.js"
+      ],
+      "limitations_contain": [
+        "cold.js",
+        "no node-heap artifact"
+      ]
+    },
+    "artifacts": {
+      "node-heap": {
+        "app.js": {
+          "profiler": "node-heap",
+          "allocated_bytes_function_line_2": 20971520
+        }
+      }
+    }
+  }
+]

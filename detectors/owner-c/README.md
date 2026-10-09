@@ -25,6 +25,7 @@ stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`)
 | JS-02 | `includes`/`indexOf`/`find`/`some` inside loops | static candidate + V8 CPU profile | #186 |
 | JS-04 | Synchronous `fs` / `child_process` / `crypto` / `zlib` calls | static candidate + V8 CPU profile | #188 |
 | JS-08 | `new Intl.*` / constant `new RegExp` built per call | static candidate + V8 CPU profile | #192 |
+| JS-03 | `JSON.parse(JSON.stringify(x))` deep clone | static candidate + heap profile | #187 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
@@ -45,6 +46,8 @@ detectors/owner-c/
     config/              dated runtime support table for CODE-RT.6
     aws/                 Lambda handlers (static scan, profile parser, X-Ray parser, presign)
     cli.py               `evaluate` and `scan` commands
+  collectors/            collect-heap.js, the heap-profile collector clients run in their CI
+  examples/client-ci/    tested client-side script: profile, presign, upload, manifest last
   requirements.txt       tree-sitter parsers (JS/TS detectors only)
   tests/                 unittest suite; fixtures/<check>/cases.json are the committed verification cases
 ```
@@ -87,7 +90,7 @@ declares every exclusion in `context`, so a file left out is a documented choice
 | `max_file_bytes` | Larger files are out of scope | `1000000` |
 | `excluded_dirs` | Vendored/build directories out of scope | `.git`, `node_modules`, `venv`, ... |
 | `min_time_share` (PY-01, JS-02, JS-04, JS-08) | Fraction of sampled time a line/function must be on the stack | `0.05` |
-| `min_alloc_bytes` (PY-05, PY-11) | Bytes allocated at a line/function that count as significant | `10485760` |
+| `min_alloc_bytes` (PY-05, PY-11, JS-03) | Bytes allocated at a line/function that count as significant | `10485760` |
 | `reference_date` (CODE-RT.6) | "As of" date for end-of-life comparisons | today (ISO date) |
 
 Coverage is never silent. A file that cannot be parsed, or (artifact checks) that no artifact covers,
@@ -203,9 +206,14 @@ to functions, not lines); module top-level code is never matched.
 | Artifact | How the client produces it | Normalized as |
 | --- | --- | --- |
 | `cpuprofile` | `node --no-opt --cpu-prof app.js` writes `*.cpuprofile` | per-function and per-line time share (`function_time_share_line_N`, `time_share_line_N`) |
+| `heapprofile` | `node -r ./collectors/collect-heap.js app.js` writes `collected.heapprofile` | allocated bytes per function (`allocated_bytes_function_line_N`), freed objects included |
 
 **Why `--no-opt`:** V8 inlines small hot functions into their callers, so the profile credits the caller and a hot callee
 is not confirmed. `--no-opt` keeps function boundaries in the profile at the cost of speed; it is only for the profiled run.
+
+**Why a collector for heap:** V8's default heap profile (`node --heap-prof`) reports only objects still alive when it stops,
+which hides temporary arrays, clones and accumulator copies; `collect-heap.js` starts the sampler with freed objects
+included. It only observes the process.
 
 ### JS-06 - listeners, timers and subscriptions without cleanup
 
@@ -231,6 +239,12 @@ inside a function, confirmed by the CPU profile. Module top level (start-up) is 
 `new Intl.NumberFormat/DateTimeFormat/...` and `new RegExp(<constant>)` inside functions, confirmed by the CPU profile.
 Dynamic patterns are not flagged (they cannot be hoisted). Identity: `qualname:new Ctor`.
 
+### JS-03 - `JSON.parse(JSON.stringify(x))` clone
+
+Plain clones (`JSON.stringify` without replacer or spacing), confirmed when the enclosing function allocated at least
+`min_alloc_bytes` in the heap profile. The recommendation notes that `structuredClone` differs (it throws on functions).
+Identity: `qualname:JSON.parse(JSON.stringify)`.
+
 ## AWS deployment (Free Plan, project Region)
 
 `cdk/owner-c/python-detectors.yaml` (CloudFormation) deploys, all tagged `owner=C` with least-privilege roles and a private
@@ -255,6 +269,10 @@ owner D's hub rules decide what is stored. Failed asynchronous invocations go to
 3. PUT `manifest.json` **last** (`{"repository_id", "commit_sha", "artifacts": [...]}`): the S3 event triggers
    `owner-c-profile-parser`, which reads the zip and artifacts and publishes the results. The manifest must match its prefix.
    Nothing the client uploads is ever executed.
+
+`examples/client-ci/upload-profiles.sh <repository_id> <commit_sha> <repo_dir> <entry.js>` performs the client side of this
+flow (CPU profile with `--no-opt`, heap profile with the collector, presign, uploads, manifest last). It was run against the
+deployed stack: the parser completed JS-02, 03, 04, 05, 07 and 08 on the freshly profiled run.
 
 ## Verification
 
