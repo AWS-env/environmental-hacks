@@ -321,3 +321,11 @@ coverage. Artifact tests use real captures in `tests/fixtures/real/`: py-spy and
 in a Linux container; it has no Windows wheel), Node `--cpu-prof` and heap profiles, and X-Ray traces of the deployed
 demo Lambda (account id scrubbed). The cases fail against always-empty and always-flag
 implementations. Real-repo hand-checks for the JS category are recorded in `docs/research/category-2-js.md`.
+
+## Frontend checks (Category 4)
+
+Research and decisions: [`category-4-frontend.md`](../../docs/research/category-4-frontend.md), [`category-4-decisions.md`](../../docs/research/category-4-decisions.md). Static checks parse HTML, CSS, JSX and package.json with tree-sitter / json (never executed). Lighthouse checks are artifact-only: the client's CI runs Lighthouse 13 and uploads the JSON as artifact `lighthouse`; a stylesheet or page the report does not cover is left out of coverage, never reported clean.
+
+| Check | Pattern | Evidence | Strength of evidence | Issue |
+| --- | --- | --- | --- | --- |
+| FE-03 | `<img>` without explicit dimensions (Lighthouse `unsized-images` rule): HTML and JSX | static | good: Lighthouse rule from its source; real-repo hits hand-checked | #151 |

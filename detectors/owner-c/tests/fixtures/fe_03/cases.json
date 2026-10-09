@@ -1,0 +1,98 @@
+[
+  {
+    "id": "FE-03-01",
+    "title": "known positive: HTML img with no width or height",
+    "files": {"index.html": "<!doctype html>\n<html><body>\n<img src=\"hero.png\" alt=\"hero\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "img:hero.png", "line": 3, "confidence": "medium"}]}
+  },
+  {
+    "id": "FE-03-02",
+    "title": "similar negative: width and height both present",
+    "files": {"index.html": "<html><body>\n<img src=\"hero.png\" width=\"1200\" height=\"700\" alt=\"\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-03-03",
+    "title": "only width present, height missing",
+    "files": {"index.html": "<html><body>\n<img src=\"a.png\" width=\"100\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "img:a.png", "line": 2}]}
+  },
+  {
+    "id": "FE-03-04",
+    "title": "legitimate exception: width plus inline aspect-ratio reserves the space (Lighthouse sized rule)",
+    "files": {"index.html": "<html><body>\n<img src=\"a.png\" width=\"100\" style=\"aspect-ratio: 16 / 9\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-03-05",
+    "title": "legitimate exception: inline SVG data URI (Lighthouse skips non-network SVG)",
+    "files": {"index.html": "<html><body>\n<img src=\"data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg'/>\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-03-06",
+    "title": "legitimate exception: absolutely positioned image is out of flow (Lighthouse skips it)",
+    "files": {"index.html": "<html><body>\n<img src=\"a.png\" style=\"position: absolute; top: 0\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-03-07",
+    "title": "boundary: width=auto and height=auto are not valid sizes (parseInt is NaN)",
+    "files": {"index.html": "<html><body>\n<img src=\"a.png\" width=\"auto\" height=\"auto\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "img:a.png", "line": 2}]}
+  },
+  {
+    "id": "FE-03-08",
+    "title": "boundary: width=0 height=0 are valid non-negative integers (Lighthouse counts them as sized)",
+    "files": {"index.html": "<html><body>\n<img src=\"a.png\" width=\"0\" height=\"0\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-03-09",
+    "title": "identity boundary: two identical images get distinct identities",
+    "files": {"index.html": "<html><body>\n<img src=\"a.png\">\n<img src=\"a.png\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "img:a.png", "line": 2}, {"identity": "img:a.png#2", "line": 3}]}
+  },
+  {
+    "id": "FE-03-10",
+    "title": "known positive: JSX img without dimensions",
+    "files": {"App.jsx": "export const A = () => <img src={hero} alt=\"\" />;\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "img:{hero}", "line": 1, "confidence": "medium"}]}
+  },
+  {
+    "id": "FE-03-11",
+    "title": "similar negative: JSX img sized with expressions",
+    "files": {"App.jsx": "export const A = () => <img src={hero} width={w} height={h} alt=\"\" />;\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-03-12",
+    "title": "legitimate exception: JSX spread props may carry the dimensions (declared limitation)",
+    "files": {"App.jsx": "export const A = (props) => <img {...props} />;\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-03-13",
+    "title": "legitimate exception: template placeholders count as present",
+    "files": {"index.html": "<html><body>\n<img src=\"{{ url }}\" width=\"{{ w }}\" height=\"{{ h }}\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": []}
+  },
+  {
+    "id": "FE-03-14",
+    "title": "a class may size the image in an external stylesheet: reported at low confidence",
+    "files": {"index.html": "<html><body>\n<img class=\"w-full\" src=\"a.png\">\n</body></html>\n"},
+    "expect": {"status": "completed", "findings": [{"identity": "img:a.png", "line": 2, "confidence": "low"}]}
+  },
+  {
+    "id": "FE-03-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {"broken.jsx": "export const A = () => <img src=\n"},
+    "expect": {"status": "unavailable", "findings": [], "limitations_contain": ["broken.jsx", "could not be parsed"]}
+  },
+  {
+    "id": "FE-03-91",
+    "title": "unparsable file next to a good one -> partial coverage",
+    "files": {"ok.html": "<html><body>\n<img src=\"a.png\" width=\"1\" height=\"1\">\n</body></html>\n", "broken.jsx": "export const A = () => <img src=\n"},
+    "expect": {"status": "partial", "findings": [], "evaluated": ["ok.html"], "limitations_contain": ["broken.jsx", "could not be parsed"]}
+  }
+]
