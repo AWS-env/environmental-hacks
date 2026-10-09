@@ -1,0 +1,178 @@
+[
+  {
+    "id": "PY-08-01",
+    "title": "known positive: handle never closed",
+    "files": {
+      "app.py": "def read(p):\n    f = open(p)\n    data = f.read()\n    return data\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "read:open",
+          "line": 2,
+          "confidence": "high"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-08-02",
+    "title": "open(...).read() chain",
+    "files": {
+      "app.py": "def read(p):\n    return open(p).read()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "read:open",
+          "line": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-08-03",
+    "title": "database connection left open",
+    "files": {
+      "app.py": "import sqlite3\n\n\ndef q():\n    c = sqlite3.connect('db')\n    c.execute('x')\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "q:sqlite3.connect",
+          "line": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-08-04",
+    "title": "return f.read() does not hand the handle to the caller",
+    "files": {
+      "app.py": "def read(p):\n    f = open(p)\n    return f.read()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "read:open",
+          "line": 2
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-08-05",
+    "title": "recommended form: with block",
+    "files": {
+      "app.py": "def read(p):\n    with open(p) as f:\n        return f.read()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-08-06",
+    "title": "legitimate exception: closed in finally",
+    "files": {
+      "app.py": "def read(p):\n    f = open(p)\n    try:\n        return f.read()\n    finally:\n        f.close()\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-08-07",
+    "title": "legitimate exception: ownership returned to the caller",
+    "files": {
+      "app.py": "def g(p):\n    return open(p)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-08-08",
+    "title": "legitimate exception: stored on an object",
+    "files": {
+      "app.py": "class C:\n    def __init__(self, p):\n        self.f = open(p)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-08-09",
+    "title": "legitimate exception: appended to a container",
+    "files": {
+      "app.py": "def g(hs, p):\n    h = open(p)\n    hs.append(h)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-08-10",
+    "title": "legitimate exception: passed to a constructor",
+    "files": {
+      "app.py": "def g(p):\n    h = open(p)\n    return Reader(h)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-08-11",
+    "title": "legitimate exception: ExitStack owns it",
+    "files": {
+      "app.py": "from contextlib import ExitStack\n\n\ndef g(p):\n    with ExitStack() as s:\n        f = s.enter_context(open(p))\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-08-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "PY-08-91",
+    "title": "unparsable file next to a good one -> partial coverage",
+    "files": {
+      "ok.py": "x = 1\n",
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [],
+      "evaluated": [
+        "ok.py"
+      ],
+      "limitations_contain": [
+        "broken.py",
+        "could not be parsed"
+      ]
+    }
+  }
+]
