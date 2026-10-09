@@ -339,6 +339,33 @@ export function checkRunsAtMostOnce(bodyNode: Parser.SyntaxNode | null): boolean
   return false;
 }
 
+const NESTED_SCOPES = new Set(["function_definition", "class_definition", "lambda"]);
+const LOOP_TYPES = new Set(["for_statement", "while_statement"]);
+
+/**
+ * True if the loop body can leave this loop before the iterable is exhausted:
+ * a `break` owned by this loop (not by a nested loop), or a `return` anywhere in
+ * the body (it also leaves enclosing loops). A `raise` counts only outside a
+ * `try` body, where a local handler could swallow it. Nested defs are skipped.
+ */
+export function loopExitsEarly(loopNode: Parser.SyntaxNode): boolean {
+  const body = loopNode.childForFieldName("body");
+  if (!body) return false;
+  function walk(n: Parser.SyntaxNode, inNestedLoop: boolean, inTry: boolean): boolean {
+    if (NESTED_SCOPES.has(n.type)) return false;
+    if (n.type === "break_statement") return !inNestedLoop;
+    if (n.type === "return_statement") return true;
+    if (n.type === "raise_statement") return !inTry;
+    const nestedLoop = inNestedLoop || LOOP_TYPES.has(n.type);
+    for (const child of n.namedChildren) {
+      const tryBody = n.type === "try_statement" && child === n.childForFieldName("body");
+      if (walk(child, nestedLoop, inTry || tryBody)) return true;
+    }
+    return false;
+  }
+  return body.namedChildren.some((c) => walk(c, false, false));
+}
+
 /**
  * Collect all names assigned or mutated inside a loop node.
  */

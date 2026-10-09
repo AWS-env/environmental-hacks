@@ -10,6 +10,7 @@ import { checkCodeC31 } from "./checks/code-c3-1/index.js";
 import { checkCodeC32 } from "./checks/code-c3-2/index.js";
 import { checkCodeC33 } from "./checks/code-c3-3/index.js";
 import { checkCodeC35 } from "./checks/code-c3-5/index.js";
+import { checkCodeC36 } from "./checks/code-c3-6/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -66,6 +67,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC35(parsed),
       limitations: [
         "Match position is not measured: an early exit saves work only when the match lands early.",
+      ],
+    },
+  ],
+  [
+    "CODE-C3.6",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC36(parsed),
+      limitations: [
+        "Consumed share is not measured: a lazy producer saves work only for the elements its consumer never reads.",
       ],
     },
   ],
