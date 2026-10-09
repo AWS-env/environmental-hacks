@@ -27,6 +27,7 @@ class HeapProfileTests(unittest.TestCase):
         artifacts = normalize_all({"heapprofile": HEAP}, [("app.js", APP)])
         expected = {
             "JS-03": ("cloneRows.<anonymous>:JSON.parse(JSON.stringify)", line_of("JSON.stringify")),
+            "JS-05": ("names:filter.map.map", line_of("rows.filter")),
         }
         for check, (identity, line) in expected.items():
             with self.subTest(check=check):

@@ -26,6 +26,7 @@ stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`)
 | JS-04 | Synchronous `fs` / `child_process` / `crypto` / `zlib` calls | static candidate + V8 CPU profile | #188 |
 | JS-08 | `new Intl.*` / constant `new RegExp` built per call | static candidate + V8 CPU profile | #192 |
 | JS-03 | `JSON.parse(JSON.stringify(x))` deep clone | static candidate + heap profile | #187 |
+| JS-05 | Chained `map`/`filter`/... building intermediate arrays | static candidate + heap profile | #189 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
@@ -90,7 +91,7 @@ declares every exclusion in `context`, so a file left out is a documented choice
 | `max_file_bytes` | Larger files are out of scope | `1000000` |
 | `excluded_dirs` | Vendored/build directories out of scope | `.git`, `node_modules`, `venv`, ... |
 | `min_time_share` (PY-01, JS-02, JS-04, JS-08) | Fraction of sampled time a line/function must be on the stack | `0.05` |
-| `min_alloc_bytes` (PY-05, PY-11, JS-03) | Bytes allocated at a line/function that count as significant | `10485760` |
+| `min_alloc_bytes` (PY-05, PY-11, JS-03, JS-05) | Bytes allocated at a line/function that count as significant | `10485760` |
 | `reference_date` (CODE-RT.6) | "As of" date for end-of-life comparisons | today (ISO date) |
 
 Coverage is never silent. A file that cannot be parsed, or (artifact checks) that no artifact covers,
@@ -244,6 +245,11 @@ Dynamic patterns are not flagged (they cannot be hoisted). Identity: `qualname:n
 Plain clones (`JSON.stringify` without replacer or spacing), confirmed when the enclosing function allocated at least
 `min_alloc_bytes` in the heap profile. The recommendation notes that `structuredClone` differs (it throws on functions).
 Identity: `qualname:JSON.parse(JSON.stringify)`.
+
+### JS-05 - chained iteration building intermediate arrays
+
+`map`/`filter`/`flatMap`/`slice`/`concat`/`flat`/... chains with at least two array-allocating steps, confirmed by the heap
+profile. Identity: `qualname:map.filter` (the chain's method names).
 
 ## AWS deployment (Free Plan, project Region)
 
