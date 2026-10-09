@@ -1,0 +1,43 @@
+# Synthetic fixture for OBS-09: batched, compressed exports (clean).
+receivers:
+  otlp:
+    protocols:
+      grpc:
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 80
+  batch:
+  batch/large:
+    send_batch_size: 10000
+    timeout: 10s
+exporters:
+  otlp/backend:
+    endpoint: tempo.example.com:4317
+  otlphttp:
+    endpoint: https://logs.example.com:4318
+    compression: zstd
+  otlp_grpc:
+    endpoint: metrics.example.com:4317
+    sending_queue:
+      batch: {}
+  otlp/legacy:
+    endpoint: legacy.example.com:4317
+    batcher:
+      enabled: true
+  otlp/gzip:
+    endpoint: gzip.example.com:4317
+    compression: gzip
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [otlp/backend]
+    logs:
+      receivers: [otlp]
+      processors: [batch/large]
+      exporters: [otlphttp, otlp/gzip]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlp_grpc, otlp/legacy]

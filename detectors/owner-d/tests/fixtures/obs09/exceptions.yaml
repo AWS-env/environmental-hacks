@@ -1,0 +1,51 @@
+# Synthetic fixture for OBS-09: legitimate exceptions and suppressions.
+receivers:
+  otlp:
+    protocols:
+      grpc:
+connectors:
+  forward:
+processors:
+  batch:
+exporters:
+  debug:
+    verbosity: detailed
+  otlp/sidecar:
+    endpoint: localhost:4317
+    compression: none
+  otlphttp/local:
+    endpoint: http://127.0.0.1:4318
+  otlp/backend:
+    endpoint: backend.example.com:4317
+  # noqa: OBS-09 -- dedicated fast link to the backend
+  otlp/fast:
+    endpoint: fast.example.com:4317
+    compression: none
+  otlp/other:
+    endpoint: other.example.com:4317
+    compression: none  # noqa: E501
+service:
+  pipelines:
+    traces/debug:
+      receivers: [otlp]
+      exporters: [debug]
+    traces/sidecar:
+      receivers: [otlp]
+      exporters: [otlp/sidecar, otlphttp/local]
+    traces/in:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [forward, otlp/fast, otlp/other]
+    traces/out:
+      receivers: [forward]
+      exporters: [otlp/backend]
+    # noqa: OBS-09
+    logs:
+      receivers: [otlp]
+      exporters: [otlp/backend]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlp/defined-elsewhere]
+    profiles:
+      receivers: [otlp]
+      exporters: [otlp/backend]

@@ -1652,3 +1652,107 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs04/obs04-01-positive-input.json
 ```
 
+
+## OBS-09 — Uncompressed/unbatched telemetry export
+
+Flags OTLP telemetry exports that go out as many small or uncompressed
+requests. The check is static and uses the `textstatic.py` runner. Configs are
+read as text and are never run, rendered or resolved.
+
+Collector configs are parsed by `owner_d/otelconfig.py`, a small reader that
+the later OpenTelemetry config checks (OBS-05/12/13/14) can reuse. It returns
+the receivers, processors, exporters, connectors and extensions by component
+ID, and `service.pipelines` with line numbers. `${env:...}`/`${...}` references
+are left unresolved and treated as unknown.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Supported files:
+
+- **OpenTelemetry Collector** `.yaml`/`.yml`, which also covers AWS Distro for
+  OpenTelemetry. The config can be:
+  - a plain config with `service.pipelines`
+  - an `OpenTelemetryCollector` resource, with `spec.config` as a mapping or a
+    `|` string
+  - a `ConfigMap` whose `data` entries are `|` strings
+- **Python** `.py` files that mention `opentelemetry`
+
+No context settings are required.
+
+### Detection rule
+
+Only the OTLP exporters are checked: `otlp`/`otlp_grpc` and
+`otlphttp`/`otlp_http`, including named instances such as `otlp/backend`.
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `pipeline/<id>:unbatched` | A traces, metrics or logs pipeline exports to an OTLP exporter defined in the file. The pipeline has no `batch` processor, or only ones with `timeout: 0` ("data will be sent immediately"). The exporter has no exporter-side batching (`sending_queue.batch`, or the legacy `batcher` without `enabled: false`). | medium; low if the endpoint is unresolved |
+| `exporter/<id>:compression-none` | An OTLP exporter used by a pipeline sets `compression: none` (or `""`) | medium; low if the endpoint is unresolved |
+| `<qualname>:SimpleSpanProcessor(<Exporter>)` | Python `SimpleSpanProcessor`/`SimpleLogRecordProcessor`, resolved through imports to `opentelemetry.*`, wraps a network exporter: an `opentelemetry.exporter.*` or `azure.monitor.opentelemetry.exporter.*` class, passed directly or through a name assigned only that way | medium |
+
+Identities from embedded configs are prefixed with the resource:
+`OpenTelemetryCollector/<name>:` or `ConfigMap/<name>:<key>:`. A repeated
+identity gets `#n`.
+
+Defaults, from the official docs:
+
+- The OTLP exporters enable `gzip` by default, so a missing `compression` is
+  not a finding.
+- `sending_queue.batch` is off by default. The alpha feature gate
+  `pkg.exporterhelper.queueBatchEnabled` (v0.158.0) turns it on, but OBS-09
+  cannot see feature gates.
+- On the SDK side, the OTLP spec leaves the default compression to each
+  language ("Default: No value"). An unset `OTEL_EXPORTER_OTLP_COMPRESSION` is
+  therefore not a finding: SDKs usually send to a local agent or collector.
+
+Not flagged:
+
+- non-OTLP exporters, such as `debug`, `logging`, `file`, connectors and
+  vendor exporters
+- exporters whose endpoints are all loopback (`localhost`, `127.*`, `::1`,
+  `0.0.0.0`, `unix:`), because that hop costs CPU, not network or ingest
+- pipelines fed by a connector, because batching upstream is not visible
+- `profiles` pipelines, because the batch processor does not support them
+- exporters that are referenced but not defined in the file
+- unresolved pipeline lists or queue settings
+- `ConsoleSpanExporter`, in-memory exporters, and exporters passed in as
+  parameters
+- hits with `# noqa` / `# noqa: OBS-09` on the hit line or directly above the
+  pipeline key, exporter key or call
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- Helm/Go templates and YAML outside the `miniyaml` subset, including broken
+  embedded configs
+- invalid Python
+- YAML with `exporters:`/`pipelines:` but no collector config, for example
+  Helm chart values, which are merged with chart defaults
+- development/test files: path tokens `dev`, `development`, `debug`, `local`,
+  `test(s)`, `testing`, `testdata`, `e2e`, `ci`, `devcontainer`, and Python
+  test modules
+
+Other files are out of scope (`Unsupported`), so the scan worker passes only
+OpenTelemetry inputs to the check.
+
+### Limitations
+
+The check reads one file at a time. It cannot see:
+
+- `--config` merges
+- feature gates
+- the collector version
+- upstream batching behind connectors
+- the actual payload sizes
+
+No measurements are emitted. CloudWatch agent JSON is not covered: the agent
+always batches (`force_flush_interval`), so there is no unbatched switch to
+detect. OpenTelemetry SDK declarative-configuration YAML is not read yet.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs09/obs09-01-positive-input.json
+```

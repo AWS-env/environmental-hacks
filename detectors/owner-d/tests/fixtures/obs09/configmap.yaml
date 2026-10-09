@@ -1,0 +1,26 @@
+# Synthetic fixture for OBS-09: collector config shipped in a ConfigMap.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector
+data:
+  relay: |
+    receivers:
+      otlp:
+        protocols:
+          grpc: {}
+    processors:
+      batch:
+    exporters:
+      otlp_http:
+        endpoint: https://ingest.example.com:4318
+    service:
+      pipelines:
+        traces:
+          receivers: [otlp]
+          exporters: [otlp_http]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlp_http]
+  README: plain text

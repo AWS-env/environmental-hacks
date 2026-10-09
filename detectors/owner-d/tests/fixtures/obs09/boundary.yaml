@@ -1,0 +1,28 @@
+# Synthetic fixture for OBS-09: batch timeout boundary and repeated identities.
+exporters:
+  otlp:
+    endpoint: backend.example.com:4317
+processors:
+  batch/immediate:
+    timeout: 0s
+  batch/short:
+    timeout: 1ms
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch/immediate]
+      exporters: [otlp]
+    metrics:
+      receivers: [otlp]
+      processors: [batch/short]
+      exporters: [otlp]
+---
+exporters:
+  otlp:
+    endpoint: backend.example.com:4317
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlp]
