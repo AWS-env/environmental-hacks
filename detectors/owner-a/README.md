@@ -24,6 +24,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
   - `per-iteration-setup`: Pattern/template compiles, connections/sessions/clients/pools, read-mode file opens (Tier A, `src/core/setup-cost.json`) and CapWords construction (Tier B) with loop-invariant arguments, resolved through the file's imports.
 - **`CODE-C3.5`**: Missing loop early exit (#64)
   - `missing-early-exit`: Loops that set a sticky flag (S1), store a match (S2) or store-then-return (S3) without `break`/`return`, so they keep scanning after the result is decided.
+- **`CODE-C3.6`**: Unfiltered bulk iteration (#65)
+  - `eager-then-prefix` / `eager-then-early-exit` / `eager-then-short-circuit`: An eager producer (list comprehension, `list(map/filter/…)`, `readlines()`) whose only consumer reads a prefix (S1), a loop that exits early (S2), or `any`/`all`/`in` (S3).
 
 ## Shared contract v1
 
