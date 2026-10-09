@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs18-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "OBS-18",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python",
+    "max_field_spellings": 1,
+    "max_fields_per_event": 20
+  },
+  "scope": [
+    "file:positive.py",
+    "file:service.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic OBS-18 fixture: a Lambda handler with drifting field names and object dumps. Never executed.\nimport json\nfrom dataclasses import asdict\n\nfrom aws_lambda_powertools import Logger\n\nlogger = Logger(service=\"orders\")\n\n\ndef lambda_handler(event, context):\n    logger.append_keys(requestId=context.aws_request_id)\n    user = event[\"user\"]\n    logger.info(\"order received\", extra={\"userId\": user[\"id\"], \"order_id\": event[\"order_id\"]})\n    logger.info(\"user loaded\", extra={\"user\": {\"id\": user[\"id\"]}})\n    order = load(event[\"order_id\"])\n    logger.info(\"order loaded\", extra=vars(order))\n    logger.debug(\"order state\", **order.__dict__)\n    print(json.dumps(vars(order)))\n    return {\"order\": asdict(order)}\n\n\ndef load(order_id):\n    return order_id\n"
+    },
+    {
+      "source_id": "src:service.py",
+      "scope_id": "file:service.py",
+      "kind": "static",
+      "locator": "service.py",
+      "content": "# Synthetic OBS-18 fixture: a structlog service module. Never executed.\nimport structlog\n\nlog = structlog.get_logger()\n\n\ndef charge(user_id, request_id, amount):\n    log.info(\"charge started\", user_id=user_id, request_id=request_id)\n    log.info(\"charge done\", user_id=user_id, request_id=request_id, amount=amount)\n    log.info(\"refund issued\", usr_id=user_id)\n\n\ndef audit(r):\n    log.info(\n        \"audit\",\n        extra={\"field_01\": r.a, \"field_02\": r.b, \"field_03\": r.c, \"field_04\": r.d, \"field_05\": r.e,\n               \"field_06\": r.f, \"field_07\": r.g, \"field_08\": r.h, \"field_09\": r.i, \"field_10\": r.j,\n               \"field_11\": r.k, \"field_12\": r.l, \"field_13\": r.m, \"field_14\": r.n, \"field_15\": r.o,\n               \"field_16\": r.p, \"field_17\": r.q, \"field_18\": r.r, \"field_19\": r.s, \"field_20\": r.t},\n        field_21=r.u,\n    )\n"
+    }
+  ]
+}
