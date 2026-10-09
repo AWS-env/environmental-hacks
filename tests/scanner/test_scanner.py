@@ -109,7 +109,12 @@ class ScannerTest(unittest.TestCase):
                          ("unavailable", "detector"))
         self.assertEqual((self.check(report, "INF-01")["status"], self.check(report, "INF-01")["status_source"]),
                          ("unavailable", "scanner"))
-        self.assertEqual(report["summary"]["checks_by_status"]["unavailable"], 4)
+        # Count-free on purpose: new checks keep landing. Runtime-only checks must be unavailable,
+        # each with a stated reason, and the summary must agree with the per-check rows.
+        unavailable = [c for c in report["checks"] if c["status"] == "unavailable"]
+        self.assertLessEqual({"PY-01", "PY-05", "PY-11", "INF-01"}, {c["check_id"] for c in unavailable})
+        self.assertTrue(all(c["reason"] or c["limitations"] for c in unavailable))
+        self.assertEqual(report["summary"]["checks_by_status"]["unavailable"], len(unavailable))
         self.assertEqual(report["impact"]["status"], "not_quantified")
 
         again = self.scan([OwnerC(), OwnerD()])
