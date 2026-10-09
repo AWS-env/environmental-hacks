@@ -9,6 +9,16 @@
     "unsupported": "`go` modules (cache default not verified), reusable-workflow jobs (`uses:` at job level), caches configured outside the workflow (org/runner images).",
     "challenge": "setup-node npm auto-caching via `packageManager` in package.json is invisible here and would be a false positive."
   },
+  "CI-07": {
+    "issue": 22,
+    "formats": "GitHub Actions workflow YAML.",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the build step.",
+    "rule": "A step runs `docker/build-push-action` without `cache-from`/`cache-to`, or a `run` script with `docker build` / `docker buildx build` and no cache flags. Exceptions: `no-cache: true`/`--no-cache` (deliberate clean build), scripts that pass cache flags through a variable (`CACHE_ARGS`), non-build docker commands, and a second build of the same `context` and `file` in one job (it reuses the first build's local cache). Also `docker compose build` / `docker compose up --build` and `docker/bake-action` without a cache in the step. Confidence medium for build-push-action, low for plain `docker build`, compose and bake (the compose or bake file is not read). Release, publish and deploy workflows and tag-triggered workflows are not evaluated (release workflows should not read caches: zizmor `cache-poisoning`).",
+    "identity": "`job:<job id>:docker-build:<step name | action name | command>`.",
+    "context": "None.",
+    "unsupported": "Cache configured in the compose file (`cache_from`), the bake file, the builder or the Dockerfile (`RUN --mount=type=cache`); build time is not measured.",
+    "challenge": "A BuildKit registry cache configured via buildx environment variables is not seen."
+  },
   "CI-11": {
     "issue": 25,
     "formats": "GitHub Actions workflow YAML (`on` as string, list or mapping).",

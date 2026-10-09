@@ -64,6 +64,9 @@ python -m shared.contracts.verify
 - **CI-06** a job installs dependencies (npm/yarn/pnpm, pip from a requirements file or the project, poetry, pipenv,
   maven, gradle, bundler, dotnet, cargo) with no cache in the job. Not flagged: local/composite actions, self-hosted
   runners, single-tool installs (`pip install build`), `npm install -g`.
+- **CI-07** `docker/build-push-action` or `docker build` without layer cache flags; `docker compose build`/`up --build`
+  and `docker/bake-action` without a cache in the step (low: the compose and bake files are not read). Not flagged:
+  `no-cache`, cache flags via a variable, a second build of the same context/file in one job.
 - **CI-11** push+pull_request double runs; pull request workflows with no `concurrency`; `concurrency` without
   `cancel-in-progress`; a cancelling group made only of context expressions without the workflow name (for example
   `${{ github.ref }}`). Not flagged: `workflow_call`, `pull_request_target`, `pull_request` types without

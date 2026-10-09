@@ -1,0 +1,218 @@
+[
+  {
+    "id": "CI-07-01",
+    "title": "known positive: build-push-action with no cache-from",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: docker/build-push-action@v6\n        with:\n          context: .\n          push: false\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:docker-build:docker/build-push-action",
+          "line": 9,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-07-02",
+    "title": "similar negative: build-push-action with gha cache-from and cache-to",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: docker/build-push-action@v6\n        with:\n          context: .\n          cache-from: type=gha\n          cache-to: type=gha,mode=max\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-07-03",
+    "title": "known positive: plain docker build command with no cache flags",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: docker build -t app .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:docker-build:docker build",
+          "line": 9,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-07-04",
+    "title": "similar negative: docker buildx build with --cache-from and --cache-to",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: docker buildx build --cache-from type=gha --cache-to type=gha,mode=max -t app .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-07-05",
+    "title": "legitimate exception: no-cache true is a deliberate clean build",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: docker/build-push-action@v6\n        with:\n          context: .\n          no-cache: true\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-07-06",
+    "title": "similar negative: docker run is not an image build",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: docker run --rm app test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-07-07",
+    "title": "boundary: two builds in one job, only the uncached one is reported under its step name",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Build base\n        uses: docker/build-push-action@v6\n        with:\n          context: base\n      - name: Build app\n        uses: docker/build-push-action@v6\n        with:\n          context: .\n          cache-from: type=gha\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:docker-build:Build base",
+          "line": 9,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-07-11",
+    "title": "legitimate exception: a publish workflow building an image without a cache is deliberate",
+    "files": {
+      ".github/workflows/publish.yml": "name: Publish image\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: docker build -t app .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-07-08",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "CI-07-09",
+    "title": "legitimate exception: second build of the same context and file reuses the first build's local cache",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Build image\n        uses: docker/build-push-action@v6\n        with:\n          context: .\n          file: ./Dockerfile\n          load: true\n      - name: Push image\n        uses: docker/build-push-action@v6\n        with:\n          context: .\n          file: ./Dockerfile\n          push: true\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:docker-build:Build image",
+          "line": 9,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-07-10",
+    "title": "legitimate exception: script passes cache flags through a variable",
+    "files": {
+      ".github/workflows/image.yml": "name: Image\non:\n  push:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - name: Build builder image\n        run: |\n          CACHE_ARGS=(--cache-from type=gha)\n          docker buildx build \"${CACHE_ARGS[@]}\" -t app .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-07-12",
+    "title": "known positive: docker compose build with no cache restored (low: compose file not read)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: docker compose -f docker-compose.ci.yml build\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:docker-build:docker compose build",
+          "line": 9,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-07-13",
+    "title": "similar negative: docker compose up without --build does not build",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: docker compose up -d\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-07-14",
+    "title": "similar negative: docker compose run build-tool only names a service that contains 'build'",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - run: docker compose run build-tool make\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-07-15",
+    "title": "known positive: docker/bake-action with no cache in the step (low: bake file not read)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: docker/bake-action@v6\n        with:\n          files: docker-bake.hcl\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:docker-build:docker/bake-action",
+          "line": 9,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-07-16",
+    "title": "similar negative: docker/bake-action sets cache-from and cache-to",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: docker/bake-action@v6\n        with:\n          set: |\n            *.cache-from=type=gha\n            *.cache-to=type=gha,mode=max\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  }
+]
