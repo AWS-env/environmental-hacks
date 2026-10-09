@@ -2,7 +2,7 @@
   "prepared_date": "2026-10-10",
   "timezone": "Asia/Calcutta",
   "build": {
-    "build_commit": "ffdd267eeba3349f7a98f96a39fc503bf02a0287",
+    "build_commit": "a8d3f1aeabeb4a99be91742c2919ae51996ad30c",
     "working_tree_clean": true,
     "lock_sha256": "8cdacb14cb7d9c72c0aba35807e8c44fe6d1cd1168bbd08e893986014cfdf3d6",
     "archive_sha256": "33f6245f5946c3c3d6bae51d817d7fd482e641ca7b39977a96442f129d5b79a1",
@@ -220,7 +220,7 @@
     "issues_closed": false
   },
   "tests": {
-    "owner_b": 112,
+    "owner_b": 109,
     "owner_a": 112,
     "owner_c": 44,
     "shared_contract": 20,
@@ -231,27 +231,47 @@
     {
       "issue": 182,
       "check": "JOB-04",
-      "branch": "owner-b/182-feat-job-04-detector"
+      "branch": "owner-b/182-feat-job-04-detector",
+      "sha": "6a146b8acc573742bf5c2db1e5a5bd41473510ed",
+      "previous_verified_sha": "835319ed60c964122257809c08d278717730179b",
+      "code_equivalent_to_previous_verified_revision": true,
+      "base_sha": "8a68a96bf78d849ec83def9e4e6ae87a1e105684"
     },
     {
       "issue": 181,
       "check": "JOB-03",
-      "branch": "owner-b/181-feat-job-03-detector"
+      "branch": "owner-b/181-feat-job-03-detector",
+      "sha": "8f84e61b615a942f0a6eb468ef7e21ac4710b74a",
+      "previous_verified_sha": "f83e28be80f39b39cc41e70e1652a15e68c3b38a",
+      "code_equivalent_to_previous_verified_revision": true,
+      "base_sha": "6a146b8acc573742bf5c2db1e5a5bd41473510ed"
     },
     {
       "issue": 183,
       "check": "JOB-05",
-      "branch": "owner-b/183-feat-job-05-detector"
+      "branch": "owner-b/183-feat-job-05-detector",
+      "sha": "b013b190a8865b59407204f5b20803599a76cad8",
+      "previous_verified_sha": "283795b3713ce0ef46d30a1c36db985ffb954540",
+      "code_equivalent_to_previous_verified_revision": true,
+      "base_sha": "8f84e61b615a942f0a6eb468ef7e21ac4710b74a"
     },
     {
       "issue": 180,
       "check": "JOB-01",
-      "branch": "owner-b/180-feat-job-01-detector"
+      "branch": "owner-b/180-feat-job-01-detector",
+      "sha": "171072a6118e3b350488f6515b22c1716977ac76",
+      "previous_verified_sha": "67f2579360c8de0471034a65ebdeb4d30e2b5ab9",
+      "code_equivalent_to_previous_verified_revision": true,
+      "base_sha": "b013b190a8865b59407204f5b20803599a76cad8"
     },
     {
       "issue": 184,
       "check": "JOB-06",
-      "branch": "owner-b/184-feat-job-06-detector"
+      "branch": "owner-b/184-feat-job-06-detector",
+      "sha": "a8d3f1aeabeb4a99be91742c2919ae51996ad30c",
+      "previous_verified_sha": "e99337d2c4b46a0ef1644d8aade549ba08282322",
+      "code_equivalent_to_previous_verified_revision": true,
+      "base_sha": "171072a6118e3b350488f6515b22c1716977ac76"
     }
   ],
   "synthetic": [
@@ -472,5 +492,6 @@
     "JOB-01/JOB-06 real request-span correlation remains unverified without a client capture.",
     "No per-function reserved concurrency: project quota leaves minimum unreserved capacity.",
     "No customer jobs, capacity, queues or source code were changed."
-  ]
+  ],
+  "publication_base": "8a68a96bf78d849ec83def9e4e6ae87a1e105684"
 }
