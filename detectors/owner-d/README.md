@@ -549,3 +549,70 @@ capacity settings.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/inf08/inf08-01-positive-input.json
 ```
+
+## TST-06 — Unknown Test (test without assertions)
+
+Flags unittest/pytest tests that contain no assertion, following PyNose's
+Unknown Test rule ("a test case does not contain a single assertion
+statement"; [Wang et al., ASE 2021](https://arxiv.org/abs/2108.04639),
+adopted from [tsDetect](https://testsmells.org/pages/testsmells.html)). Such a
+test passes whenever the code it runs does not raise. The check is static:
+source is parsed with `ast` and never imported or executed. Test and assertion
+recognition shared by the TST checks lives in `owner_d/testsmells.py`.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`; `.py` only). No context settings are required.
+
+### What is a test
+
+Tests follow the default unittest and pytest discovery conventions:
+
+- `test*` methods of classes deriving from a `*TestCase` base (directly or via
+  a class in the same file), in any file;
+- in pytest modules (`test_*.py`, `*_test.py`): module-level `test*`
+  functions, and `test*` methods of `Test*` classes (without `__init__`) or of
+  classes with an imported `*Test`/`*Tests`/`*TestBase` base.
+
+`@pytest.fixture` functions and classes with `__test__ = False` are not tests.
+Custom `python_files`/`python_classes` settings are not read. A file in scope
+with no recognised test is still evaluated. It has no findings and gets a
+`<scope>: evaluated; no unittest/pytest test functions recognised` limitation.
+
+### Detection rule
+
+A test is flagged when nothing in its body asserts, including nested
+functions. These count as assertions: `assert` statements, `self.assert*` and
+`self.fail*` calls, and any call whose name contains `assert`. That last one is
+PyNose's rule and covers mock `assert_called*` and `numpy.testing.assert_*`.
+Also counted: `pytest.raises`/`warns`/`deprecated_call`/`fail`,
+`raise AssertionError`, and local aliases such as `eq = self.assertEqual`. An
+empty test body is reported as "has an empty body".
+
+These are not flagged:
+
+- assertions delegated to a helper defined in the same file (`self.m()` or
+  `f()`, up to 3 calls deep);
+- helpers or decorators named like checkers, whose body may be in another file.
+  This covers calls named `check*`/`verify*`/`expect*`/`test*`/`*_test`, and
+  decorators containing `assert`/`check`/`compar`/`expect`/`verif` or ending in
+  `_test` (e.g. matplotlib's `@image_comparison`);
+- tests that never run their body: `@unittest.skip`, `@pytest.mark.skip`, or a
+  first statement of `pytest.skip()`/`self.skipTest()`/`raise SkipTest`.
+  Conditional `skipIf`/`skipif` tests are still evaluated;
+- benchmark tests (a `benchmark` fixture parameter), docstring-only doctest
+  containers, and lines with `# noqa: TST-06`.
+
+The identity is the qualified test name, e.g. `CartTest.test_add_item`. A
+redefined name becomes `test_retry#2`. Findings are `medium` confidence. Test
+names are not judged: the taxonomy's "non-descriptive name" half is out of
+scope for v1. No measurements are emitted. The environmental link is indirect:
+CI time spent on tests that check nothing.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst06/tst06-01-positive-input.json
+```

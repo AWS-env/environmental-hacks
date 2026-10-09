@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst06-001",
+  "commit_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "check_id": "TST-06",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:tests/test_cart.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_cart.py",
+      "kind": "static",
+      "locator": "tests/test_cart.py",
+      "content": "# Synthetic TST-06 fixture: tests without assertions. Never executed.\nimport unittest\n\n\nclass CartTest(unittest.TestCase):\n    def setUp(self):\n        self.cart = []\n\n    def test_add_item(self):\n        self.cart.append(\"apple\")\n        len(self.cart)\n\n    def test_empty(self):\n        pass\n\n    def test_total_is_checked(self):\n        self.assertEqual(len(self.cart), 0)\n\n\ndef test_checkout_runs():\n    total = sum([1, 2, 3])\n    print(total)\n\n\nclass TestInvoice:\n    def test_render(self):\n        invoice = {\"total\": 3}\n        str(invoice)\n\n    async def test_send(self):\n        await send_later()\n"
+    }
+  ]
+}
