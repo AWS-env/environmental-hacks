@@ -1,0 +1,27 @@
+{
+  "name": "@environmental-hacks/detectors-owner-a",
+  "version": "0.1.0",
+  "description": "Static code efficiency detectors for Owner A (Layer: Code / CPU / Memory / GC)",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "tree-sitter": "^0.25.1",
+    "tree-sitter-python": "^0.25.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
