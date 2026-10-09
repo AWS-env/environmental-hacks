@@ -1,0 +1,234 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Owner D findings-hub writer: an EventBridge rule on the existing findings-hub bus routes detector
+  results to a writer Lambda that validates them against contract v1 and persists them to the
+  owner-d-findings DynamoDB table. Failed deliveries land in a DLQ.
+
+Metadata:
+  com.aws.cloudformation.Context:
+    arch: >-
+      owner A/B/C/D detectors -> PutEvents findings-hub ->
+      rule (detector.result.v1 | DetectorResultPointer.v1) -> owner-d-findings-writer -> DynamoDB owner-d-findings;
+      delivery/invocation failures -> owner-d-findings-writer-dlq
+    must:
+      - "all resources prefixed owner-d- & tagged owner=D (docs/aws_service_mapping_v1.6.md guardrails)"
+      - "ap-south-1 only (project selected Region); no cross-region calls"
+      - "findings-hub bus already exists (created outside CloudFormation); this stack references it by name"
+      - "nothing invalid is stored: contract failures raise and end in the DLQ"
+      - "pointer artifacts are read only from allowlisted buckets under results/"
+    ref:
+      - docs/DETECTOR_CONTRACT.md
+      - docs/aws_service_mapping_v1.6.md
+      - hub/README.md
+    owner: Prakharrdev
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: S3 bucket holding owner-d-findings-hub.zip built by scripts/build-owner-d-hub.sh.
+  CodeKey:
+    Type: String
+    Description: S3 key of the writer zip (use a content-hashed key so updates redeploy).
+  FindingsBusName:
+    Type: String
+    Default: findings-hub
+  PointerBuckets:
+    Type: CommaDelimitedList
+    Description: Buckets whose results/ objects DetectorResultPointer.v1 events may reference.
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30]
+
+Resources:
+  FindingsTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "one partition per scan (pk=SCAN#...), so a single Query reads back the persisted report"
+        mutable: change-with-constraints
+    Properties:
+      TableName: owner-d-findings
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+        - { AttributeName: sk, AttributeType: S }
+        - { AttributeName: gsi1pk, AttributeType: S }
+        - { AttributeName: gsi1sk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+        - { AttributeName: sk, KeyType: RANGE }
+      GlobalSecondaryIndexes:
+        - IndexName: by-repository
+          KeySchema:
+            - { AttributeName: gsi1pk, KeyType: HASH }
+            - { AttributeName: gsi1sk, KeyType: RANGE }
+          Projection:
+            ProjectionType: INCLUDE
+            NonKeyAttributes: [scan_id, check_id, status, finding_count, evidence, received_at]
+      Tags:
+        - { Key: owner, Value: D }
+        - { Key: project, Value: environmental-hacks }
+
+  WriterDlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: owner-d-findings-writer-dlq
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - { Key: owner, Value: D }
+
+  WriterDlqPolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref WriterDlq]
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: RuleDeliveryFailures
+            Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sqs:SendMessage
+            Resource: !GetAtt WriterDlq.Arn
+            Condition:
+              ArnEquals:
+                "aws:SourceArn": !GetAtt IngestRule.Arn
+
+  WriterDlqAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: owner-d-findings-writer-dlq-not-empty
+      AlarmDescription: A findings-hub event was rejected or could not be persisted; inspect owner-d-findings-writer-dlq and the writer logs.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt WriterDlq.QueueName }
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  WriterLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-d-findings-writer
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: D }
+
+  WriterRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        must:
+          - "only: own logs, write the findings table, read results/ in allowlisted buckets, send failures to the DLQ"
+    Properties:
+      RoleName: owner-d-findings-writer-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-d-findings-writer
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${WriterLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: [dynamodb:PutItem, dynamodb:BatchWriteItem]
+                Resource: !GetAtt FindingsTable.Arn
+              - Effect: Allow
+                Action: [s3:GetObject, s3:GetObjectVersion]
+                Resource: !Split
+                  - ","
+                  - !Sub
+                    - "arn:aws:s3:::${Joined}/results/*"
+                    - Joined: !Join ["/results/*,arn:aws:s3:::", !Ref PointerBuckets]
+              - Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt WriterDlq.Arn
+      Tags:
+        - { Key: owner, Value: D }
+
+  WriterFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: owner-d-findings-writer
+      Description: Validates findings-hub detector results (contract v1) and persists them to owner-d-findings.
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: findings_hub.writer.lambda_handler
+      Role: !GetAtt WriterRole.Arn
+      MemorySize: 512
+      Timeout: 60
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          FINDINGS_TABLE: !Ref FindingsTable
+          POINTER_BUCKETS: !Join [",", !Ref PointerBuckets]
+      LoggingConfig:
+        LogGroup: !Ref WriterLogGroup
+      Tags:
+        - { Key: owner, Value: D }
+
+  WriterInvokeConfig:
+    Type: AWS::Lambda::EventInvokeConfig
+    Properties:
+      FunctionName: !Ref WriterFunction
+      Qualifier: $LATEST
+      MaximumRetryAttempts: 2
+      MaximumEventAgeInSeconds: 3600
+      DestinationConfig:
+        OnFailure:
+          Destination: !GetAtt WriterDlq.Arn
+
+  IngestRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Name: owner-d-findings-ingest
+      Description: Route detector results on findings-hub to the owner D writer.
+      EventBusName: !Ref FindingsBusName
+      State: ENABLED
+      EventPattern:
+        source: [{ prefix: "owner-" }]
+        detail-type: [detector.result.v1, DetectorResultPointer.v1]
+      Targets:
+        - Id: findings-writer
+          Arn: !GetAtt WriterFunction.Arn
+          RetryPolicy:
+            MaximumRetryAttempts: 20
+            MaximumEventAgeInSeconds: 3600
+          DeadLetterConfig:
+            Arn: !GetAtt WriterDlq.Arn
+
+  IngestInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref WriterFunction
+      Action: lambda:InvokeFunction
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt IngestRule.Arn
+
+Outputs:
+  FindingsTableName:
+    Value: !Ref FindingsTable
+  WriterFunctionArn:
+    Value: !GetAtt WriterFunction.Arn
+  IngestRuleArn:
+    Value: !GetAtt IngestRule.Arn
+  WriterDlqUrl:
+    Value: !Ref WriterDlq

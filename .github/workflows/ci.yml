@@ -118,6 +118,11 @@ jobs:
           PYTHONPATH: detectors/owner-d
         run: python -m unittest discover -s detectors/owner-d/tests -t detectors/owner-d
 
+      - name: Owner D findings hub
+        env:
+          PYTHONPATH: hub
+        run: python -m unittest discover -s hub/tests -t hub
+
       - name: Detect project manifest
         id: detect
         run: |
