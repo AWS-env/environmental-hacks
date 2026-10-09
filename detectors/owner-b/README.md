@@ -48,3 +48,7 @@ See checks/*/SPEC.md for the seven detection fields and local verification-plan 
 ## DB-06 registration (#108)
 
 This increment adds the DB-06 public registry entry, detection specification, six synthetic regression pairs and sanitized historical AWS receipts. See `checks/db-06/SPEC.md` for exact supported rules and exceptions. Known-result proofs are bounded static analysis and do not infer results from previous executions.
+
+## DB-05 registration (#107)
+
+This increment adds the DB-05 public registry entry, detection specification, six synthetic regression pairs and sanitized historical AWS receipts. See `checks/db-05/SPEC.md` for exact supported rules and exceptions. Public-repository scans are execution-unverified candidates; runtime confirmation requires authorized correlated CloudWatch query events.
