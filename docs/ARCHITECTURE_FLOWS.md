@@ -132,13 +132,13 @@ on two separate clocks (per-push vs trigger + periodic).
 
 ---
 
-## 3. AWS flow — services in one account (eu-north-1)
+## 3. AWS flow — services in one project (eu-north-1)
 
 The same intent mapped to AWS: edge (CloudFront + Amplify + API Gateway + Cognito),
 orchestration (SQS + Step Functions + EventBridge Scheduler), the four detect
 Lambdas (static / artifact / telemetry / estimate), the hub (EventBridge →
 DynamoDB → SNS), Fargate Spot as parsing-only overflow, and the read-only client
-role plus our account guardrails.
+role plus our project guardrails.
 
 ```
   TRUST BOUNDARY ──────────────────────────────────────────────────────────────
@@ -196,7 +196,7 @@ role plus our account guardrails.
           │ Lambda   │ │ Lambda   │ │ Lambda     │ │ Lambda       │
           │ semgrep/ │ │ S3 JSON/ │ │ STS Assume │ │ input-key    │
           │ tree-    │ │ logs;    │ │ Role →     │ │ cache +      │
-          │ sitter + │ │ parse    │ │ client acct│ │ materiality  │
+          │ sitter + │ │ parse    │ │ client proj│ │ materiality  │
           │ config   │ │ only     │ │ (read)     │ │ gate + range │
           └────┬─────┘ └────┬─────┘ └─────┬──────┘ └──────┬───────┘
                └────────────┴──────┬──────┴───────────────┘
