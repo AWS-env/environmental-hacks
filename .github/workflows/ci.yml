@@ -24,7 +24,7 @@ jobs:
         id: bot
         run: |
           case "${{ github.head_ref }}" in
-            dependabot/*|renovate/*) echo "is_bot=true" >> "$GITHUB_OUTPUT" ;;
+            dependabot/*|renovate/*|copilot/*) echo "is_bot=true" >> "$GITHUB_OUTPUT" ;;
             *) echo "is_bot=false" >> "$GITHUB_OUTPUT" ;;
           esac
 
