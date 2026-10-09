@@ -2089,3 +2089,69 @@ sampler key.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs05/obs05-01-positive-input.json
 ```
+## LLM-13 — LLM responses cached without TTL or invalidation (static proxy)
+
+Flags caches in Python source that store LLM responses (or values computed
+from them) with no expiry and no invalidation in the file. AWS
+[AGENTSUS02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp02.html)
+lists "caching tool results and model responses without invalidation or TTL
+policies, producing stale answers that appear fresh" as an anti-pattern. This
+v1 is a static proxy: it proves that the cache has no TTL, not that the data
+goes stale or how often the cache is hit, and it emits no measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only). No context settings are required.
+
+### Detection rule
+
+LLM calls are recognised by `owner_d/llmcalls.py`: Anthropic `messages.*`,
+OpenAI chat completions / responses, Bedrock `converse`/`invoke_model`.
+Embedding calls do not count. That covers OpenAI `embeddings.create` and
+Bedrock `invoke_model` with an `embed` model ID, because an embedding of the
+same text does not go stale.
+
+| Cache | Flagged when |
+| --- | --- |
+| Memoized function: `functools.lru_cache`/`cache`, `cachetools.func.lru_cache`/`lfu_cache`/`fifo_cache`/`rr_cache`/`mru_cache`, `cachetools.cached` with `Cache`/`LRUCache`/`LFUCache`/`FIFOCache`/`RRCache`/`MRUCache` or `{}`, `async_lru.alru_cache` | The function calls an LLM, directly or through a function in the same file. Any `maxsize` counts, because size eviction is not expiry; `maxsize=0` caches nothing. `alru_cache` is flagged without `ttl` or with `ttl=None`. |
+| LangChain LLM cache passed to `set_llm_cache(...)`, assigned to `langchain.llm_cache`, or passed as `cache=` | `InMemoryCache`, `SQLiteCache`, `SQLAlchemyCache`, `SQLAlchemyMd5Cache` and community `RedisSemanticCache` (no TTL support). `RedisCache`/`AsyncRedisCache`/`UpstashRedisCache` and `langchain_redis` `RedisCache`/`RedisSemanticCache` without `ttl`. `CassandraCache`/`CassandraSemanticCache` without `ttl_seconds`. |
+| Redis/Valkey `set`/`setnx`/`mset`/`msetnx`/`hset`/`hmset` on a client created in the file (`Redis`, `StrictRedis`, `RedisCluster`, `from_url`, `.pipeline()`) | The function also reads from Redis (a cache reads before it writes), and the stored value comes from an LLM call in that function. The write sets no `ex`/`px`/`exat`/`pxat`/`keepttl` or positional expiry, and the function calls no `expire`/`pexpire`/`expireat`/`pexpireat`/`hexpire*`. |
+| Module-level `{}`/`dict()`/`OrderedDict()` | A function reads it (`in`, `.get`, `[key]`) and stores an LLM-derived value in it. Nothing in the file evicts or rebinds it, and every use of the name is a read or a write. |
+
+Not flagged:
+- `<fn>.cache_clear()` or `<cache>.clear()` anywhere in the file;
+- memoized functions with a time-bucket parameter (`ttl_hash`, `version`, `timestamp`, ...);
+- dict/Redis caches in a function that reads a clock (`time.time()`, `datetime.now()`), which suggests a manual expiry timestamp;
+- TTL caches (`TTLCache`, `TLRUCache`, `ttl_cache`, `setex`, `ex=`, LangChain `ttl=`);
+- backends that are not listed (e.g. `MomentoCache`, whose client has a default TTL);
+- memoized client/model/prompt factories;
+- other SDKs (`Groq()`, ...);
+- provider prompt caching (`cache_control`/`cachePoint`, covered by LLM-01);
+- Redis clients or cache objects that are parameters or imported;
+- `**kwargs`;
+- `self._cache` instance caches and `cached_property`;
+- code inside `test*` functions or `Test*` classes.
+
+LiteLLM, GPTCache and diskcache are not evaluated. `# noqa` or `# noqa: LLM-13` on
+the evidence line (the decorator, `set_llm_cache`, Redis write or dict
+assignment) suppresses a finding.
+
+Each finding has one of these identities:
+- `<qualified function>:memoize:<decorator>`
+- `<qualified scope>:langchain:<Backend>`
+- `<qualified function>:redis.<method>`
+- `<qualified function>:dict:<NAME>`
+
+A repeat gets `#2`. Confidence is `medium`, and `low` when the only LLM calls are
+`chat.completions` chains on a client not created in the file. Missing,
+non-Python or unparseable files are left out of `evaluated_scope` and never
+reported clean.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm13/llm13-01-positive-input.json
+```
+
