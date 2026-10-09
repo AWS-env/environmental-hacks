@@ -2941,3 +2941,76 @@ measurements are emitted.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst11/tst11-01-positive-input.json
 ```
+
+## TST-02 — Lazy Test
+
+Flags several tests of one test class (or the module-level pytest tests of one
+file) that call the same production method. It ports tsDetect's
+[Lazy Test](https://github.com/TestSmells/TestSmellDetector/blob/master/src/main/java/testsmell/smell/LazyTest.java)
+("multiple test methods invoke the same method of the production object");
+PyNose has no Lazy Test rule. It is static (`ast` only) and uses the same
+input, test recognition and per-file "nothing to flag" note as TST-06.
+
+### Context settings (optional)
+
+| Setting | Meaning | Default |
+| --- | --- | --- |
+| `production_packages` | Top-level packages that hold the code under test, e.g. `["shop"]` | not set |
+
+Without it, every import that is not stdlib, test tooling (`pytest`, `mock`,
+`hypothesis`, ...) or a test-helper module counts as production, including
+third-party libraries such as `numpy` or `requests`, and a limitation says so.
+An invalid value makes the result `unavailable`.
+
+### Detection rule
+
+tsDetect reads the paired production class. Here only the test file is
+supplied, so production calls are recognised from its imports:
+
+- calls through an imported production name: `total(...)`, `cart.total(...)`,
+  `Cart.from_dict(...)`;
+- method calls on an object built from an imported production class:
+  `Cart().add()`, `c = Cart(); c.add()`, `with Cart() as c: c.add()`, and
+  `self.cart.add()` when `setUp`/`setUpClass`/`setup_method` or a class
+  fixture assigns `self.cart = Cart()`;
+- relative imports count when they resolve outside the test directory
+  (`from ..shop.cart import total` in `tests/`), not inside it
+  (`from .helpers import build`). Module paths with a `test`, `tests`,
+  `(_)testing`, `conftest`, `test_*` or `*_test(s)` component are test code.
+
+Not counted: constructors (tsDetect counts method calls, not object creation),
+builtins, same-file helpers and classes, calls on `self`/`cls`, assertion calls,
+calls in `setUp`/fixtures, names shadowed by a test parameter or local
+assignment, and input builders. An input builder is a production call that is
+an argument of another production call (`bincount(np.array([1]))`), or whose
+result is assigned to a variable used only that way. Helpers are not followed
+and there is no type inference.
+
+A target called by at least 2 counted tests of one group is flagged (tsDetect:
+"more than one"). Calls shared across groups are not compared. One finding per
+group and target; the evidence is the first call to the target in each sharing
+test (up to 8). Confidence:
+
+- `medium` when at least 3 tests share the target and all of them make exactly
+  the same production calls (they differ only in data, so one parametrized
+  test could cover them);
+- `low` otherwise.
+
+Unconditionally skipped tests are not counted. `# noqa: TST-02` on a class line
+suppresses the class, on a test's `def` line drops that test from the count, and
+on a call line drops that call. The identity is `<group>:<target>`, e.g.
+`CartTest:shop.cart.Cart.add` or `<module>:shop.cart.total`, with `#n` for a
+redefined class.
+
+The taxonomy cites an energy association for this smell (Kendall tau 0.449,
+SRC-15). That evidence comes from JUnit/Maven projects and is not shown to
+transfer to Python, so no measurements are emitted. Many small tests per
+function are often good practice; a finding reports the pattern, not that the
+tests are redundant.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst02/tst02-01-positive-input.json
+```
