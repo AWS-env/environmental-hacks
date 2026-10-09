@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "kind": "result",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-after",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "OBS-01",
+  "detector_version": "1.0.0",
+  "context": {"environment": "production", "supported_format": "yaml"},
+  "scope": ["file:config/production.yaml"],
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": ["file:config/production.yaml"],
+    "limitations": ["Static configuration does not prove actual log volume or environmental impact"]
+  },
+  "findings": [],
+  "measurements": []
+}

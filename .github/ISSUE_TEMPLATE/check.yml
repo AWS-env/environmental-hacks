@@ -10,6 +10,7 @@ body:
       value: |
         One check per issue. The taxonomy key goes in the title, e.g. `[CODE-C1.1] Dead code`.
         Most checks are auto-created by `scripts/taxonomy-sync.mts`; use this form only for new/manual ones.
+        Follow docs/DETECTOR_CONTRACT.md. Add a verification-plan comment using docs/VERIFICATION_PLAN.md before implementation.
   - type: input
     id: key
     attributes:
@@ -68,6 +69,8 @@ body:
         - [ ] Emits an evidence-backed finding
         - [ ] Unit test for the detector
         - [ ] Detection spec filled (signal, tool, telemetry, report field, FP risk, detectable/measurable)
+        - [ ] Input/result pair passes the shared contract and evidence validation
+        - [ ] Verification-plan cases map to committed fixtures and executable tests
     validations:
       required: true
   - type: input

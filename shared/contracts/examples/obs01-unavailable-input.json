@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-missing",
+  "commit_sha": "cccccccccccccccccccccccccccccccccccccccc",
+  "check_id": "OBS-01",
+  "detector_version": "1.0.0",
+  "context": {"environment": "unknown", "supported_format": "yaml"},
+  "scope": ["file:config/production.yaml"],
+  "sources": []
+}
