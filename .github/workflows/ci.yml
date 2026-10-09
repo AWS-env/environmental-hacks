@@ -113,6 +113,11 @@ jobs:
           python -m pip install -r detectors/owner-c/requirements.txt
           python -m unittest discover -s detectors/owner-c/tests
 
+      - name: Owner D detectors
+        env:
+          PYTHONPATH: detectors/owner-d
+        run: python -m unittest discover -s detectors/owner-d/tests -t detectors/owner-d
+
       - name: Detect project manifest
         id: detect
         run: |

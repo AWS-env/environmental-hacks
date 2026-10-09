@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst12-001",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "TST-12",
+  "detector_version": "2.0.0",
+  "context": {
+    "max_duration_seconds": 10,
+    "max_sleep_seconds": 0,
+    "max_network_calls": 0,
+    "max_fixture_bytes": 10485760,
+    "max_setup_seconds": 2
+  },
+  "scope": [
+    "test:tests/test_api.py::test_fetch_users"
+  ],
+  "sources": [
+    {
+      "source_id": "pytest-tests-test-api-test-fetch-users",
+      "scope_id": "test:tests/test_api.py::test_fetch_users",
+      "kind": "artifact",
+      "locator": "pytest --durations artifact: tests/test_api.py::test_fetch_users",
+      "data": {
+        "test_id": "tests/test_api.py::test_fetch_users",
+        "framework": "pytest",
+        "duration_seconds": 14.2,
+        "sleep_seconds": 2.5,
+        "network_call_count": 3,
+        "fixture_bytes": 52428800,
+        "setup_seconds": 4.1
+      }
+    }
+  ]
+}

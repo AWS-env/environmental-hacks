@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst12-004",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "TST-12",
+  "detector_version": "2.0.0",
+  "context": {
+    "max_duration_seconds": 10,
+    "max_sleep_seconds": 0,
+    "max_network_calls": 0,
+    "max_fixture_bytes": 10485760,
+    "max_setup_seconds": 2
+  },
+  "scope": [
+    "test:tests/test_api.py::test_fetch_users"
+  ],
+  "sources": []
+}

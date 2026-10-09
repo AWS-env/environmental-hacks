@@ -1,4 +1,4 @@
-"""Run the INF-01 detector over a contract input payload."""
+"""Run an Owner D detector over a contract input payload."""
 
 from __future__ import annotations
 
@@ -7,11 +7,16 @@ import json
 import sys
 from pathlib import Path
 
-from .inf01 import CHECK_ID, EvaluationError, evaluate
+from . import inf01, tst12
+
+DETECTORS = {
+    inf01.CHECK_ID: inf01,
+    tst12.CHECK_ID: tst12,
+}
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=f"Evaluate an {CHECK_ID} contract v1 input payload.")
+    parser = argparse.ArgumentParser(description="Evaluate an Owner D contract v1 input payload.")
     parser.add_argument("input", type=Path, help="path to a contract v1 input JSON file")
     parser.add_argument("-o", "--output", type=Path, help="write the result JSON here instead of stdout")
     args = parser.parse_args(argv)
@@ -34,10 +39,15 @@ def main(argv=None):
         print(f"input is not a valid contract payload: {error}", file=sys.stderr)
         return 2
 
+    detector = DETECTORS.get(payload.get("check_id"))
+    if detector is None:
+        print(f"unsupported Owner D check_id: {payload.get('check_id')}", file=sys.stderr)
+        return 1
+
     try:
-        result = evaluate(payload)
-    except EvaluationError as error:
-        print(f"cannot evaluate {CHECK_ID}: {error}", file=sys.stderr)
+        result = detector.evaluate(payload)
+    except detector.EvaluationError as error:
+        print(f"cannot evaluate {detector.CHECK_ID}: {error}", file=sys.stderr)
         return 1
 
     try:
