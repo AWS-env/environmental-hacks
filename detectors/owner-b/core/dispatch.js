@@ -8,6 +8,7 @@ const jobs={
   'JOB-06':require('../checks/job-06'),
 };
 const network={
+  "NET-09":require('../checks/net-09'),
   "NET-08":require('../checks/net-08'),
   "NET-07":require('../checks/net-07'),
   "NET-06":require('../checks/net-06'),
