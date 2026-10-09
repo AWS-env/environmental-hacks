@@ -329,3 +329,4 @@ Research and decisions: [`category-4-frontend.md`](../../docs/research/category-
 | Check | Pattern | Evidence | Strength of evidence | Issue |
 | --- | --- | --- | --- | --- |
 | FE-03 | `<img>` without explicit dimensions (Lighthouse `unsized-images` rule): HTML and JSX | static | good: Lighthouse rule from its source; real-repo hits hand-checked | #151 |
+| FE-17 | CSS `transition` / `@keyframes` on layout or paint properties instead of `transform`/`opacity` | static | good: web.dev guidance; hand-checked on bootstrap.css (3 of 3 layout transitions) | #164 |
