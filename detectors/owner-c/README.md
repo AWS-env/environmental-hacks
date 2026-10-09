@@ -1,10 +1,11 @@
-# Owner C detectors - Python (Category 1)
+# Owner C detectors - Python and JavaScript (Categories 1 and 2)
 
-Contract v1 detectors for the Python taxonomy checks owned by owner C. The shared input/result
+Contract v1 detectors for the Python and JavaScript/TypeScript taxonomy checks owned by owner C. The shared input/result
 boundary is defined in [`docs/DETECTOR_CONTRACT.md`](../../docs/DETECTOR_CONTRACT.md); JSON Schema is the
-source of truth. Detectors are pure functions over contract payloads: they parse source with `ast`,
-**never import or execute it**, never call AWS APIs, and source/artifact collection stays outside the
-detector (see `owner_c/connector.py` and `owner_c/normalize/`).
+source of truth. Detectors are pure functions over contract payloads: they parse source (Python with `ast`,
+JS/TS with tree-sitter), **never import or execute it**, never call AWS APIs, and source/artifact collection
+stays outside the detector (see `owner_c/connector.py` and `owner_c/normalize/`). Research and decisions:
+[`category-2-js.md`](../../docs/research/category-2-js.md), [`category-2-decisions.md`](../../docs/research/category-2-decisions.md).
 
 | Check | Pattern | Evidence | Issue |
 | --- | --- | --- | --- |
@@ -18,9 +19,10 @@ detector (see `owner_c/connector.py` and `owner_c/normalize/`).
 | PY-01 | `x in <list>` inside a loop | static candidate + py-spy artifact | #245 |
 | PY-05 | Temporary list for a single pass (`sum([...])`) | static candidate + memray artifact | #249 |
 | PY-11 | Needless `deepcopy` / `.copy()` | static candidate + memray artifact | #255 |
+| CODE-RT.6 | Outdated runtime / interpreter version | static + dated support table | #102 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
-impact is small. Its issue stays open.
+impact is small. Its issue stays open. CODE-RT.4 (#100) and CODE-RT.5 (#101) are deferred.
 
 ## Layout
 
@@ -33,10 +35,12 @@ detectors/owner-c/
     connector.py         repo files (+ normalized artifacts) -> contract input payloads
     checks/py_NN.py      static checks; checks/__init__.py is the registry
     artifact_checks/     artifact-confirmed checks (candidate + confirm)
-    normalize/           py-spy speedscope / memray stats -> normalized contract `artifact` data
-    aws/                 Lambda handlers (static scan, profile parser)
+    normalize/           one module per artifact type (profiles, traces) -> normalized `artifact` data
+    config/              dated runtime support table for CODE-RT.6
+    aws/                 Lambda handlers (static scan, profile parser, X-Ray parser, presign)
     cli.py               `evaluate` and `scan` commands
-  tests/                 unittest suite; fixtures/py_NN/cases.json are the committed verification cases
+  requirements.txt       tree-sitter parsers (JS/TS detectors only)
+  tests/                 unittest suite; fixtures/<check>/cases.json are the committed verification cases
 ```
 
 ## Run
@@ -46,6 +50,7 @@ From the repository root, using Python 3.12 or newer:
 ```bash
 python3 -m venv .venv
 .venv/bin/python -m pip install -r shared/contracts/requirements.txt
+.venv/bin/python -m pip install -r detectors/owner-c/requirements.txt   # tree-sitter, JS/TS checks only
 
 # scan a local directory with every enabled check; each result is validated against the shared contract
 PYTHONPATH=detectors/owner-c .venv/bin/python -m owner_c scan path/to/repo
@@ -69,12 +74,13 @@ declares every exclusion in `context`, so a file left out is a documented choice
 
 | Context setting | Meaning | Reference value |
 | --- | --- | --- |
-| `language` | Always `python` | `python` |
+| `language` | `python` or `javascript` (one input per check and language) | `python` |
 | `exclude_tests` | Test files (`tests/`, `test_*.py`, `conftest.py`) are out of scope; test-suite waste belongs to the TST checks | `true` |
 | `max_file_bytes` | Larger files are out of scope | `1000000` |
 | `excluded_dirs` | Vendored/build directories out of scope | `.git`, `node_modules`, `venv`, ... |
-| `min_time_share` (PY-01) | Fraction of sampled time a line must be on the stack | `0.05` |
-| `min_alloc_bytes` (PY-05, PY-11) | Bytes allocated at a line that count as significant | `10485760` |
+| `min_time_share` (PY-01) | Fraction of sampled time a line/function must be on the stack | `0.05` |
+| `min_alloc_bytes` (PY-05, PY-11) | Bytes allocated at a line/function that count as significant | `10485760` |
+| `reference_date` (CODE-RT.6) | "As of" date for end-of-life comparisons | today (ISO date) |
 
 Coverage is never silent. A file that cannot be parsed, or (artifact checks) that no artifact covers,
 is left out of `coverage.evaluated_scope` with a limitation, so the result is `partial` or
@@ -158,20 +164,47 @@ least `min_alloc_bytes` to the line, or - for deepcopy, which memray attributes 
 `copy.deepcopy`. Identity: `qualname:callee`. Confidence: medium. Limitation: whether the copy is needed
 is a judgement the artifact cannot prove.
 
+## CODE-RT.6 - outdated runtime / interpreter
+
+Reads `.nvmrc`, `.node-version`, `.python-version`, `runtime.txt`, `Pipfile`, `.tool-versions`, `package.json` (`engines`),
+Dockerfiles, `serverless.yml`, SAM/CloudFormation templates, Terraform `.tf` and `.github/workflows/*.yml` version
+declarations and compares them, as of `reference_date`, with `owner_c/config/runtime_support.json` (retrieved 2026-10-09
+from the AWS Lambda runtimes page and endoflife.date; Lambda config uses the Lambda deprecation date, everything else
+upstream end of life). Identity: `runtime:source` (`node:setup-node`, `node:engines.node`). Flags only versions past end
+of life or within `warn_days`. Limitation: aliases (`lts/*`, `latest`) and variables are not resolved; a library's CI matrix
+can list old versions on purpose.
+
 ## AWS deployment (Free Plan, project Region)
 
-`cdk/owner-c/python-detectors.yaml` (CloudFormation) deploys `owner-c-static-scan` and
-`owner-c-profile-parser`, a private expiring artifact bucket and least-privilege roles, all tagged
-`owner=C`. Build the code zip with `scripts/build-owner-c-lambda.sh`. Both Lambdas publish **one contract v1
-result per check per batch of files** to the shared `findings-hub` bus (owner D) with
-`detail-type: detector.result.v1`; they check the bus exists first because EventBridge silently drops
-events sent to a missing bus. Only owner D's hub rules decide what is stored.
+`cdk/owner-c/python-detectors.yaml` (CloudFormation) deploys, all tagged `owner=C` with least-privilege roles and a private
+expiring artifact bucket (`owner-c-artifacts-<account>-<region>`):
+
+| Lambda | Role |
+| --- | --- |
+| `owner-c-static-scan` | static checks over a repo zip |
+| `owner-c-profile-parser` | confirms candidates with uploaded profiles; also runs from the S3 `manifest.json` trigger |
+| `owner-c-presign` | 15-minute presigned PUT URLs for the client's uploads (regional S3 endpoint) |
+
+Build the code zips with `scripts/build-owner-c-lambda.sh` (needs Python, pip and npm). All parsers publish **one contract
+v1 result per check per batch of files** to the shared `findings-hub` bus (owner D) with `detail-type:
+detector.result.v1`; they check the bus exists first because EventBridge silently drops events sent to a missing bus. Only
+owner D's hub rules decide what is stored. Failed asynchronous invocations go to a dead-letter queue; the alarm `owner-c-parse-dlq-not-empty` is in ALARM while that queue holds a message (no notification target is attached).
+
+### Upload flow (client CI)
+
+1. Invoke `owner-c-presign` with `{"repository_id", "commit_sha", "artifacts": ["<artifact type>", ...]}`; it returns
+   short-lived PUT URLs under `uploads/<repository>/<sha>/`. The client never gets credentials.
+2. PUT `repo.zip`, then each artifact (`<artifact type>.json`).
+3. PUT `manifest.json` **last** (`{"repository_id", "commit_sha", "artifacts": [...]}`): the S3 event triggers
+   `owner-c-profile-parser`, which reads the zip and artifacts and publishes the results. The manifest must match its prefix.
+   Nothing the client uploads is ever executed.
 
 ## Verification
 
-Cases `PY-NN-xx` in `tests/fixtures/py_nn/cases.json` are the committed fixtures referenced by the
+Cases `<CHECK>-xx` in `tests/fixtures/<check>/cases.json` are the committed fixtures referenced by the
 Verification plan comment on each issue. Every case validates the result with
 `shared.contracts.validation.validate_pair` and asserts status, finding identities, evidence lines and
-coverage. Artifact tests use real py-spy and memray captures in `tests/fixtures/real/` (memray was captured
-in a Linux container; it has no Windows wheel). The cases fail against always-empty and always-flag
-implementations.
+coverage. Artifact tests use real captures in `tests/fixtures/real/`: py-spy and memray (memray was captured
+in a Linux container; it has no Windows wheel), Node `--cpu-prof` and heap profiles, and X-Ray traces of the deployed
+demo Lambda (account id scrubbed). The cases fail against always-empty and always-flag
+implementations. Real-repo hand-checks for the JS category are recorded in `docs/research/category-2-js.md`.

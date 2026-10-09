@@ -4,6 +4,7 @@ from helpers import REPO, SHA
 from owner_c.artifact_checks import ARTIFACT_CHECKS
 from owner_c.checks import STATIC_CHECKS
 from owner_c.common import MAX_FILE_BYTES
+from owner_c.langs import accepts
 from owner_c.connector import build_inputs, select_files
 
 
@@ -15,7 +16,13 @@ class SelectFilesTests(unittest.TestCase):
     ]
 
     def test_default_selection(self):
-        self.assertEqual([p for p, _ in select_files(self.FILES)], ["app.py", "win/path.py"])
+        # extension filtering is per check (see test_each_check_only_receives_files_it_accepts)
+        self.assertEqual([p for p, _ in select_files(self.FILES)], ["app.py", "README.md", "win/path.py"])
+
+    def test_each_check_only_receives_files_it_accepts(self):
+        payload = build_inputs(repository_id=REPO, commit_sha=SHA, scan_id="s", checks=["PY-09"],
+                               files=[("app.py", "x = 1\n"), ("README.md", "# hi"), ("web/app.js", "let a;")])[0]
+        self.assertEqual(payload["scope"], ["file:app.py"])
 
     def test_include_tests(self):
         paths = [p for p, _ in select_files(self.FILES, include_tests=True)]
@@ -30,7 +37,8 @@ class BuildInputsTests(unittest.TestCase):
 
     def test_one_payload_per_enabled_check(self):
         keys = [p["check_id"] for p in self.build()]
-        self.assertEqual(keys, list(STATIC_CHECKS) + list(ARTIFACT_CHECKS))
+        expected = [k for k, m in list(STATIC_CHECKS.items()) + list(ARTIFACT_CHECKS.items()) if accepts(m, "a.py")]
+        self.assertEqual(keys, expected)  # checks for other languages get no payload without their files
 
     def test_exclusions_are_declared_in_context(self):
         ctx = self.build()[0]["context"]

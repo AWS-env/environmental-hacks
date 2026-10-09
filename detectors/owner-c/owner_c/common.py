@@ -32,6 +32,7 @@ class Candidate:
     detail: str
     line: int
     end_line: int
+    meta: object = None  # check-specific data carried to confirm() (JS: enclosing function start line)
 
 
 @dataclass(frozen=True)
@@ -41,6 +42,7 @@ class Confirmation:
     value: object
     summary: str
     confidence: str  # low | medium | high
+    extra: tuple = ()  # more (field, value) pairs cited as evidence
 
 
 def is_test_path(path: str) -> bool:
@@ -48,10 +50,11 @@ def is_test_path(path: str) -> bool:
     parts = path.replace("\\", "/").lower().split("/")
     name = parts[-1]
     return (
-        any(p in {"test", "tests", "testing"} for p in parts[:-1])
+        any(p in {"test", "tests", "testing", "__tests__", "__mocks__", "e2e", "cypress"} for p in parts[:-1])
         or name.startswith("test_")
         or name.endswith("_test.py")
         or name == "conftest.py"
+        or any(marker in name for marker in (".test.", ".spec.", ".stories."))
     )
 
 
@@ -185,6 +188,12 @@ class Ctx:
             if isinstance(a, (ast.FunctionDef, ast.Lambda, ast.ClassDef)):
                 return False
         return False
+
+    def line_of(self, node) -> int:
+        return node.lineno
+
+    def is_suppressed(self, codes: tuple, line: int) -> bool:
+        return 0 < line <= len(self.lines) and is_noqa(codes, self.lines[line - 1])
 
     def hit(self, node, anchor, summary, confidence) -> Hit:
         return Hit(node, anchor, summary, confidence)

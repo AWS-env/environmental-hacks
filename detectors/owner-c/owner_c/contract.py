@@ -9,7 +9,6 @@ import hashlib
 import json
 
 SCHEMA_VERSION = "1.0"
-LANGUAGE = "python"
 
 
 def canonical(value) -> str:
@@ -32,9 +31,9 @@ def static_source(path: str, content: str) -> dict:
             "locator": path, "content": content}
 
 
-def artifact_source(profiler: str, path: str, data: dict) -> dict:
-    """A normalized client-produced artifact for one file (see normalize/)."""
-    return {"source_id": f"{profiler}:{path}", "scope_id": file_scope(path), "kind": "artifact",
+def artifact_source(profiler: str, path: str, data: dict, kind: str = "artifact") -> dict:
+    """Normalized client-produced data for one file: an `artifact` (profiler output) or `telemetry` (X-Ray)."""
+    return {"source_id": f"{profiler}:{path}", "scope_id": file_scope(path), "kind": kind,
             "locator": f"{profiler}:{path}", "data": data}
 
 

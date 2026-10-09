@@ -9,7 +9,7 @@ import uuid
 import zipfile
 
 from owner_c.common import MAX_FILE_BYTES
-from owner_c.connector import SKIP_DIRS
+from owner_c.connector import BINARY_SUFFIXES, SKIP_DIRS
 
 SOURCE = "owner-c.python-detectors"
 DETAIL_TYPE = "detector.result.v1"  # Detail = one contract v1 result payload
@@ -23,16 +23,24 @@ _clients = {}
 _verified_buses = set()
 
 
-def client(name):
-    if name not in _clients:
+def client(name, regional_endpoint=False):
+    key = f"{name}:regional" if regional_endpoint else name
+    if key not in _clients:
         import boto3  # provided by the Lambda runtime
 
-        _clients[name] = boto3.client(name)
-    return _clients[name]
+        if regional_endpoint:
+            from botocore.config import Config
+
+            region = os.environ["AWS_REGION"]
+            _clients[key] = boto3.client(name, region_name=region, endpoint_url=f"https://{name}.{region}.amazonaws.com",
+                                         config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}))
+        else:
+            _clients[key] = boto3.client(name)
+    return _clients[key]
 
 
 def iter_zip(data: bytes):
-    """Yield (path, text) for scannable .py members without extracting to disk."""
+    """Yield (path, text) for scannable text members without extracting to disk."""
     total = 0
     with zipfile.ZipFile(io.BytesIO(data)) as zf:
         infos = zf.infolist()
@@ -40,7 +48,7 @@ def iter_zip(data: bytes):
             raise ValueError("archive has too many entries")
         for info in infos:
             parts = info.filename.split("/")
-            if info.is_dir() or not info.filename.endswith(".py") or SKIP_DIRS & set(parts):
+            if info.is_dir() or info.filename.lower().endswith(BINARY_SUFFIXES) or SKIP_DIRS & set(parts):
                 continue
             total += info.file_size
             if total > MAX_ZIP_BYTES:
@@ -109,6 +117,12 @@ def summarize(results):
     return [{"check_id": r["check_id"], "status": r["status"],
              "evaluated": len(r["coverage"]["evaluated_scope"]), "scope": len(r["scope"]),
              "findings": len(r["findings"])} for r in results]
+
+
+def log_summary(handler: str, summary: dict) -> dict:
+    """One JSON line per invocation (CloudWatch Logs); async S3-triggered runs are otherwise invisible."""
+    print(json.dumps({"handler": handler, **summary}))
+    return summary
 
 
 def publish_if_enabled(event, results):

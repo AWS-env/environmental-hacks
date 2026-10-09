@@ -1,0 +1,497 @@
+{
+  "check_id": "CODE-RT.6",
+  "cases": [
+    {
+      "id": "CODE-RT-6-01",
+      "title": "known positive: .nvmrc pins an end-of-life Node major",
+      "files": {
+        ".nvmrc": "18\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:node-version-file",
+            "line": 1,
+            "confidence": "high"
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-02",
+      "title": ".nvmrc with a comment line and a full version",
+      "files": {
+        ".nvmrc": "# runtime\nv16.20.2\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:node-version-file",
+            "line": 2
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-03",
+      "title": "Dockerfile FROM node image",
+      "files": {
+        "Dockerfile": "FROM node:18-alpine AS build\nRUN npm ci\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:from-image",
+            "line": 1
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-04",
+      "title": "Lambda container base image with a deprecated Python runtime",
+      "files": {
+        "Dockerfile": "FROM public.ecr.aws/lambda/python:3.9\nCOPY app.py .\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "lambda:from-image",
+            "line": 1,
+            "confidence": "high"
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-05",
+      "title": "SAM template with a deprecated Lambda runtime",
+      "files": {
+        "template.yaml": "Resources:\n  Fn:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs18.x\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "lambda:lambda-runtime",
+            "line": 5
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-06",
+      "title": "Lambda runtime approaching deprecation (within warn_days) is reported with medium confidence",
+      "files": {
+        "serverless.yml": "provider:\n  runtime: python3.10\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "lambda:lambda-runtime",
+            "line": 2,
+            "confidence": "medium"
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-07",
+      "title": "CI matrix lists several Node versions; each end-of-life entry is its own finding",
+      "files": {
+        ".github/workflows/ci.yml": "jobs:\n  t:\n    steps:\n      - uses: actions/setup-node@v4\n        with:\n          node-version: [16, 18, 22]\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:setup-node",
+            "line": 6
+          },
+          {
+            "identity": "node:setup-node#2",
+            "line": 6
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-08",
+      "title": "multi-line python-version list in a workflow",
+      "files": {
+        ".github/workflows/ci.yml": "jobs:\n  t:\n    steps:\n      - uses: actions/setup-python@v5\n        with:\n          python-version:\n            - \"3.8\"\n            - \"3.12\"\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "python:setup-python",
+            "line": 7
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-09",
+      "title": "engines.node lower bound is end-of-life: reported with low confidence",
+      "files": {
+        "package.json": "{\n  \"engines\": {\n    \"node\": \">=14\"\n  }\n}\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:engines.node",
+            "line": 3,
+            "confidence": "low"
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-10",
+      "title": ".python-version",
+      "files": {
+        ".python-version": "3.9.7\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "python:python-version-file",
+            "line": 1
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-11",
+      "title": "runtime.txt",
+      "files": {
+        "runtime.txt": "python-3.8.12\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "python:runtime.txt",
+            "line": 1
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-12",
+      "title": ".tool-versions: only the end-of-life entry is reported",
+      "files": {
+        ".tool-versions": "nodejs 16.20.0\npython 3.12.1\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:tool-versions",
+            "line": 1
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-13",
+      "title": "Terraform Lambda runtime",
+      "files": {
+        "main.tf": "resource \"aws_lambda_function\" \"f\" {\n  runtime = \"nodejs20.x\"\n}\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "lambda:lambda-runtime",
+            "line": 2
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-14",
+      "title": "Pipfile python_version",
+      "files": {
+        "Pipfile": "[requires]\npython_version = \"3.9\"\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "python:pipfile",
+            "line": 2
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-15",
+      "title": "similar negative: supported LTS",
+      "files": {
+        ".nvmrc": "22\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-16",
+      "title": "boundary: EOL exactly warn_days away (203 days) is reported as approaching",
+      "files": {
+        ".nvmrc": "22\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:node-version-file",
+            "line": 1,
+            "confidence": "medium"
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 203
+      }
+    },
+    {
+      "id": "CODE-RT-6-17",
+      "title": "boundary: one day outside warn_days is not reported",
+      "files": {
+        ".nvmrc": "22\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 202
+      }
+    },
+    {
+      "id": "CODE-RT-6-18",
+      "title": "boundary: on the EOL date itself the version has ended",
+      "files": {
+        ".nvmrc": "20\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:node-version-file",
+            "line": 1,
+            "confidence": "high"
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-04-30",
+        "warn_days": 1
+      }
+    },
+    {
+      "id": "CODE-RT-6-19",
+      "title": "boundary: the day before EOL is only approaching",
+      "files": {
+        ".nvmrc": "20\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": [
+          {
+            "identity": "node:node-version-file",
+            "line": 1,
+            "confidence": "medium"
+          }
+        ]
+      },
+      "context": {
+        "reference_date": "2026-04-29",
+        "warn_days": 1
+      }
+    },
+    {
+      "id": "CODE-RT-6-20",
+      "title": "legitimate exception: aliases cannot be resolved",
+      "files": {
+        ".nvmrc": "lts/*\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-21",
+      "title": "legitimate exception: version from a workflow expression",
+      "files": {
+        ".github/workflows/ci.yml": "      - uses: actions/setup-node@v4\n        with:\n          node-version: ${{ matrix.node }}\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-22",
+      "title": "similar negative: not a Node/Python image",
+      "files": {
+        "Dockerfile": "FROM ubuntu:18.04\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-23",
+      "title": "similar negative: engines range starting at a supported version",
+      "files": {
+        "package.json": "{\n  \"engines\": {\n    \"node\": \">=22\"\n  }\n}\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-24",
+      "title": "boundary: a version newer than the support table is not flagged",
+      "files": {
+        ".python-version": "3.99\n"
+      },
+      "expect": {
+        "status": "completed",
+        "findings": []
+      },
+      "context": {
+        "reference_date": "2026-10-09",
+        "warn_days": 180
+      }
+    },
+    {
+      "id": "CODE-RT-6-25",
+      "title": "malformed settings: reference_date is not a date -> unavailable",
+      "files": {
+        ".nvmrc": "18\n"
+      },
+      "expect": {
+        "status": "unavailable",
+        "findings": [],
+        "evaluated": [],
+        "limitations_contain": [
+          "context.reference_date must be an ISO date"
+        ]
+      },
+      "context": {
+        "reference_date": "yesterday"
+      }
+    },
+    {
+      "id": "CODE-RT-6-26",
+      "title": "malformed settings: warn_days missing -> unavailable",
+      "files": {
+        ".nvmrc": "18\n"
+      },
+      "expect": {
+        "status": "unavailable",
+        "findings": [],
+        "evaluated": [],
+        "limitations_contain": [
+          "context.warn_days must be a number"
+        ]
+      },
+      "context": {
+        "warn_days": null
+      }
+    }
+  ]
+}
