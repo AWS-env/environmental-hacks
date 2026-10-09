@@ -1466,3 +1466,100 @@ Prometheus/AMP series are out of scope.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs06/obs06-01-positive-input.json
 ```
+## LLM-10 — Unbounded agent/tool loops and repeated tool calls (X-Ray traces)
+
+Flags agents that call the same tool with identical arguments over and over,
+or run more model turns than a configured budget, using AWS X-Ray traces the
+client already records. This is the trace half of LLM-10: it proves what the
+sampled traces show, not that the code lacks a budget. A static half (loops
+around LLM/tool calls without a max-iteration bound) is a follow-up. No token
+or cost measurements are emitted.
+
+### Input
+
+`llm10.normalize_xray_traces(traces)` takes the `Traces` list of
+[`BatchGetTraces`](https://docs.aws.amazon.com/xray/latest/api/API_BatchGetTraces.html)
+(`{"Id", "Segments": [{"Id", "Document"}]}`) and returns
+`{"traces_received", "traces_without_genai_calls", "skipped_traces", "entrypoints"}`.
+`llm10.telemetry_sources(normalized)` turns each entrypoint into one
+`telemetry` source with scope `entrypoint:<name>`. The entrypoint is the
+X-Ray segment that owns the calls, for example the Lambda function. The
+trace-analyzer route fetches traces read-only and calls these functions; the
+detector never calls AWS.
+
+GenAI calls are recognised by
+[OpenTelemetry GenAI semantic conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/gen-ai-spans.md).
+Attributes are read from subsegment `metadata` (any namespace; the ADOT
+`awsxrayexporter` writes `metadata.default["gen_ai.tool.name"]`) or
+`annotations` (`gen_ai_tool_name`, because annotation keys cannot contain dots).
+
+| Span | Recognised by |
+| --- | --- |
+| Model turn | `gen_ai.operation.name` `chat`, `text_completion`, `generate_content`, or a `gen_ai.request.model` without a tool name |
+| Tool call | `execute_tool`, a `gen_ai.tool.name`, or a subsegment named `execute_tool <tool>` |
+| Agent run | `invoke_agent` / `invoke_workflow` (`gen_ai.agent.name`); calls outside any agent span belong to the entrypoint run |
+| Arguments | `gen_ai.tool.call.arguments` (JSON string or object), compared by a SHA-256 of canonical JSON |
+
+Embedded and separately sent subsegments (`type: subsegment` + `parent_id`)
+are both supported; inferred segments are ignored. A GenAI span nested
+directly in a span of the same kind (and tool name) is one call, for example
+a framework `chat` span around the instrumented Bedrock client subsegment.
+Traces with an unparseable document, an in-progress (sub)segment or an
+orphaned subsegment are skipped whole and listed with the reason.
+
+Each entrypoint summary has `traces_with_genai_calls`, `traces_analyzed`
+(traces with a model turn or a tool call with arguments), `traces_skipped`,
+`skip_reasons`, `failed_calls`, `tool_calls_without_arguments`, the worst
+`max_llm_iterations` and `max_identical_tool_calls` records and per-trace
+`traces` (calls per run, agent nesting depth, duration, pagination series).
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_traces` | Analyzable traces needed before an entrypoint is evaluated | `10` |
+| `max_llm_iterations` | Most successful model calls allowed in one agent run | `10` |
+| `max_identical_tool_calls` | Most calls of one tool with identical arguments in one agent run | `3` |
+
+A turn is "one LLM call for the current agent"; the
+[OpenAI Agents SDK](https://openai.github.io/openai-agents-python/running_agents/)
+stops at `max_turns` (default 10) and LangChain's `AgentExecutor` at
+`max_iterations` (default 15). The OpenHands stuck detector treats 4 repeated
+action/observation pairs as a loop. AWS
+[AGENTSUS02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp02.html)
+notes that "every duplicate model call, tool invocation, and memory lookup is
+work the agent fleet has already done once". Missing or invalid settings make
+the result `unavailable`.
+
+### Detection rule
+
+For each entrypoint with at least `min_traces` analyzable traces:
+
+- `identical-tool-calls`: some agent run calls one tool with identical
+  arguments more than `max_identical_tool_calls` times. Confidence is `high`
+  when two or more traces breach, otherwise `medium`.
+- `iteration-budget`: some agent run makes more than `max_llm_iterations`
+  successful model calls. Confidence is `medium` when two or more traces
+  breach, otherwise `low`.
+
+Evidence cites `traces_analyzed` and the worst record. Not counted:
+
+- failed calls (`error`, `throttle` or `fault` true, or `error.type`), treated as explicit retries;
+- pagination: arguments that differ only in a cursor/page/offset key are distinct calls, reported as a pagination series;
+- separate agent runs in one trace (orchestrator and sub-agents), which are counted per run;
+- tool calls without recorded arguments, since `gen_ai.tool.call.arguments` is Opt-In. The limitations say so.
+
+A polling tool called repeatedly with the same job ID is flagged; the trace
+cannot show that the results changed. Entrypoints with too few analyzable
+traces, or with malformed summaries, are left out of `evaluated_scope`.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm10/llm10-01-positive-input.json
+```
+
+The fixtures under `tests/fixtures/llm10/` are synthetic `BatchGetTraces`
+responses shaped on the X-Ray segment document format, not production traces.
+

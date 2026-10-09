@@ -1,0 +1,147 @@
+{
+ "_comment": "SYNTHETIC fixture for LLM-10 tests: hand-built BatchGetTraces response shaped on the AWS X-Ray segment document spec and real Lambda traces (service + function segment). Not production telemetry.",
+ "Traces": [
+  {
+   "Id": "1-6ac93050-82ae99332e785cf0a4cfbcf5",
+   "Duration": 6.409,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "779aff09ae620a70",
+     "Document": "{\"id\":\"779aff09ae620a70\",\"name\":\"support-agent\",\"start_time\":1791570000.001,\"trace_id\":\"1-6ac93050-82ae99332e785cf0a4cfbcf5\",\"end_time\":1791570006.411,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"bc274a8ffa8bdc905a3089f6a50416e2\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "bf5aaa1e35381b7c",
+     "Document": "{\"id\":\"bf5aaa1e35381b7c\",\"name\":\"support-agent\",\"start_time\":1791570000.04,\"trace_id\":\"1-6ac93050-82ae99332e785cf0a4cfbcf5\",\"end_time\":1791570006.409,\"parent_id\":\"779aff09ae620a70\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/support-agent\"}],\"resource_names\":[\"support-agent\"]},\"annotations\":{\"aws:responseLatency\":6409.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"779347f4ce45c54b\",\"name\":\"invoke_agent support_agent\",\"start_time\":1791570000.05,\"end_time\":1791570006.399,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"support_agent\"}},\"subsegments\":[{\"id\":\"197fea3eb831ecf6\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570000.053,\"end_time\":1791570000.853,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"1be1f7b036978807\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570000.855,\"end_time\":1791570000.975,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"lookup_order\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_e4492e525065d32dc5858f\",\"gen_ai.tool.call.arguments\":\"{\\\"order_id\\\": \\\"A-1001\\\"}\"}}},{\"id\":\"9501d63e09c8727e\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570000.977,\"end_time\":1791570001.777,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"a120a8cf7b9ebe79\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570001.779,\"end_time\":1791570001.899,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"lookup_order\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_0cced2cf7c68714871c292\",\"gen_ai.tool.call.arguments\":\"{\\\"order_id\\\": \\\"A-1001\\\"}\"}}},{\"id\":\"514b4be54f1a6e6f\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570001.901,\"end_time\":1791570002.701,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"0a72c834779a0959\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570002.703,\"end_time\":1791570002.823,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"lookup_order\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_1ab660932f2302f38ce732\",\"gen_ai.tool.call.arguments\":\"{\\\"order_id\\\": \\\"A-1001\\\"}\"}}},{\"id\":\"369fc951036d2952\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570002.825,\"end_time\":1791570003.625,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"39b0521db5bf8f3a\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570003.627,\"end_time\":1791570003.747,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"lookup_order\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_87fe0d93d20e1a15db5248\",\"gen_ai.tool.call.arguments\":\"{\\\"order_id\\\": \\\"A-1001\\\"}\"}}},{\"id\":\"2c3f3ee92ef81c85\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570003.749,\"end_time\":1791570004.549,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"c117d2541a95c0e2\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570004.551,\"end_time\":1791570004.671,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"lookup_order\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_3a3e5a069291024f3e5a37\",\"gen_ai.tool.call.arguments\":\"{\\\"order_id\\\": \\\"A-1001\\\"}\"}}},{\"id\":\"73844f4191603dc7\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570004.673,\"end_time\":1791570005.473,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}},{\"id\":\"b9e71a5b87fc0d79\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570005.475,\"end_time\":1791570005.595,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"lookup_order\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_c4ec293bb7fd87b62ada36\",\"gen_ai.tool.call.arguments\":\"{\\\"order_id\\\": \\\"A-1001\\\"}\"}}},{\"id\":\"a90de2ff06824dcb\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570005.597,\"end_time\":1791570006.397,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}}}]}]}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ac9317c-feb78a0401362fcd109de0c0",
+   "Duration": 5.482,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "bc72effff7fdaffe",
+     "Document": "{\"id\":\"bc72effff7fdaffe\",\"name\":\"support-agent\",\"start_time\":1791570300.001,\"trace_id\":\"1-6ac9317c-feb78a0401362fcd109de0c0\",\"end_time\":1791570305.4840002,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"c1f37303f7d5bdb3d766c788f1391bce\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "5bfa68ce11b75d27",
+     "Document": "{\"id\":\"5bfa68ce11b75d27\",\"name\":\"support-agent\",\"start_time\":1791570300.04,\"trace_id\":\"1-6ac9317c-feb78a0401362fcd109de0c0\",\"end_time\":1791570305.482,\"parent_id\":\"bc72effff7fdaffe\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/support-agent\"}],\"resource_names\":[\"support-agent\"]},\"annotations\":{\"aws:responseLatency\":5482.0},\"origin\":\"AWS::Lambda::Function\",\"subsegments\":[{\"id\":\"bad611a936def6de\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570304.67,\"end_time\":1791570305.47,\"annotations\":{\"gen_ai_operation_name\":\"chat\",\"gen_ai_request_model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai_provider_name\":\"aws.bedrock\"}},{\"id\":\"98ab3e1398aebd25\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570304.548,\"end_time\":1791570304.668,\"annotations\":{\"gen_ai_operation_name\":\"execute_tool\",\"gen_ai_tool_name\":\"lookup_order\",\"gen_ai_tool_type\":\"function\",\"gen_ai_tool_call_id\":\"tooluse_264d3e09142d9f6f0d842e\"},\"metadata\":{\"agent\":{\"gen_ai.tool.call.arguments\":{\"order_id\":\"B-2002\",\"fields\":[\"status\",\"eta\"]}}}},{\"id\":\"d5d69b10b1e608f5\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570303.746,\"end_time\":1791570304.546,\"annotations\":{\"gen_ai_operation_name\":\"chat\",\"gen_ai_request_model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai_provider_name\":\"aws.bedrock\"}},{\"id\":\"350e81394d16476a\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570303.624,\"end_time\":1791570303.744,\"annotations\":{\"gen_ai_operation_name\":\"execute_tool\",\"gen_ai_tool_name\":\"lookup_order\",\"gen_ai_tool_type\":\"function\",\"gen_ai_tool_call_id\":\"tooluse_bdf9edcca534feb45826b9\"},\"metadata\":{\"agent\":{\"gen_ai.tool.call.arguments\":{\"order_id\":\"B-2002\",\"fields\":[\"status\",\"eta\"]}}}},{\"id\":\"64cbd5f36c269d1b\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570302.822,\"end_time\":1791570303.622,\"annotations\":{\"gen_ai_operation_name\":\"chat\",\"gen_ai_request_model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai_provider_name\":\"aws.bedrock\"}},{\"id\":\"f4f22a318a4ce8a7\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570302.7,\"end_time\":1791570302.82,\"annotations\":{\"gen_ai_operation_name\":\"execute_tool\",\"gen_ai_tool_name\":\"lookup_order\",\"gen_ai_tool_type\":\"function\",\"gen_ai_tool_call_id\":\"tooluse_d0e79b202ef782ee60635e\"},\"metadata\":{\"agent\":{\"gen_ai.tool.call.arguments\":{\"order_id\":\"B-2002\",\"fields\":[\"status\",\"eta\"]}}}},{\"id\":\"ed154476bda99095\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570301.898,\"end_time\":1791570302.698,\"annotations\":{\"gen_ai_operation_name\":\"chat\",\"gen_ai_request_model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai_provider_name\":\"aws.bedrock\"}},{\"id\":\"7ae0234fce853b5f\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570301.776,\"end_time\":1791570301.896,\"annotations\":{\"gen_ai_operation_name\":\"execute_tool\",\"gen_ai_tool_name\":\"lookup_order\",\"gen_ai_tool_type\":\"function\",\"gen_ai_tool_call_id\":\"tooluse_278de3e74ccb611f07676c\"},\"metadata\":{\"agent\":{\"gen_ai.tool.call.arguments\":{\"order_id\":\"B-2002\",\"fields\":[\"status\",\"eta\"]}}}},{\"id\":\"c54bf89ee10dc85a\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570300.974,\"end_time\":1791570301.774,\"annotations\":{\"gen_ai_operation_name\":\"chat\",\"gen_ai_request_model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai_provider_name\":\"aws.bedrock\"}},{\"id\":\"66592d201c02147d\",\"name\":\"execute_tool lookup_order\",\"start_time\":1791570300.852,\"end_time\":1791570300.972,\"annotations\":{\"gen_ai_operation_name\":\"execute_tool\",\"gen_ai_tool_name\":\"lookup_order\",\"gen_ai_tool_type\":\"function\",\"gen_ai_tool_call_id\":\"tooluse_673bb71927a4a8e954a05f\"},\"metadata\":{\"agent\":{\"gen_ai.tool.call.arguments\":{\"order_id\":\"B-2002\",\"fields\":[\"status\",\"eta\"]}}}},{\"id\":\"64e44bd2a6080172\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570300.05,\"end_time\":1791570300.85,\"annotations\":{\"gen_ai_operation_name\":\"chat\",\"gen_ai_request_model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai_provider_name\":\"aws.bedrock\"}}]}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ac932a8-5f183e85a91537570955d34d",
+   "Duration": 11.029,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "5d85c750238b69b3",
+     "Document": "{\"id\":\"5d85c750238b69b3\",\"name\":\"support-agent\",\"start_time\":1791570600.001,\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"end_time\":1791570611.0310001,\"http\":{\"response\":{\"status\":200}},\"aws\":{\"request_id\":\"eb05b47b43632a5936aaeaf8d162445b\"},\"origin\":\"AWS::Lambda\"}"
+    },
+    {
+     "Id": "5f2f9090cf4bcb13",
+     "Document": "{\"id\":\"5f2f9090cf4bcb13\",\"name\":\"support-agent\",\"start_time\":1791570600.04,\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"end_time\":1791570611.029,\"parent_id\":\"5d85c750238b69b3\",\"aws\":{\"cloudwatch_logs\":[{\"log_group\":\"/aws/lambda/support-agent\"}],\"resource_names\":[\"support-agent\"]},\"annotations\":{\"aws:responseLatency\":11029.0},\"origin\":\"AWS::Lambda::Function\"}"
+    },
+    {
+     "Id": "fa999ab6b320c18d",
+     "Document": "{\"id\":\"fa999ab6b320c18d\",\"name\":\"invoke_agent support_agent\",\"start_time\":1791570600.05,\"end_time\":1791570611.019,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"invoke_agent\",\"gen_ai.agent.name\":\"support_agent\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"5f2f9090cf4bcb13\"}"
+    },
+    {
+     "Id": "0dc17e8a1ad2ee4a",
+     "Document": "{\"id\":\"0dc17e8a1ad2ee4a\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570600.053,\"end_time\":1791570600.853,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "60bd72c50979b09d",
+     "Document": "{\"id\":\"60bd72c50979b09d\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570600.855,\"end_time\":1791570600.975,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_1882aaecb83875436cd3ce\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 0\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "744f1d104a9e052a",
+     "Document": "{\"id\":\"744f1d104a9e052a\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570600.977,\"end_time\":1791570601.777,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "477843ab6b7542c6",
+     "Document": "{\"id\":\"477843ab6b7542c6\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570601.779,\"end_time\":1791570601.899,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_01728b982a5a77f10739f5\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 1\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "f3b0d0f78c133e7a",
+     "Document": "{\"id\":\"f3b0d0f78c133e7a\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570601.901,\"end_time\":1791570602.701,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "45bf92b23bce47fe",
+     "Document": "{\"id\":\"45bf92b23bce47fe\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570602.703,\"end_time\":1791570602.823,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_c26e30a81372bb6b82073c\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 2\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "d23d0571e67dbcaa",
+     "Document": "{\"id\":\"d23d0571e67dbcaa\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570602.825,\"end_time\":1791570603.625,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "296abcc880b9b180",
+     "Document": "{\"id\":\"296abcc880b9b180\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570603.627,\"end_time\":1791570603.747,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_52da7f430e4da15f8a8f26\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 3\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "0868b36b02c9e12c",
+     "Document": "{\"id\":\"0868b36b02c9e12c\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570603.749,\"end_time\":1791570604.549,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "6382fd83d22daab4",
+     "Document": "{\"id\":\"6382fd83d22daab4\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570604.551,\"end_time\":1791570604.671,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_cbfdba0fc3ff856ede0ef1\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 4\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "22a87a9250546b48",
+     "Document": "{\"id\":\"22a87a9250546b48\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570604.673,\"end_time\":1791570605.473,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "6fed6ca69bf4ecbe",
+     "Document": "{\"id\":\"6fed6ca69bf4ecbe\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570605.475,\"end_time\":1791570605.595,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_05028236349b964627e726\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 5\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "97ecf47d0c76cb75",
+     "Document": "{\"id\":\"97ecf47d0c76cb75\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570605.597,\"end_time\":1791570606.397,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "6e38d29ab9ff2a83",
+     "Document": "{\"id\":\"6e38d29ab9ff2a83\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570606.399,\"end_time\":1791570606.519,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_231b8a696666e4eb17f2f6\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 6\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "f43664f1e41f8f4d",
+     "Document": "{\"id\":\"f43664f1e41f8f4d\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570606.521,\"end_time\":1791570607.321,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "b91c98191958e133",
+     "Document": "{\"id\":\"b91c98191958e133\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570607.323,\"end_time\":1791570607.443,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_e14423fe4a2b8b497f2075\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 7\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "fef24b5a2b8acd5c",
+     "Document": "{\"id\":\"fef24b5a2b8acd5c\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570607.445,\"end_time\":1791570608.245,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "5e7c8cd49bef56d1",
+     "Document": "{\"id\":\"5e7c8cd49bef56d1\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570608.247,\"end_time\":1791570608.367,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_3af6fabf480ee98828c466\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 8\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "51e924ef0e26320a",
+     "Document": "{\"id\":\"51e924ef0e26320a\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570608.369,\"end_time\":1791570609.169,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "2c3556dc54f89eec",
+     "Document": "{\"id\":\"2c3556dc54f89eec\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570609.171,\"end_time\":1791570609.291,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_f5729ae2326c26f086b7aa\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 9\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "aaf9ad4e2eb955e2",
+     "Document": "{\"id\":\"aaf9ad4e2eb955e2\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570609.293,\"end_time\":1791570610.093,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "629d0ff2fba7ddf7",
+     "Document": "{\"id\":\"629d0ff2fba7ddf7\",\"name\":\"execute_tool search_kb\",\"start_time\":1791570610.095,\"end_time\":1791570610.215,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"execute_tool\",\"gen_ai.tool.name\":\"search_kb\",\"gen_ai.tool.type\":\"function\",\"gen_ai.tool.call.id\":\"tooluse_c48d1fc9bdf50ac29cee1d\",\"gen_ai.tool.call.arguments\":\"{\\\"query\\\": \\\"refund policy section 10\\\"}\"}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    },
+    {
+     "Id": "f1a0a0448566479c",
+     "Document": "{\"id\":\"f1a0a0448566479c\",\"name\":\"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"start_time\":1791570610.217,\"end_time\":1791570611.017,\"metadata\":{\"default\":{\"gen_ai.operation.name\":\"chat\",\"gen_ai.request.model\":\"us.anthropic.claude-3-5-haiku-20241022-v1:0\",\"gen_ai.provider.name\":\"aws.bedrock\",\"gen_ai.usage.input_tokens\":1450,\"gen_ai.usage.output_tokens\":96}},\"type\":\"subsegment\",\"trace_id\":\"1-6ac932a8-5f183e85a91537570955d34d\",\"parent_id\":\"fa999ab6b320c18d\"}"
+    }
+   ]
+  }
+ ],
+ "UnprocessedTraceIds": []
+}
