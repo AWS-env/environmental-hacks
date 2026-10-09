@@ -1,0 +1,33 @@
+# Synthetic INF-08 fixture: identity boundaries.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/api:1.0
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/api:1.0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/api:2.0

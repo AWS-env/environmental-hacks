@@ -1,0 +1,62 @@
+# Synthetic INF-08 fixture: LimitRange defaults, linter exemptions and noqa.
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: defaults
+  namespace: team-a
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 500m
+        memory: 256Mi
+      defaultRequest:
+        cpu: 100m
+        memory: 128Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: covered
+  namespace: team-a
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1.0
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: other-namespace
+  namespace: team-b
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example/app:1.0
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-agent
+  annotations:
+    ignore-check.kube-linter.io/unset-memory-requirements: "agent is sized by the vendor"
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: example/agent:1.0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: debug-shell
+spec:
+  containers:
+    # noqa: INF-08 (short-lived debug pod)
+    - name: shell
+      image: busybox
