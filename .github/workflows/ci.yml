@@ -129,6 +129,12 @@ jobs:
       - name: Scan runner
         run: python -m unittest discover -s tests/scanner
 
+      - name: Scan API
+        run: |
+          python -m unittest discover -s tests/scan_api
+          python -m pip install 'cfn-lint>=1,<2'
+          cfn-lint infra/scan-api/template.yaml
+
       - name: Detect project manifest
         id: detect
         run: |

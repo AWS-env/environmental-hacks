@@ -81,6 +81,15 @@ Open decisions (idea, track, stack) live in [`docs/DECISIONS.md`](docs/DECISIONS
 
 For agent-assisted AWS work, use the shared handshake in [`docs/AWS_AGENT_WORKFLOW.md`](docs/AWS_AGENT_WORKFLOW.md): agents ask before using AWS CLI/MCP, then verify local profile identity and selected Region before inspecting service state.
 
+## Scan API
+
+[`infra/scan-api/`](infra/scan-api/README.md) defines the async HTTP API the frontend calls.
+`POST /scans` with a public GitHub URL returns a `scan_id`. `GET /scans/{scan_id}` returns
+`queued`/`running`/`done`/`error`, plus the `report.json` when the scan is done. It is one CloudFormation
+template (API Gateway HTTP API, two Lambdas and a private S3 bucket whose scans expire after 7 days) for
+the project Region, ap-south-1. Owners C and D run there; owners A and B need Node.js and are reported as
+unavailable. See its README for deploy and cleanup commands, costs and limitations.
+
 ## Repo layout
 
 ```
@@ -88,6 +97,7 @@ For agent-assisted AWS work, use the shared handshake in [`docs/AWS_AGENT_WORKFL
 docs/               workflow, branching, and label docs
 detectors/          per-owner detectors (contract v1)
 scanner/            repository scan runner -> report.json
+scan_api/           async scan API Lambdas (infra/scan-api/)
 scripts/            helper scripts (branch + label setup)
 ```
 
