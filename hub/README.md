@@ -34,13 +34,67 @@ result item is missing. GSI `by-repository` (`gsi1pk = REPO#<repository_id>`,
 ## Readback (persistence proof)
 
 ```bash
-export AWS_PROFILE=<your profile> AWS_REGION=ap-south-1
+export AWS_PROFILE=<your profile> AWS_REGION=ap-south-1 AWS_DEFAULT_REGION=ap-south-1
 PYTHONPATH=hub python -m findings_hub.readback --repository-id <repo> --scan-id <scan> [--check-id <id>]
 PYTHONPATH=hub python -m findings_hub.readback --repository-id <repo>   # recent scans
 ```
 
 The command exits with status 1 when nothing is persisted for that scan. This
 needs `boto3`, which is not part of the contract requirements.
+
+## Local pair import (no cross-Region acquisition)
+
+Owner B's older eu-north-1 deployment cannot send events or expose S3 objects to
+this ap-south-1 hub under project restrictions. Transfer sanitized pair files
+locally and import them using your own local profile. This command makes no S3
+or EventBridge calls; persistence still writes to DynamoDB in ap-south-1 and
+requires approval for live AWS access and write permissions on the hub table.
+Do not run the earlier deployment's AWS reads from the hub's Region.
+
+The transfer JSON has three fields: `pair` (the exact `{input, result}` object),
+`sha256` (SHA-256 of its UTF-8 `store.canonical(pair)` representation), and
+`identity` (independent `repository_id`, `scan_id`, `check_id`,
+`detector_version`, `commit_sha` from the receipt you intend to accept). Review
+the identity against that receipt before import. To package a local pair:
+
+```python
+import json
+from pathlib import Path
+from findings_hub.store import canonical, sha256
+from findings_hub.writer import POINTER_FIELDS
+pair = json.loads(Path("sanitized-pair.json").read_text(encoding="utf-8"))
+identity = {field: pair["result"][field] for field in POINTER_FIELDS}
+# Compare identity with the independently reviewed receipt before proceeding.
+Path("transfer.json").write_text(json.dumps({"pair": pair,
+    "sha256": sha256(canonical(pair)), "identity": identity}), encoding="utf-8")
+```
+
+```bash
+export AWS_PROFILE=<your-profile> AWS_REGION=ap-south-1 AWS_DEFAULT_REGION=ap-south-1
+PYTHONPATH=hub python -m findings_hub.import --pair transfer.json --verify-only
+PYTHONPATH=hub python -m findings_hub.import --pair transfer.json --profile <your-profile> --region ap-south-1
+PYTHONPATH=hub python -m findings_hub.readback --repository-id <repo> --scan-id <scan>
+```
+
+Both acquisition paths share checksum, `validate_pair` and identity validation.
+The envelope is limited to 4 MiB; imported results must fit the existing 300 KB
+inline-result limit because there is no remote artifact fallback. Validation
+finishes before creating AWS clients. Duplicate imports use the existing
+conditional result write and deterministic finding keys. No deploy is required
+to use the command locally with the existing table and `boto3` installed.
+Profiles created with `aws login` also require `pip install 'botocore[crt]'`
+for the SDK login credential provider. Use your existing local sign-in; do not
+copy credentials into the import files.
+
+Imports store `evidence=verified`, `source=owner-b.detectors`, and a
+`canonical_local_pair_sha256` provenance marker. Verified means the supplied
+pair passes the contract and citation checks. It does not authenticate its
+author, establish a real customer workload, or prove these sanitized bytes
+equal the original S3 object. Keep raw AWS identities/resource names private;
+never reuse an original object's checksum for altered public bytes.
+
+Same-Region Owner B deployments can continue publishing allowlisted pointers
+normally. Confirm each path through report readback, not `PutEvents` alone.
 
 ## Build and deploy
 

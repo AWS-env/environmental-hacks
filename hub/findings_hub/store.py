@@ -31,3 +31,17 @@ def scan_pk(repository_id: str, scan_id: str) -> str:
 
 def repo_pk(repository_id: str) -> str:
     return "REPO#" + repository_id
+
+
+def persist(table, item, findings) -> str:
+    """Write findings before their commit marker using the shared immutable layout."""
+    with table.batch_writer() as batch:
+        for finding in findings:
+            batch.put_item(Item=finding)
+    try:
+        table.put_item(Item=item, ConditionExpression="attribute_not_exists(pk)")
+    except Exception as exc:
+        if getattr(exc, "response", {}).get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+            return "duplicate"
+        raise
+    return "stored"
