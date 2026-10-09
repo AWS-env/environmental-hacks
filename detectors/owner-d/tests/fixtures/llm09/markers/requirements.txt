@@ -1,0 +1,3 @@
+anthropic==0.69.0
+openai==2.3.0
+opentelemetry-instrumentation-openai-v2==2.1b0

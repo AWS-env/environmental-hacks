@@ -2643,3 +2643,71 @@ usage data broken down by `deployment.environment.name`.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs14/obs14-01-positive-input.json
 ```
+## LLM-09 — No token/cost observability (static proxy)
+
+Flags Python modules whose LLM API calls discard the token usage each response
+returns, in a payload where nothing records token usage. This v1 is a static
+proxy: it proves that usage is dropped and that no token observability is
+visible in the scanned files, not that spend is unknown. It emits no
+measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`). No context settings are required. Python files are judged.
+Some other files are read as text, only for markers, and never get findings:
+dependency manifests (`requirements*.txt`, `pyproject.toml`, `Pipfile`,
+`setup.cfg`), Dockerfiles, Procfiles, Terraform, YAML, CloudFormation JSON
+templates and shell scripts.
+
+### Detection rule
+
+**Markers are payload-wide.** Instrumentation is set up once per process,
+invocation logging once per account and Region, and a caller in another file
+may read `response.usage`. Any of these markers in a non-vendored file means no
+module is flagged, and a limitation names the marker:
+
+- a usage read (`.usage`, `usage_metadata`, `input_tokens`/`output_tokens`,
+  `prompt_tokens`/`completion_tokens`, Converse `inputTokens`/`outputTokens`,
+  `x-amzn-bedrock-*-token-count`);
+- OpenTelemetry GenAI attributes (`gen_ai.usage.*`) or token metrics;
+- GenAI instrumentations (`opentelemetry-instrumentation-openai/anthropic/
+  bedrock/botocore`, `opentelemetry-instrument`, ADOT) and LLM observability
+  SDKs (OpenLLMetry, Langfuse, LangSmith, Helicone, ...);
+- Bedrock model invocation logging, `requestMetadata` or application inference
+  profiles;
+- a whole response passed to a logger, `print` or a usage/metric helper.
+
+**Findings are per module.** A module is flagged when at least one recognised
+call (`llmcalls.py`: Anthropic `messages.*`, OpenAI chat/responses, Bedrock
+`converse*`/`invoke_model*`) drops its response, and no call lets its
+response escape.
+
+- **Dropped:** the module reads only fields that cannot hold usage, such as
+  `.content`, `.choices`, `["output"]` or stream deltas. The check follows
+  `body.read()` into `json.loads`, stream events and `get_final_message()`.
+- **Escaped:** the response is returned, passed to an unknown function,
+  stored, serialized or read in a closure. Such a call is not judged, because
+  code we cannot see may read its usage.
+
+There is one finding per module, with identity `module:token-usage`. The
+evidence is the first dropped call. Confidence is `medium` when the payload
+also includes a manifest or IaC file (with no unparseable file); otherwise it
+is `low`.
+
+Not flagged: tests, `examples`/`samples`/`docs`/`notebooks`/`demo(s)`,
+`scripts`, vendored code and calls under `if __name__ == "__main__"`.
+`# noqa` or `# noqa: LLM-09` on a call line removes that call.
+
+Bedrock still publishes `AWS/Bedrock` `InputTokenCount`/`OutputTokenCount` per
+model. The finding is about attributing usage to a code path. Invocation
+logging enabled in the console and instrumentation configured elsewhere are
+not visible.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm09/llm09-01-positive-input.json
+```
+
