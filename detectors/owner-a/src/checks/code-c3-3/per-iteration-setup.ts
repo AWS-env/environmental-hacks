@@ -351,12 +351,8 @@ export function detectPerIterationSetup(
       const profile = PROFILES[site.signal];
       const factoryOrdinal = factoryOrdinals.get(site.factory) ?? 0;
       factoryOrdinals.set(site.factory, factoryOrdinal + 1);
-      const fingerprint = generateFingerprint(
-        CHECK,
-        KIND,
-        filePath,
-        `${loopKey}:${loopOrdinal}:${site.factory}:${factoryOrdinal}`
-      );
+      const identityKey = `${loopKey}:${loopOrdinal}:${site.factory}:${factoryOrdinal}`;
+      const fingerprint = generateFingerprint(CHECK, KIND, filePath, identityKey);
       const startLine = row + 1;
       const endLine = call.endPosition.row + 1;
       const limitations = [
@@ -368,6 +364,7 @@ export function detectPerIterationSetup(
         check: CHECK,
         kind: KIND,
         fingerprint,
+        identity: `${KIND}:${identityKey}`,
         location: { path: filePath, startLine, endLine },
         evidence: {
           snippet: line.trim(),

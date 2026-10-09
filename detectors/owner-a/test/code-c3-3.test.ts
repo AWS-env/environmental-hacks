@@ -4,6 +4,8 @@ import { join } from "node:path";
 import { parsePythonSource } from "../src/core/parse.js";
 import { checkCodeC33 } from "../src/checks/code-c3-3/index.js";
 import { checkCodeC32 } from "../src/checks/code-c3-2/index.js";
+import { evaluate } from "../src/contract.js";
+import { staticInput, validatePair, validatorAvailable } from "./helpers/contract.js";
 
 const FIXTURES_DIR = join(__dirname, "fixtures", "code-c3-3");
 
@@ -131,6 +133,33 @@ describe("CODE-C3.3 Inefficient per-iteration setup detector", () => {
       );
       expect(twin).toHaveLength(2);
       expect(twin[0].fingerprint).not.toBe(twin[1].fingerprint);
+    });
+  });
+
+  describe("Contract v1", () => {
+    const read = (f: string) => readFileSync(join(FIXTURES_DIR, f), "utf-8");
+
+    it("positives: completed with line-free identities; syntax error is never certified", () => {
+      const result = evaluate(staticInput("CODE-C3.3", { "positives.py": read("positives.py") }));
+      expect(result.status).toBe("completed");
+      expect(result.findings).toHaveLength(runCheckOnFixture("positives.py").length);
+      expect(result.findings.every((f) => f.identity.includes("per-iteration-setup:"))).toBe(true);
+
+      const broken = evaluate(staticInput("CODE-C3.3", { "syntax_error.py": read("syntax_error.py") }));
+      expect(broken.status).toBe("unavailable");
+      expect(broken.findings).toEqual([]);
+    });
+
+    it.skipIf(!validatorAvailable)("positives, negatives and syntax-error pairs pass shared validate_pair", () => {
+      for (const files of [
+        { "positives.py": read("positives.py") },
+        { "negatives.py": read("negatives.py") },
+        { "positives.py": read("positives.py"), "syntax_error.py": read("syntax_error.py") },
+      ]) {
+        const input = staticInput("CODE-C3.3", files);
+        const verdict = validatePair(input, evaluate(input));
+        expect(verdict.ok, verdict.output).toBe(true);
+      }
     });
   });
 });

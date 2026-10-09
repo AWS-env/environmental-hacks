@@ -8,6 +8,7 @@ import { ParsedPythonFile } from "./core/parse.js";
 import { checkCodeC11 } from "./checks/code-c1-1/index.js";
 import { checkCodeC31 } from "./checks/code-c3-1/index.js";
 import { checkCodeC32 } from "./checks/code-c3-2/index.js";
+import { checkCodeC33 } from "./checks/code-c3-3/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -44,6 +45,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC32(parsed),
       limitations: [
         "Callee purity is not verified statically: hoisting a flagged call is safe only if it is side-effect free.",
+      ],
+    },
+  ],
+  [
+    "CODE-C3.3",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC33(parsed),
+      limitations: [
+        "Setup cost and freshness are not verified statically: hoist only objects that are safe to share across iterations.",
       ],
     },
   ],
