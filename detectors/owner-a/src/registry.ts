@@ -7,6 +7,7 @@ import { Finding } from "./core/finding.js";
 import { ParsedPythonFile } from "./core/parse.js";
 import { checkCodeC11 } from "./checks/code-c1-1/index.js";
 import { checkCodeC31 } from "./checks/code-c3-1/index.js";
+import { checkCodeC32 } from "./checks/code-c3-2/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -33,6 +34,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC31(parsed),
       limitations: [
         "Static half of R1R2: no profiler evidence that a flagged loop is hot; payoff is engine-dependent (follow-up: OQ-1 profile confirmation).",
+      ],
+    },
+  ],
+  [
+    "CODE-C3.2",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC32(parsed),
+      limitations: [
+        "Callee purity is not verified statically: hoisting a flagged call is safe only if it is side-effect free.",
       ],
     },
   ],

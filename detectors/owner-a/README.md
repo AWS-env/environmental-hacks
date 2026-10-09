@@ -18,6 +18,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
     loops, append-accumulation loops (gated or ungated) convertible to comprehensions,
     and dict key loops with `d[k]` lookups convertible to `.items()`. Python only;
     Low severity, unconfirmed without profiler evidence (R2 follow-up).
+- **`CODE-C3.2`**: Recomputing loop-invariant (#61)
+  - `loop-invariant-recomputation`: Invariant calls (S1), attribute/subscript chains (S2), and binary arithmetic (S3) recomputed inside `for` and `while` loops.
 
 ## Shared contract v1
 
