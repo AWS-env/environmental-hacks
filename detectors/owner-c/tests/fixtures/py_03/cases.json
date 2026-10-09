@@ -1,0 +1,129 @@
+[
+  {
+    "id": "PY-03-01",
+    "title": "known positive: iterrows",
+    "files": {
+      "app.py": "def f(df):\n    for i, row in df.iterrows():\n        pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:df.iterrows",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-03-02",
+    "title": "row-wise apply in a pandas file",
+    "files": {
+      "app.py": "import pandas as pd\n\n\ndef f(df):\n    return df.apply(g, axis=1)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:df.apply(axis=1)",
+          "line": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-03-03",
+    "title": "axis='columns' spelling",
+    "files": {
+      "app.py": "import pandas as pd\n\n\ndef f(df):\n    return df.apply(g, axis='columns')\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "f:df.apply(axis=1)",
+          "line": 5
+        }
+      ]
+    }
+  },
+  {
+    "id": "PY-03-04",
+    "title": "recommended form: itertuples",
+    "files": {
+      "app.py": "def f(df):\n    for row in df.itertuples():\n        pass\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-03-05",
+    "title": "similar negative: apply on the default axis",
+    "files": {
+      "app.py": "import pandas as pd\n\n\ndef f(df):\n    return df.apply(g)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-03-06",
+    "title": "legitimate exception: apply(axis=1) without any pandas import",
+    "files": {
+      "app.py": "def f(obj):\n    return obj.apply(g, axis=1)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-03-07",
+    "title": "boundary: axis=0 is column-wise",
+    "files": {
+      "app.py": "import pandas as pd\n\n\ndef f(df):\n    return df.apply(g, axis=0)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "PY-03-90",
+    "title": "malformed input: only an unparsable file -> unavailable, no clean claim",
+    "files": {
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "PY-03-91",
+    "title": "unparsable file next to a good one -> partial coverage",
+    "files": {
+      "ok.py": "x = 1\n",
+      "broken.py": "def (\n"
+    },
+    "expect": {
+      "status": "partial",
+      "findings": [],
+      "evaluated": [
+        "ok.py"
+      ],
+      "limitations_contain": [
+        "broken.py",
+        "could not be parsed"
+      ]
+    }
+  }
+]

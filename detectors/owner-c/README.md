@@ -11,6 +11,7 @@ detector (see `owner_c/connector.py` and `owner_c/normalize/`).
 | PY-09 | Mutable default arguments | static | #253 |
 | PY-04 | String `+=` inside loops | static | #248 |
 | PY-02 | `list.pop(0)` / `insert(0, x)` as a queue | static | #246 |
+| PY-03 | pandas `iterrows()` / row-wise `apply(axis=1)` | static | #247 |
 
 PY-06 (`re.compile` in loops) is intentionally not implemented: Python caches recent patterns, so the
 impact is small. Its issue stays open.
@@ -102,6 +103,11 @@ Flags `x.pop(0)` (one argument) and `x.insert(0, v)` (two) inside loops. Not fla
 `DataFrame.insert(0, col, v)` (three arguments), calls outside loops. Identity: `qualname:recv.pop(0)`.
 Confidence: medium. Limitation: list size and receiver type are unknown.
 
+## PY-03 - pandas row iteration
+
+Flags `.iterrows()` and, in files that import pandas, `.apply(..., axis=1 | 'columns')`.
+Identity: `qualname:recv.iterrows` / `qualname:recv.apply(axis=1)`. Confidence: medium.
+Limitation: frame size unknown.
 
 
 
