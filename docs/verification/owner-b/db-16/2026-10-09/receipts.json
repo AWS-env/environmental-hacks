@@ -1,0 +1,792 @@
+{
+  "check_id": "DB-16",
+  "group": "G01",
+  "source_is_synthetic": true,
+  "runtime_customer_gate": "not_verified",
+  "records": [
+    {
+      "case_id": "DB-16-01",
+      "evidence_class": "synthetic_fixture_on_real_aws",
+      "input": {
+        "check_id": "DB-16",
+        "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "context": {
+          "cache_apis": {
+            "cache": {
+              "family": "psr16",
+              "version": "3.0"
+            },
+            "mem": {
+              "family": "memcached",
+              "version": "3.2"
+            },
+            "pool": {
+              "family": "psr6",
+              "version": "3.0"
+            }
+          },
+          "db_apis": {
+            "db": {
+              "family": "joomla",
+              "version": "4.4"
+            },
+            "pdo": {
+              "family": "pdo",
+              "version": "8.2"
+            }
+          },
+          "language": "php",
+          "limits": {
+            "max_ast_depth": 128,
+            "max_ast_nodes": 20000,
+            "max_source_bytes": 262144,
+            "max_sql_bytes": 8192
+          },
+          "mode": "runtime",
+          "ordinary_tables": [
+            "users",
+            "articles"
+          ],
+          "php_version": "8.2",
+          "rule_version": "g01-1",
+          "sql_dialect": "mysql-8.0"
+        },
+        "detector_version": "1.0.0",
+        "kind": "input",
+        "repository_id": "synthetic:g01-fixtures",
+        "scan_id": "aws-smoke:2026-10-09:DB-16-positive",
+        "schema_version": "1.0",
+        "scope": [
+          "file:fixture.php"
+        ],
+        "sources": [
+          {
+            "content": "<?php\nfunction load($pdo) {\n  $pdo->query(\"SELECT id FROM users\");\n  return 7;\n}\n",
+            "kind": "static",
+            "locator": "fixture.php",
+            "scope_id": "file:fixture.php",
+            "source_id": "php"
+          },
+          {
+            "data": {
+              "acquisition": {
+                "end": "2026-10-09T00:01:00Z",
+                "start": "2026-10-09T00:00:00Z",
+                "status": "complete"
+              },
+              "events": [
+                {
+                  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "dialect": "mysql-8.0",
+                  "event_id": "synthetic-event-0",
+                  "function": "load",
+                  "locator": "fixture.php",
+                  "operation_id": "1",
+                  "repository_id": "synthetic:g01-fixtures",
+                  "request_id": "synthetic-request",
+                  "source_sha256": "4a5396ff3cafb7f94848e1d8f2b1cdf0f26a874b442ab68aeacc68bbeab3e7ce",
+                  "sql": "SELECT id FROM users",
+                  "status": "success",
+                  "timestamp": "2026-10-09T00:00:01Z",
+                  "transaction_id": "synthetic-transaction"
+                },
+                {
+                  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "dialect": "mysql-8.0",
+                  "event_id": "synthetic-event-1",
+                  "function": "load",
+                  "locator": "fixture.php",
+                  "operation_id": "2",
+                  "repository_id": "synthetic:g01-fixtures",
+                  "request_id": "synthetic-request",
+                  "source_sha256": "4a5396ff3cafb7f94848e1d8f2b1cdf0f26a874b442ab68aeacc68bbeab3e7ce",
+                  "sql": "SELECT id FROM articles",
+                  "status": "success",
+                  "timestamp": "2026-10-09T00:00:02Z",
+                  "transaction_id": "synthetic-transaction"
+                }
+              ],
+              "format": "query-event-v1"
+            },
+            "kind": "telemetry",
+            "locator": "synthetic:query-events",
+            "scope_id": "file:fixture.php",
+            "source_id": "events"
+          }
+        ]
+      },
+      "result": {
+        "check_id": "DB-16",
+        "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "context": {
+          "cache_apis": {
+            "cache": {
+              "family": "psr16",
+              "version": "3.0"
+            },
+            "mem": {
+              "family": "memcached",
+              "version": "3.2"
+            },
+            "pool": {
+              "family": "psr6",
+              "version": "3.0"
+            }
+          },
+          "db_apis": {
+            "db": {
+              "family": "joomla",
+              "version": "4.4"
+            },
+            "pdo": {
+              "family": "pdo",
+              "version": "8.2"
+            }
+          },
+          "language": "php",
+          "limits": {
+            "max_ast_depth": 128,
+            "max_ast_nodes": 20000,
+            "max_source_bytes": 262144,
+            "max_sql_bytes": 8192
+          },
+          "mode": "runtime",
+          "ordinary_tables": [
+            "users",
+            "articles"
+          ],
+          "php_version": "8.2",
+          "rule_version": "g01-1",
+          "sql_dialect": "mysql-8.0"
+        },
+        "coverage": {
+          "evaluated_scope": [
+            "file:fixture.php"
+          ],
+          "limitations": [
+            "Bounded PHP local analysis; declared API and ordinary-table identities are connector assertions. No measured CPU, energy or carbon savings. No customer code is executed."
+          ]
+        },
+        "detector_version": "1.0.0",
+        "findings": [
+          {
+            "confidence": "medium",
+            "evidence": [
+              {
+                "kind": "static",
+                "line_start": 3,
+                "locator": "fixture.php",
+                "source_id": "php",
+                "value": "  $pdo->query(\"SELECT id FROM users\");"
+              },
+              {
+                "field": "events",
+                "kind": "telemetry",
+                "locator": "synthetic:query-events",
+                "source_id": "events",
+                "value": [
+                  {
+                    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "dialect": "mysql-8.0",
+                    "event_id": "synthetic-event-0",
+                    "function": "load",
+                    "locator": "fixture.php",
+                    "operation_id": "1",
+                    "repository_id": "synthetic:g01-fixtures",
+                    "request_id": "synthetic-request",
+                    "source_sha256": "4a5396ff3cafb7f94848e1d8f2b1cdf0f26a874b442ab68aeacc68bbeab3e7ce",
+                    "sql": "SELECT id FROM users",
+                    "status": "success",
+                    "timestamp": "2026-10-09T00:00:01Z",
+                    "transaction_id": "synthetic-transaction"
+                  },
+                  {
+                    "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    "dialect": "mysql-8.0",
+                    "event_id": "synthetic-event-1",
+                    "function": "load",
+                    "locator": "fixture.php",
+                    "operation_id": "2",
+                    "repository_id": "synthetic:g01-fixtures",
+                    "request_id": "synthetic-request",
+                    "source_sha256": "4a5396ff3cafb7f94848e1d8f2b1cdf0f26a874b442ab68aeacc68bbeab3e7ce",
+                    "sql": "SELECT id FROM articles",
+                    "status": "success",
+                    "timestamp": "2026-10-09T00:00:02Z",
+                    "transaction_id": "synthetic-transaction"
+                  }
+                ]
+              }
+            ],
+            "fingerprint": "911c72b3c5f2601dd44c48d02e214a960483320019841f709d239025588246d5",
+            "identity": "load:execution:1:PDO::query",
+            "recommendation": "Review removing this read after confirming ordinary-table, error and transaction assumptions.",
+            "references": [
+              "https://github.com/AWS-env/environmental-hacks/issues/118",
+              "https://taoxie.cs.illinois.edu/publications/icsme20-dbperf.pdf"
+            ],
+            "scope_id": "file:fixture.php",
+            "summary": "Executed read result has no supported observable local use"
+          }
+        ],
+        "kind": "result",
+        "measurements": [],
+        "repository_id": "synthetic:g01-fixtures",
+        "scan_id": "aws-smoke:2026-10-09:DB-16-positive",
+        "schema_version": "1.0",
+        "scope": [
+          "file:fixture.php"
+        ],
+        "status": "completed"
+      },
+      "invocation": {
+        "function_arn": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-static-scan:2",
+        "executed_version": "2",
+        "status_code": 200,
+        "request_id": "725cac06-dc4e-4eb9-a788-3e49bf5448bd"
+      },
+      "artifact": {
+        "bucket": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq",
+        "key": "results/cb346a59c157afbb24d15a77e51410ef/54e9a22f34155a1d3be74161206bf30e57f14829cc51bae818133271c1dce44b.json",
+        "sha256": "54e9a22f34155a1d3be74161206bf30e57f14829cc51bae818133271c1dce44b",
+        "version_id": "fVVcxcflbZdfx4hqk3cCfa_cE2cFjfxs"
+      },
+      "delivery": {
+        "status": "blocked",
+        "reason": "Owner D findings hub is not configured; S3 artifact is not report persistence"
+      },
+      "readback": {
+        "content_length": 4824,
+        "version_id": "fVVcxcflbZdfx4hqk3cCfa_cE2cFjfxs",
+        "last_modified": "2026-10-09T16:52:57+00:00",
+        "encryption": "AES256"
+      }
+    },
+    {
+      "case_id": "DB-16-02",
+      "evidence_class": "synthetic_fixture_on_real_aws",
+      "input": {
+        "check_id": "DB-16",
+        "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "context": {
+          "cache_apis": {
+            "cache": {
+              "family": "psr16",
+              "version": "3.0"
+            },
+            "mem": {
+              "family": "memcached",
+              "version": "3.2"
+            },
+            "pool": {
+              "family": "psr6",
+              "version": "3.0"
+            }
+          },
+          "db_apis": {
+            "db": {
+              "family": "joomla",
+              "version": "4.4"
+            },
+            "pdo": {
+              "family": "pdo",
+              "version": "8.2"
+            }
+          },
+          "language": "php",
+          "limits": {
+            "max_ast_depth": 128,
+            "max_ast_nodes": 20000,
+            "max_source_bytes": 262144,
+            "max_sql_bytes": 8192
+          },
+          "mode": "runtime",
+          "ordinary_tables": [
+            "users",
+            "articles"
+          ],
+          "php_version": "8.2",
+          "rule_version": "g01-1",
+          "sql_dialect": "mysql-8.0"
+        },
+        "detector_version": "1.0.0",
+        "kind": "input",
+        "repository_id": "synthetic:g01-fixtures",
+        "scan_id": "aws-smoke:2026-10-09:DB-16-negative",
+        "schema_version": "1.0",
+        "scope": [
+          "file:fixture.php"
+        ],
+        "sources": [
+          {
+            "content": "<?php\nfunction load($pdo) {\n return $pdo->query(\"SELECT id FROM users\");\n}",
+            "kind": "static",
+            "locator": "fixture.php",
+            "scope_id": "file:fixture.php",
+            "source_id": "php"
+          },
+          {
+            "data": {
+              "acquisition": {
+                "end": "2026-10-09T00:01:00Z",
+                "start": "2026-10-09T00:00:00Z",
+                "status": "complete"
+              },
+              "events": [
+                {
+                  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "dialect": "mysql-8.0",
+                  "event_id": "synthetic-event-0",
+                  "function": "load",
+                  "locator": "fixture.php",
+                  "operation_id": "1",
+                  "repository_id": "synthetic:g01-fixtures",
+                  "request_id": "synthetic-request",
+                  "source_sha256": "b17d9ae3af9e5a60e85bef22f332255c10bb2b8ca38268c75a3286d7884a1438",
+                  "sql": "SELECT id FROM users",
+                  "status": "success",
+                  "timestamp": "2026-10-09T00:00:01Z",
+                  "transaction_id": "synthetic-transaction"
+                },
+                {
+                  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  "dialect": "mysql-8.0",
+                  "event_id": "synthetic-event-1",
+                  "function": "load",
+                  "locator": "fixture.php",
+                  "operation_id": "2",
+                  "repository_id": "synthetic:g01-fixtures",
+                  "request_id": "synthetic-request",
+                  "source_sha256": "b17d9ae3af9e5a60e85bef22f332255c10bb2b8ca38268c75a3286d7884a1438",
+                  "sql": "SELECT id FROM articles",
+                  "status": "success",
+                  "timestamp": "2026-10-09T00:00:02Z",
+                  "transaction_id": "synthetic-transaction"
+                }
+              ],
+              "format": "query-event-v1"
+            },
+            "kind": "telemetry",
+            "locator": "synthetic:query-events",
+            "scope_id": "file:fixture.php",
+            "source_id": "events"
+          }
+        ]
+      },
+      "result": {
+        "check_id": "DB-16",
+        "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "context": {
+          "cache_apis": {
+            "cache": {
+              "family": "psr16",
+              "version": "3.0"
+            },
+            "mem": {
+              "family": "memcached",
+              "version": "3.2"
+            },
+            "pool": {
+              "family": "psr6",
+              "version": "3.0"
+            }
+          },
+          "db_apis": {
+            "db": {
+              "family": "joomla",
+              "version": "4.4"
+            },
+            "pdo": {
+              "family": "pdo",
+              "version": "8.2"
+            }
+          },
+          "language": "php",
+          "limits": {
+            "max_ast_depth": 128,
+            "max_ast_nodes": 20000,
+            "max_source_bytes": 262144,
+            "max_sql_bytes": 8192
+          },
+          "mode": "runtime",
+          "ordinary_tables": [
+            "users",
+            "articles"
+          ],
+          "php_version": "8.2",
+          "rule_version": "g01-1",
+          "sql_dialect": "mysql-8.0"
+        },
+        "coverage": {
+          "evaluated_scope": [
+            "file:fixture.php"
+          ],
+          "limitations": [
+            "Bounded PHP local analysis; declared API and ordinary-table identities are connector assertions. No measured CPU, energy or carbon savings. No customer code is executed."
+          ]
+        },
+        "detector_version": "1.0.0",
+        "findings": [],
+        "kind": "result",
+        "measurements": [],
+        "repository_id": "synthetic:g01-fixtures",
+        "scan_id": "aws-smoke:2026-10-09:DB-16-negative",
+        "schema_version": "1.0",
+        "scope": [
+          "file:fixture.php"
+        ],
+        "status": "completed"
+      },
+      "invocation": {
+        "function_arn": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-static-scan:2",
+        "executed_version": "2",
+        "status_code": 200,
+        "request_id": "8ddafaf1-65e3-4466-bcfb-39458f0fe9bf"
+      },
+      "artifact": {
+        "bucket": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq",
+        "key": "results/2bcfb29609ba64213b3e0def53d2cacd/dfbaea731c474bfa1c6bae6ef835bccc03c690494e7b90c4f58ce02c92df01c0.json",
+        "sha256": "dfbaea731c474bfa1c6bae6ef835bccc03c690494e7b90c4f58ce02c92df01c0",
+        "version_id": "kiP0cfyOkkQG4UtQciSCbzMVDAXaLNxT"
+      },
+      "delivery": {
+        "status": "blocked",
+        "reason": "Owner D findings hub is not configured; S3 artifact is not report persistence"
+      },
+      "readback": {
+        "content_length": 3164,
+        "version_id": "kiP0cfyOkkQG4UtQciSCbzMVDAXaLNxT",
+        "last_modified": "2026-10-09T16:52:58+00:00",
+        "encryption": "AES256"
+      }
+    },
+    {
+      "case_id": "DB-16-04",
+      "evidence_class": "synthetic_fixture_on_real_aws",
+      "input": {
+        "check_id": "DB-16",
+        "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "context": {
+          "cache_apis": {
+            "cache": {
+              "family": "psr16",
+              "version": "3.0"
+            },
+            "mem": {
+              "family": "memcached",
+              "version": "3.2"
+            },
+            "pool": {
+              "family": "psr6",
+              "version": "3.0"
+            }
+          },
+          "db_apis": {
+            "db": {
+              "family": "joomla",
+              "version": "4.4"
+            },
+            "pdo": {
+              "family": "pdo",
+              "version": "8.2"
+            }
+          },
+          "language": "php",
+          "limits": {
+            "max_ast_depth": 128,
+            "max_ast_nodes": 20000,
+            "max_source_bytes": 262144,
+            "max_sql_bytes": 8192
+          },
+          "mode": "runtime",
+          "ordinary_tables": [
+            "users",
+            "articles"
+          ],
+          "php_version": "8.2",
+          "rule_version": "g01-1",
+          "sql_dialect": "mysql-8.0"
+        },
+        "detector_version": "1.0.0",
+        "kind": "input",
+        "repository_id": "synthetic:g01-fixtures",
+        "scan_id": "aws-smoke:2026-10-09:DB-16-unavailable",
+        "schema_version": "1.0",
+        "scope": [
+          "file:fixture.php"
+        ],
+        "sources": []
+      },
+      "result": {
+        "check_id": "DB-16",
+        "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "context": {
+          "cache_apis": {
+            "cache": {
+              "family": "psr16",
+              "version": "3.0"
+            },
+            "mem": {
+              "family": "memcached",
+              "version": "3.2"
+            },
+            "pool": {
+              "family": "psr6",
+              "version": "3.0"
+            }
+          },
+          "db_apis": {
+            "db": {
+              "family": "joomla",
+              "version": "4.4"
+            },
+            "pdo": {
+              "family": "pdo",
+              "version": "8.2"
+            }
+          },
+          "language": "php",
+          "limits": {
+            "max_ast_depth": 128,
+            "max_ast_nodes": 20000,
+            "max_source_bytes": 262144,
+            "max_sql_bytes": 8192
+          },
+          "mode": "runtime",
+          "ordinary_tables": [
+            "users",
+            "articles"
+          ],
+          "php_version": "8.2",
+          "rule_version": "g01-1",
+          "sql_dialect": "mysql-8.0"
+        },
+        "coverage": {
+          "evaluated_scope": [],
+          "limitations": [
+            "file:fixture.php: Require exactly one PHP source per file scope",
+            "Bounded PHP local analysis; declared API and ordinary-table identities are connector assertions. No measured CPU, energy or carbon savings. No customer code is executed."
+          ]
+        },
+        "detector_version": "1.0.0",
+        "findings": [],
+        "kind": "result",
+        "measurements": [],
+        "repository_id": "synthetic:g01-fixtures",
+        "scan_id": "aws-smoke:2026-10-09:DB-16-unavailable",
+        "schema_version": "1.0",
+        "scope": [
+          "file:fixture.php"
+        ],
+        "status": "unavailable"
+      },
+      "invocation": {
+        "function_arn": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-static-scan:2",
+        "executed_version": "2",
+        "status_code": 200,
+        "request_id": "04b5985f-2698-4f7d-976f-1e15225c06e9"
+      },
+      "artifact": {
+        "bucket": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq",
+        "key": "results/4230630f289bd52ddf6849db705e3968/073f53778eeaaf464e0fdf368345716b16bb0896963a4cd4e86a901db59da6ab.json",
+        "sha256": "073f53778eeaaf464e0fdf368345716b16bb0896963a4cd4e86a901db59da6ab",
+        "version_id": "vxOhNpB7mafIENOsnQQqP_2fFociDgh_"
+      },
+      "delivery": {
+        "status": "blocked",
+        "reason": "Owner D findings hub is not configured; S3 artifact is not report persistence"
+      },
+      "readback": {
+        "content_length": 1881,
+        "version_id": "vxOhNpB7mafIENOsnQQqP_2fFociDgh_",
+        "last_modified": "2026-10-09T16:52:59+00:00",
+        "encryption": "AES256"
+      }
+    },
+    {
+      "case_id": "DB-16-operational-log-smoke",
+      "evidence_class": "real_aws_acquisition_without_client_query_data",
+      "input": {
+        "check_id": "DB-16",
+        "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "context": {
+          "cache_apis": {
+            "cache": {
+              "family": "psr16",
+              "version": "3.0"
+            },
+            "mem": {
+              "family": "memcached",
+              "version": "3.2"
+            },
+            "pool": {
+              "family": "psr6",
+              "version": "3.0"
+            }
+          },
+          "db_apis": {
+            "db": {
+              "family": "joomla",
+              "version": "4.4"
+            },
+            "pdo": {
+              "family": "pdo",
+              "version": "8.2"
+            }
+          },
+          "language": "php",
+          "limits": {
+            "max_ast_depth": 128,
+            "max_ast_nodes": 20000,
+            "max_source_bytes": 262144,
+            "max_sql_bytes": 8192
+          },
+          "mode": "runtime",
+          "ordinary_tables": [
+            "users",
+            "articles"
+          ],
+          "php_version": "8.2",
+          "rule_version": "g01-1",
+          "sql_dialect": "mysql-8.0"
+        },
+        "detector_version": "1.0.0",
+        "kind": "input",
+        "repository_id": "synthetic:g01-fixtures",
+        "scan_id": "aws-smoke:2026-10-09:DB-16-real-operational-log-query",
+        "schema_version": "1.0",
+        "scope": [
+          "file:fixture.php"
+        ],
+        "sources": [
+          {
+            "content": "<?php\nfunction load($pdo) {\n  $pdo->query(\"SELECT id FROM users\");\n  return 7;\n}\n",
+            "kind": "static",
+            "locator": "fixture.php",
+            "scope_id": "file:fixture.php",
+            "source_id": "php"
+          },
+          {
+            "data": {
+              "acquisition": {
+                "end": "2026-10-09T16:53:48+00:00",
+                "group": "/aws/lambda/owner-b-static-scan",
+                "provider": "cloudwatch-logs-insights",
+                "query": "fields @message | filter format = \"query-event-v1\" and event.repository_id = \"synthetic:g01-fixtures\" and event.commit_sha = \"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\" and event.locator = \"fixture.php\" and event.source_sha256 = \"4a5396ff3cafb7f94848e1d8f2b1cdf0f26a874b442ab68aeacc68bbeab3e7ce\" | sort @timestamp asc | limit 1000",
+                "receipts": [
+                  {
+                    "end": 1791564828,
+                    "query_id": "76a08ca8-267c-4357-b10a-d64c46d21400",
+                    "start": 1791564528,
+                    "statistics": {
+                      "bytesScanned": 0,
+                      "estimatedBytesSkipped": 0,
+                      "estimatedRecordsSkipped": 0,
+                      "logGroupsScanned": 1,
+                      "recordsMatched": 0,
+                      "recordsScanned": 0,
+                      "resultCount": 0
+                    },
+                    "status": "Complete"
+                  }
+                ],
+                "start": "2026-10-09T16:48:48+00:00",
+                "status": "complete"
+              },
+              "events": [],
+              "format": "query-event-v1"
+            },
+            "kind": "telemetry",
+            "locator": "cloudwatch:/aws/lambda/owner-b-static-scan",
+            "scope_id": "file:fixture.php",
+            "source_id": "cloudwatch-12a5d18ee896e599"
+          }
+        ]
+      },
+      "result": {
+        "check_id": "DB-16",
+        "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "context": {
+          "cache_apis": {
+            "cache": {
+              "family": "psr16",
+              "version": "3.0"
+            },
+            "mem": {
+              "family": "memcached",
+              "version": "3.2"
+            },
+            "pool": {
+              "family": "psr6",
+              "version": "3.0"
+            }
+          },
+          "db_apis": {
+            "db": {
+              "family": "joomla",
+              "version": "4.4"
+            },
+            "pdo": {
+              "family": "pdo",
+              "version": "8.2"
+            }
+          },
+          "language": "php",
+          "limits": {
+            "max_ast_depth": 128,
+            "max_ast_nodes": 20000,
+            "max_source_bytes": 262144,
+            "max_sql_bytes": 8192
+          },
+          "mode": "runtime",
+          "ordinary_tables": [
+            "users",
+            "articles"
+          ],
+          "php_version": "8.2",
+          "rule_version": "g01-1",
+          "sql_dialect": "mysql-8.0"
+        },
+        "coverage": {
+          "evaluated_scope": [],
+          "limitations": [
+            "file:fixture.php: Source-to-log execution correlation missing",
+            "Bounded PHP local analysis; declared API and ordinary-table identities are connector assertions. No measured CPU, energy or carbon savings. No customer code is executed."
+          ]
+        },
+        "detector_version": "1.0.0",
+        "findings": [],
+        "kind": "result",
+        "measurements": [],
+        "repository_id": "synthetic:g01-fixtures",
+        "scan_id": "aws-smoke:2026-10-09:DB-16-real-operational-log-query",
+        "schema_version": "1.0",
+        "scope": [
+          "file:fixture.php"
+        ],
+        "status": "unavailable"
+      },
+      "invocation": {
+        "function_arn": "arn:aws:lambda:eu-north-1:768666229343:function:owner-b-log-analyzer:2",
+        "executed_version": "2",
+        "request_id": "1270f529-4de6-4d8a-81c7-cf81602fc204"
+      },
+      "artifact": {
+        "bucket": "owner-b-artifacts-artifacts82dd59a1-tcmbzqbm55qq",
+        "key": "results/e2c24e5a8d25b9217111bcb18e479ba2/bec4a334df2920ec59fc18dd84357f0a7353bffba2ef24c99212252b5085ad17.json",
+        "sha256": "bec4a334df2920ec59fc18dd84357f0a7353bffba2ef24c99212252b5085ad17",
+        "version_id": "kZU6o2wNuGhGWziMWVg2ls8i36ZQrXWd"
+      },
+      "delivery": {
+        "status": "blocked",
+        "reason": "Owner D findings hub is not configured; S3 artifact is not report persistence"
+      },
+      "readback": {
+        "content_length": 3112,
+        "version_id": "kZU6o2wNuGhGWziMWVg2ls8i36ZQrXWd",
+        "last_modified": "2026-10-09T16:54:43+00:00",
+        "encryption": "AES256"
+      }
+    }
+  ]
+}

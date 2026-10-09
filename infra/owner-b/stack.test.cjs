@@ -1,0 +1,30 @@
+'use strict';
+const test=require('node:test');
+const assert=require('node:assert/strict');
+const fs=require('node:fs');
+const os=require('node:os');
+const path=require('node:path');
+const {spawnSync}=require('node:child_process');
+test('CDK strict offline synthesis: private artifacts, bounded functions and scoped IAM',()=>{
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'owner-b-cdk-test-'));
+  const cli=path.resolve('node_modules/aws-cdk/bin/cdk');
+  const processResult=spawnSync(process.execPath,[cli,'synth','--app','node infra/owner-b/app.cjs','--strict','--no-lookups','--output',dir,'-c','project=000000000000','-c','artifactBucket=synthetic-unit-test','-c','codeKey=code/synthetic.zip','-c','codeVersion=synthetic-unit-version','-c','logGroups=["/synthetic/unit"]'],{encoding:'utf8'});
+  assert.equal(processResult.status,0,processResult.stderr);
+  const artifacts=JSON.parse(fs.readFileSync(path.join(dir,'OwnerBArtifacts.template.json'),'utf8'));
+  const detector=JSON.parse(fs.readFileSync(path.join(dir,'OwnerBG01.template.json'),'utf8'));
+  const resources=Object.values(detector.Resources);
+  const bucket=Object.values(artifacts.Resources).find(r=>r.Type==='AWS::S3::Bucket');
+  assert.equal(bucket.DeletionPolicy,'Retain');assert.ok(Object.values(bucket.Properties.PublicAccessBlockConfiguration).every(Boolean));
+  const functions=resources.filter(r=>r.Type==='AWS::Lambda::Function');
+  assert.equal(functions.length,2);
+  for(const fn of functions) {assert.equal(fn.Properties.MemorySize,512);assert.equal(fn.Properties.Timeout,90);assert.equal(fn.Properties.Runtime,'nodejs22.x');assert.equal(fn.Properties.Code.S3ObjectVersion,'synthetic-unit-version');assert.equal(fn.Properties.Environment.Variables.FINDINGS_HUB_ARN,'');}
+  assert.equal(resources.filter(r=>r.Type==='AWS::Lambda::Version').length,2);
+  assert.equal(resources.filter(r=>r.Type==='AWS::SQS::Queue').length,2);
+  assert.ok(resources.filter(r=>r.Type==='AWS::Logs::LogGroup').every(r=>r.Properties.RetentionInDays===7));
+  const policies=resources.filter(r=>r.Type==='AWS::IAM::Policy').flatMap(r=>r.Properties.PolicyDocument.Statement);
+  const actions=policies.flatMap(p=>Array.isArray(p.Action)?p.Action:[p.Action]);
+  assert.ok(!actions.some(a=>a==='*'||a==='s3:*'||a==='s3:List*'||a.startsWith('dynamodb:')||a.startsWith('events:')));
+  assert.ok(!resources.some(r=>r.Type==='AWS::Lambda::Url'||r.Type==='AWS::DynamoDB::Table'||r.Type==='AWS::Events::EventBus'));
+  assert.ok(resources.filter(r=>r.Type==='AWS::IAM::Role').every(r=>!r.Properties.ManagedPolicyArns));
+  assert.equal(policies.filter(p=>p.Action==='logs:StartQuery').length,1);
+});

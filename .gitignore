@@ -56,3 +56,15 @@ venv/
 opencode.json
 GEMINI.md
 cdk/owner-c/build/
+# Local G01 verification and reproducible deployment outputs
+.venv-g01/
+.build/
+
+# Personal IDE settings and issue-planning scratch files
+.cursor/
+.kiro/
+ASSIGNED_ISSUES.md
+pr_body.md
+scratch_issues.json
+process_issues.py
+issue_*.md

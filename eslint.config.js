@@ -1,6 +1,6 @@
 module.exports = [
   {
-    files: ['detectors/owner-b/**/*.js'],
+    files: ['detectors/owner-b/**/*.js', 'infra/owner-b/**/*.cjs', 'scripts/build-owner-b.cjs', 'scripts/g01-fixtures.cjs'],
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: 'commonjs',

@@ -1,0 +1,108 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "synthetic:g01-fixtures",
+  "scan_id": "synthetic:DB-16-05",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "DB-16",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "php",
+    "php_version": "8.2",
+    "rule_version": "g01-1",
+    "mode": "runtime",
+    "sql_dialect": "mysql-8.0",
+    "ordinary_tables": [
+      "users",
+      "articles"
+    ],
+    "db_apis": {
+      "pdo": {
+        "family": "pdo",
+        "version": "8.2"
+      },
+      "db": {
+        "family": "joomla",
+        "version": "4.4"
+      }
+    },
+    "cache_apis": {
+      "cache": {
+        "family": "psr16",
+        "version": "3.0"
+      },
+      "mem": {
+        "family": "memcached",
+        "version": "3.2"
+      },
+      "pool": {
+        "family": "psr6",
+        "version": "3.0"
+      }
+    },
+    "limits": {
+      "max_source_bytes": 262144,
+      "max_ast_nodes": 20000,
+      "max_ast_depth": 128,
+      "max_sql_bytes": 8192
+    }
+  },
+  "scope": [
+    "file:fixture.php"
+  ],
+  "sources": [
+    {
+      "source_id": "php",
+      "scope_id": "file:fixture.php",
+      "kind": "static",
+      "locator": "fixture.php",
+      "content": "<?php function broken( {"
+    },
+    {
+      "source_id": "events",
+      "scope_id": "file:fixture.php",
+      "kind": "telemetry",
+      "locator": "synthetic:query-events",
+      "data": {
+        "format": "query-event-v1",
+        "acquisition": {
+          "status": "complete",
+          "start": "2026-10-09T00:00:00Z",
+          "end": "2026-10-09T00:01:00Z"
+        },
+        "events": [
+          {
+            "event_id": "synthetic-event-0",
+            "request_id": "synthetic-request",
+            "transaction_id": "synthetic-transaction",
+            "repository_id": "synthetic:g01-fixtures",
+            "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "82077cecea94dc2fa003c46a644a737ee9cb7ab78edda8c38ea695063af630c1",
+            "timestamp": "2026-10-09T00:00:01Z",
+            "function": "load",
+            "operation_id": "1",
+            "locator": "fixture.php",
+            "sql": "SELECT id FROM users",
+            "status": "success",
+            "dialect": "mysql-8.0"
+          },
+          {
+            "event_id": "synthetic-event-1",
+            "request_id": "synthetic-request",
+            "transaction_id": "synthetic-transaction",
+            "repository_id": "synthetic:g01-fixtures",
+            "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "source_sha256": "82077cecea94dc2fa003c46a644a737ee9cb7ab78edda8c38ea695063af630c1",
+            "timestamp": "2026-10-09T00:00:02Z",
+            "function": "load",
+            "operation_id": "2",
+            "locator": "fixture.php",
+            "sql": "SELECT id FROM articles",
+            "status": "success",
+            "dialect": "mysql-8.0"
+          }
+        ]
+      }
+    }
+  ]
+}
