@@ -722,3 +722,59 @@ trivial check per run plus misleading coverage.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst10/tst10-01-positive-input.json
 ```
+
+## TST-09 — Conditional Test Logic
+
+Flags control structures in a test that decide whether, or how often,
+assertions run. This follows PyNose's Conditional Test Logic ("a test case contains one or more
+control statements (i.e., if, for, while)";
+[Wang et al., ASE 2021](https://arxiv.org/abs/2108.04639), adopted from
+[tsDetect](https://testsmells.org/pages/testsmells.html)) in the refined form
+of PyNose's current inspection: the structure must contain an assertion. That
+is also the intent of eslint-plugin-jest's `no-conditional-in-test`. The
+original ASE rule flags any control statement, and the paper reports false
+positives for loops that only build data. The check is static (`ast` only),
+uses the same input, test recognition and per-file "nothing to flag" note as
+TST-06, and needs no context settings.
+
+### Detection rule
+
+One finding per `if` (an `elif` chain counts once), `for`/`async for`,
+`while`, `match`, comprehension, or conditional expression in a test body that
+contains an assertion (see TST-06). Confidence:
+
+- `medium`: some path runs no assertion. This covers an `if` without an
+  asserting `else`, a `match`, a `while`, a conditional expression, and a loop
+  or comprehension over a runtime iterable, where an empty iterable checks
+  nothing;
+- `low`: the assertions always run but vary with the branch or case. This
+  covers an `if`/`elif`/`else` where every branch asserts, and a loop over a
+  fixed collection: a non-empty literal, `range(<n>)`, `"a b".split()`, a
+  module or class constant bound once to a literal, or
+  `enumerate`/`zip`/`sorted`/`chain`/`+` of those. These are parametrization
+  candidates.
+
+These are not flagged:
+
+- `if` guards whose only check is `self.fail()`/`pytest.fail()`/
+  `raise AssertionError`, because that is a hand-written assertion;
+- skip guards (`if not HAS_DB: self.skipTest(...)`), which contain no
+  assertion;
+- loops whose body uses `self.subTest(...)` or pytest-subtests'
+  `subtests.test(...)`;
+- loops that only build data;
+- a conditional inside an assertion's operand;
+- control flow inside nested functions or lambdas;
+- lines with `# noqa: TST-09` (or `PT018`).
+
+The identity is `<qualified test>:<kind>` (`if`, `for`, `while`, `match`,
+`comprehension`, `if-expression`), with `#n` for repeats; nested structures
+are separate findings. No measurements are emitted: the environmental link is
+weak (CI time on tests that may assert nothing).
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst09/tst09-01-positive-input.json
+```

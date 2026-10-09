@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst09-001",
+  "commit_sha": "ffffffffffffffffffffffffffffffffffffffff",
+  "check_id": "TST-09",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:tests/test_orders.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_orders.py",
+      "kind": "static",
+      "locator": "tests/test_orders.py",
+      "content": "# Synthetic TST-09 fixture: assertions guarded by conditions or loops. Never executed.\nimport sys\nimport unittest\n\n\nclass OrderTest(unittest.TestCase):\n    def test_platform_branch(self):\n        order = make_order()\n        if sys.platform == \"win32\":\n            self.assertEqual(order.path, \"C:\\\\orders\")\n\n    def test_loop_over_results(self):\n        for item in fetch_items():\n            self.assertTrue(item.valid)\n\n    def test_while_polling(self):\n        job = start_job()\n        while job.running:\n            self.assertLess(job.progress, 101)\n            job = refresh(job)\n\n\ndef test_branch_per_parameter(mode):\n    result = run(mode)\n    if mode == \"fast\":\n        assert result.cached\n    else:\n        assert not result.cached\n\n\ndef test_fixed_cases():\n    for value in (1, 2, 3):\n        assert double(value) == value * 2\n\n\ndef test_comprehension_assert():\n    [assert_valid(order) for order in load_orders()]\n\n\ndef test_match_on_kind(kind):\n    match kind:\n        case \"a\":\n            assert parse(\"a\") == 1\n        case _:\n            pass\n"
+    }
+  ]
+}
