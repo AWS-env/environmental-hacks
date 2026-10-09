@@ -1,0 +1,93 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "file:fixture.php"
+    ],
+    "limitations": [
+      "Bounded PHP local analysis; declared API and ordinary-table identities are connector assertions. No measured CPU, energy or carbon savings. No customer code is executed."
+    ]
+  },
+  "findings": [
+    {
+      "scope_id": "file:fixture.php",
+      "identity": "load:execution:1:PDO::query",
+      "fingerprint": "7c740cffc1a51453c086bf31eaefb2d12155e072f2a9799c203810a32e5dc31f",
+      "summary": "SELECT predicate cannot produce qualifying rows",
+      "confidence": "high",
+      "recommendation": "Replace this read with an equivalent empty result after preserving the caller result type and error semantics.",
+      "references": [
+        "https://github.com/AWS-env/environmental-hacks/issues/108",
+        "https://taoxie.cs.illinois.edu/publications/icsme20-dbperf.pdf"
+      ],
+      "evidence": [
+        {
+          "source_id": "php",
+          "kind": "static",
+          "locator": "fixture.php",
+          "line_start": 3,
+          "value": "  $sql = \"SELECT id FROM users WHERE NULL=1\";"
+        },
+        {
+          "source_id": "php",
+          "kind": "static",
+          "locator": "fixture.php",
+          "line_start": 4,
+          "value": "  return $pdo->query($sql);"
+        }
+      ]
+    }
+  ],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "synthetic:g01-fixtures",
+  "scan_id": "synthetic:DB-06-06",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "DB-06",
+  "detector_version": "1.0.0",
+  "context": {
+    "cache_apis": {
+      "cache": {
+        "family": "psr16",
+        "version": "3.0"
+      },
+      "mem": {
+        "family": "memcached",
+        "version": "3.2"
+      },
+      "pool": {
+        "family": "psr6",
+        "version": "3.0"
+      }
+    },
+    "db_apis": {
+      "db": {
+        "family": "joomla",
+        "version": "4.4"
+      },
+      "pdo": {
+        "family": "pdo",
+        "version": "8.2"
+      }
+    },
+    "language": "php",
+    "limits": {
+      "max_ast_depth": 128,
+      "max_ast_nodes": 20000,
+      "max_source_bytes": 262144,
+      "max_sql_bytes": 8192
+    },
+    "mode": "runtime",
+    "ordinary_tables": [
+      "users",
+      "articles"
+    ],
+    "php_version": "8.2",
+    "rule_version": "g01-1",
+    "sql_dialect": "mysql-8.0"
+  },
+  "scope": [
+    "file:fixture.php"
+  ]
+}

@@ -44,3 +44,7 @@ Limits: 1 MiB envelope, 20 file scopes, 40 sources, 256 KiB PHP/file, 8 KiB SQL,
 Run `npm ci`, create `.venv-g01` with the shared contract requirements, then `npm run lint`, `npm run typecheck`, `npm test`, and the Python contract suite. CI already runs these commands and retains other owners' contract checks. Tests compare results with the Python reference and reject fabricated citations, changed scope/version comparisons and always-empty implementations. Six committed synthetic input/result pairs per issue plus boundary tests are under test/fixtures/g01 and test/g01.test.js. These fixtures prove behavior, not customer-data acquisition.
 
 See checks/*/SPEC.md for the seven detection fields and local verification-plan comments. See infra/owner-b and docs/verification/owner-b for actual deployment receipts and remaining acceptance gates.
+
+## DB-06 registration (#108)
+
+This increment adds the DB-06 public registry entry, detection specification, six synthetic regression pairs and sanitized historical AWS receipts. See `checks/db-06/SPEC.md` for exact supported rules and exceptions. Known-result proofs are bounded static analysis and do not infer results from previous executions.

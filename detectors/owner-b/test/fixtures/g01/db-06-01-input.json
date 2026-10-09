@@ -1,0 +1,62 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "synthetic:g01-fixtures",
+  "scan_id": "synthetic:DB-06-01",
+  "commit_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "check_id": "DB-06",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "php",
+    "php_version": "8.2",
+    "rule_version": "g01-1",
+    "mode": "runtime",
+    "sql_dialect": "mysql-8.0",
+    "ordinary_tables": [
+      "users",
+      "articles"
+    ],
+    "db_apis": {
+      "pdo": {
+        "family": "pdo",
+        "version": "8.2"
+      },
+      "db": {
+        "family": "joomla",
+        "version": "4.4"
+      }
+    },
+    "cache_apis": {
+      "cache": {
+        "family": "psr16",
+        "version": "3.0"
+      },
+      "mem": {
+        "family": "memcached",
+        "version": "3.2"
+      },
+      "pool": {
+        "family": "psr6",
+        "version": "3.0"
+      }
+    },
+    "limits": {
+      "max_source_bytes": 262144,
+      "max_ast_nodes": 20000,
+      "max_ast_depth": 128,
+      "max_sql_bytes": 8192
+    }
+  },
+  "scope": [
+    "file:fixture.php"
+  ],
+  "sources": [
+    {
+      "source_id": "php",
+      "scope_id": "file:fixture.php",
+      "kind": "static",
+      "locator": "fixture.php",
+      "content": "<?php\nfunction load($pdo) {\n  $sql = \"SELECT id FROM users WHERE 1=0\";\n  return $pdo->query($sql);\n}\n"
+    }
+  ]
+}
