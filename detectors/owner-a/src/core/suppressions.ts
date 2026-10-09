@@ -5,7 +5,7 @@ export interface SuppressionCheck {
 
 export function isLineSuppressed(
   lineContent: string,
-  ruleCodes: string[] = ["F401", "CODE-C1.1"]
+  ruleCodes: string[] = ["F401", "CODE-C1.1", "CODE-C3.2"]
 ): SuppressionCheck {
   const commentIndex = lineContent.indexOf("#");
   if (commentIndex === -1) {
@@ -16,7 +16,7 @@ export function isLineSuppressed(
 
   // Check bare # noqa
   if (/^#\s*noqa\b/i.test(comment)) {
-    // Check if noqa specifies specific rules, e.g. # noqa: F401 or # noqa: E501
+    // Check if noqa specifies specific rules, e.g. # noqa: F401 or # noqa: CODE-C3.2
     // (dotted taxonomy codes such as CODE-C3.1 are supported too)
     const noqaMatch = comment.match(/^#\s*noqa:\s*([A-Za-z0-9_.,\s-]+)/i);
     if (!noqaMatch) {
