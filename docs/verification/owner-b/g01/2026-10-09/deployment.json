@@ -1,0 +1,22 @@
+{
+  "group": "G01",
+  "date": "2026-10-09",
+  "evidence_class": "historical_smoke_summary",
+  "code_archive_sha256": "956226a7f22d1332524983a4a0ca7fc42a2bb00febb7ddb587e4a92f8b987c49",
+  "lambda_code_sha256_base64": "lWImp/ItEzJSSYOkoMp/xCorsA/rt921h+SpL4uYfEk=",
+  "package_lock_sha256": "eb4998392cca510898771306353ecd12f276ec8295152aee40f8f1886465d65b",
+  "results": {
+    "static_smoke_cases": 12,
+    "real_operational_log_acquisitions": 2,
+    "customer_runtime_verification": false,
+    "hub_report_readback_verified": false
+  },
+  "provenance": {
+    "current_pr_deployment_verified": false,
+    "note": "These hashes identify the historical pre-PR smoke package only. This summary does not claim that the current PR commit was deployed or that its build reproduced the historical archive."
+  },
+  "public_redaction": {
+    "identities_and_resource_names_removed": true,
+    "private_receipts_committed": false
+  }
+}

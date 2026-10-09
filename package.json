@@ -5,15 +5,26 @@
   "private": true,
   "type": "commonjs",
   "scripts": {
-    "test": "node --test detectors/owner-b/test/*.test.js",
+    "test": "node --test detectors/owner-b/test/*.test.js infra/owner-b/*.test.cjs",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint detectors/owner-b/"
+    "lint": "eslint detectors/owner-b/ infra/owner-b/ scripts/build-owner-b.cjs scripts/g01-fixtures.cjs",
+    "build:owner-b": "node scripts/build-owner-b.cjs"
   },
   "dependencies": {
+    "@aws-sdk/client-cloudwatch-logs": "^3.1148.0",
+    "@aws-sdk/client-eventbridge": "^3.1148.0",
+    "@aws-sdk/client-s3": "^3.1148.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "node-sql-parser": "^5.4.0",
     "php-parser": "^3.7.0"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",
+    "aws-cdk": "2.1145.0",
+    "aws-cdk-lib": "^2.273.0",
+    "constructs": "^10.8.1",
+    "esbuild": "0.28.2",
     "eslint": "^10.12.0",
     "typescript": "^5.7.2"
   }
