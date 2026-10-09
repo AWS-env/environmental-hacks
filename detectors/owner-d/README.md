@@ -1354,3 +1354,115 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
 `tests/fixtures/obs07/recorded-describe-log-groups.json` is a real response
 from the project's selected Region (account ID replaced with `123456789012`).
 The `synthetic-*.json` fixtures are synthetic.
+
+## OBS-06 — High-cardinality metric labels (CloudWatch custom metric dimensions)
+
+Flags CloudWatch custom metrics whose dimensions carry many distinct values or
+unbounded identifiers (request/trace/session/user IDs, UUIDs, raw URLs).
+CloudWatch "treats each unique combination of dimensions as a separate metric"
+([concepts](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/cloudwatch_concepts.html#dimension-combinations))
+and bills each one as a custom metric
+([pricing](https://aws.amazon.com/cloudwatch/pricing/)). The
+[EMF specification](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch_Embedded_Metric_Format_Specification.html)
+warns that a high-cardinality dimension "such as `requestId`" creates "a custom
+metric corresponding to each unique dimension combination". This is a
+telemetry detector over a ListMetrics snapshot. It emits no cost or energy
+measurements.
+
+### Input
+
+A contract v1 `input` payload with one `telemetry` source per scope item
+`resource:metric/<namespace>/<metric_name>`. Scope is per metric because the
+metric is CloudWatch's identity and billing unit, cardinality belongs to one
+metric's dimension set, and one namespace can mix bounded and unbounded
+metrics.
+
+The connector passes the raw ListMetrics pages (boto3 paginator or CLI
+responses, in request order) to
+`owner_d.obs06.normalize_list_metrics(pages: list[dict]) -> dict`. It returns
+`{"window_days", "listing_complete", "page_count", "metrics"}`, where `metrics`
+maps each scope ID (`obs06.scope_id_for(namespace, metric_name)`) to the
+`data` object for that metric:
+
+| Field | Meaning |
+| --- | --- |
+| `namespace` / `metric_name` | Must match the scope ID |
+| `series_count` | Distinct dimension combinations listed for the metric |
+| `dimension_value_counts` | `{dimension key: distinct values}` |
+| `dimension_value_samples` | `{dimension key: first 5 values, sorted}` (bounded output) |
+| `window_days` | `14`: ListMetrics only lists metrics with datapoints in the past two weeks |
+| `listing_complete` | `false` when the last page still had a `NextToken` |
+
+Pages that are not ListMetrics responses raise `ValueError`.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_dimension_values` | Most distinct values one dimension key may have | `100` |
+| `min_identifier_values` | Identifier-like keys are flagged above this many values | `10` |
+
+The [Prometheus instrumentation guide](https://prometheus.io/docs/practices/instrumentation/#do-not-overuse-labels)
+says to "keep the cardinality of your metrics below 10" and, for "a cardinality
+over 100 or the potential to grow that large, investigate alternate solutions".
+The [Prometheus naming guide](https://prometheus.io/docs/practices/naming/#labels)
+says "Do not use labels to store dimensions with high cardinality ... such as
+user IDs, email addresses, or other unbounded sets of values". OpenTelemetry
+SDKs cap a metric at 2000 attribute sets by default
+([cardinality limits](https://opentelemetry.io/docs/specs/otel/metrics/sdk/#cardinality-limits));
+that is a safety cap, not a target. The thresholds are judgment calls, so
+missing or invalid settings make the result `unavailable`.
+
+### Detection rule
+
+A dimension key is flagged when its distinct value count is strictly greater
+than `max_dimension_values` (count rule), or when it looks like an unbounded
+identifier and has strictly more than `min_identifier_values` values
+(identifier rule). Identifier-like means either:
+
+- the key name is a per-request/per-user identifier (`RequestId`, `trace_id`,
+  `SpanId`, `CorrelationId`, `SessionId`, `UserId`, `CustomerId`, `OrderId`,
+  `MessageId`, `Email`, `ClientIp`, `Url`, ...), or
+- every sampled value is a UUID, ULID, X-Ray trace ID, hex token (16+), long
+  number (8+ digits), email or IPv4 address, or a URL/path with such an ID
+  segment.
+
+Confidence:
+
+- `high`: count rule and an identifier-like key;
+- `medium`: count rule alone, or identifier-like sample values;
+- `low`: identifier-like key name alone.
+
+One finding per key. The identity is `dimension:<key>`, and the evidence cites
+`series_count`, `dimension_value_counts`, `dimension_value_samples` and
+`window_days`.
+
+Exceptions and coverage:
+
+- `AWS/*` namespaces are evaluated and never flagged. Their dimensions are
+  defined by the service (e.g. `AWS/Usage` `Resource`, `AWS/SQS` `QueueName`),
+  basic monitoring is not billed as custom metrics, and the team cannot change
+  them. The result records how many were excepted. Agent-published namespaces
+  such as `ContainerInsights` are billed as custom metrics and are evaluated.
+- Bounded identifiers (a `TenantId` with 3 values) stay below
+  `min_identifier_values`.
+- If `listing_complete` is `false`, counts are lower bounds: flagged metrics
+  are still evaluated, but metrics that would be clean are left out of
+  `evaluated_scope`.
+
+### Limitations
+
+ListMetrics does not list metrics without datapoints in the past two weeks or
+created in the last ~15 minutes, and its counts are not billed metric-hours.
+A snapshot shows how many values exist, not that they keep growing. Only the
+first five sorted values per key are sampled, so one non-ID value can hide an
+ID-shaped key. `RecentlyActive=PT3H` listings, cross-account `OwningAccounts`
+(series are merged by dimension set), log/trace attribute cardinality and
+Prometheus/AMP series are out of scope.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs06/obs06-01-positive-input.json
+```
