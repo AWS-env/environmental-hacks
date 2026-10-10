@@ -29,6 +29,7 @@ ORM_CHECKS = {
     "DB-13": {"max_literal_iterations": 5},
     "DB-14": {"select_star_allowed_tables": []},
     "DB-23": {"unique_key_fields": ["id", "pk"]},
+    "DB-29": {"sql_dialects": ["postgresql", "mysql"]},
     "DB-39": {"min_literal_offset": 100},
     "DB-41": {"sync_driver_modules": ["psycopg2", "pymysql", "MySQLdb", "sqlite3", "mysql.connector", "pyodbc", "pg8000", "psycopg"]},
 }
