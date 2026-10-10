@@ -94,7 +94,6 @@ A pair that fails is refused: it is not published and is listed under
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py`, `activity.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06, LLM-17, INF-04 (telemetry mode) |
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-12 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
-| `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12, LLM-16, LLM-19 (artifact mode) |
 | `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12, LLM-16, LLM-19 (artifact mode), OBS-19 |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
@@ -2803,6 +2802,21 @@ Client CI uploads `obs-19.json` through the
   It can also be a list of `{"stack": ["frame", ...] or "a;b;c", "count": n}`
   objects. The format is detected by content. Counts are nonnegative integer
   samples; convert CPU time to samples before upload.
+- `cpu` can also be a [speedscope](https://www.speedscope.app/file-format-schema.json)
+  document with sampled profiles, as written by py-spy `record --format speedscope`
+  (`speedscope.json`). Upload the file unchanged as `obs-19.json`; it becomes one
+  CPU profile named `default`, with the `exporter` (for example `py-spy@0.4.2`) as
+  the profiler. To name it, add `memory`, or override settings, wrap it:
+  `{"settings": {...}, "profiles": [{"name": "api", "cpu": <speedscope document>}]}`.
+  Each sample is a root-first list of `shared.frames` indices; frames become
+  `name (file:line)`. All sampled profiles (py-spy writes one per thread) are merged
+  like one collapsed export. A sample counts as its weight divided by the smallest
+  positive weight in the document (py-spy weights every sample `1/rate` seconds), or
+  as the weight itself when all weights are whole numbers. Other weights are not
+  evaluated. Evented profiles are skipped with a note, and empty samples are ignored.
+- memray `stats --json` output is refused as `obs-19.json`. It is one aggregate with
+  no time series, so the leak rule cannot use it. Upload it as `llm-16.json`, or send
+  in-use bytes per snapshot as `memory`.
 - `memory` (optional) holds in-use bytes per function. Use either `series`
   (function frame to one integer per snapshot) or `snapshots` (one collapsed
   in-use export per snapshot; each stack's bytes count for its leaf function).
@@ -2816,8 +2830,9 @@ Client CI uploads `obs-19.json` through the
 - Frames map to a function and `file:line` when the frame carries them:
   `name (file:line)` (py-spy) and `file:line - name` (Pyroscope). Bare
   frames are kept as the function name. async-profiler `_[j]`-style suffixes
-  and perf `+0x..` offsets are stripped. Leading py-spy `process ...` and
-  `thread (0x...)` pseudo frames are dropped. A function is identified by
+  and perf `+0x..` offsets are stripped. Leading py-spy 0.4 pseudo frames are
+  dropped: `process <pid>:"<command>"`, `thread (<0xID or tid>)` and
+  `thread (<id>): <thread name>`. A function is identified by
   name and file, so the line can move. The reported `file:line` is the line
   with the most samples.
 
@@ -2826,9 +2841,24 @@ refuse the whole artifact. At most 5 profiles are read; the others are noted.
 A malformed `cpu` or `memory` part still becomes a scope item with a
 `normalization_error`, so it is reported as not evaluated.
 
+Limits keep one upload inside the 256 MB artifact-parser Lambda and one result
+inside one EventBridge event (`MAX_DETAIL_BYTES`):
+
+| Limit | Value | Over the limit |
+| --- | --- | --- |
+| Profiles per artifact | 5 | the rest are skipped with a note |
+| Distinct functions per `cpu` or `memory` part (`MAX_FUNCTIONS`) | 5,000 | the part is not evaluated (`normalization_error`) |
+| Sample count, in-use bytes, and their per-profile/per-function totals | below 10^18 (at most 18 digits) | the part is not evaluated |
+| Memory snapshots | 1 to 60 | the part is not evaluated |
+| Timestamp length | 64 characters | the part is not evaluated |
+
+Line numbers do not count as functions. A 5 MB upload with 120,000 distinct
+functions peaks at about 110 MB RSS locally and is reported as not evaluated.
+
 `owner_d.obs19.artifact_inputs` normalizes each part into one `artifact`
-source. The `cpu-profile:<name>` data has `profile`, `profiler`, `input_format`,
-`sample_type`, `total_samples`, `stack_count`, `function_count` and one
+source. The `cpu-profile:<name>` data has `profile`, `profiler`, `input_format`
+(`collapsed`, `stacks` or `speedscope`), `sample_type`, `total_samples`,
+`stack_count`, `function_count` and one
 `cpu:<function> (<file>)` field per function: `{function, file, location,
 self_samples, inclusive_samples, self_share, inclusive_share,
 top_callee_samples, root_samples}`. The `memory-profile:<name>` data has
@@ -2869,9 +2899,15 @@ last three. Missing or invalid settings leave those items not evaluated.
 - **Leak candidate**: in a memory part with at least `min_leak_snapshots`
   snapshots, a function's in-use bytes increase in at least
   `min_monotonic_fraction` of the intervals. Growth from the first to the last
-  snapshot must also be at least `min_leak_growth_bytes`. Confidence is
-  `medium` when every interval grows and `low` when growth is only nearly
-  monotonic. A single step followed by a plateau (warm-up) is not reported.
+  snapshot must also be at least `min_leak_growth_bytes`. The growth must be
+  sustained: the second half of the series (from snapshot `⌊(n−1)/2⌋`, counting
+  from 0, to the last) must grow by at least its pro-rated share of
+  `min_leak_growth_bytes` (that is, `min_leak_growth_bytes × late intervals /
+  all intervals`). Confidence is `medium` when every interval grows and `low`
+  when growth is only nearly monotonic. Warm-up is not reported. That covers a
+  single step followed by a plateau, and a jump followed by a slowly rising or
+  jittery plateau (`[0, 40M, 40.05M, 40.06M, 40.065M]`). Warm-up followed by
+  steady growth is still reported, and its summary shows the second-half growth.
 
 Identities are `hot-spot:<function> (<file>)` and
 `leak-candidate:<function> (<file>)`. They contain no line numbers. One

@@ -1,18 +1,23 @@
 """OBS-19: CPU-heavy / leaky application code found via continuous profiling (artifact only).
 
-Detector semantics version 1.0.0. The evidence is a client continuous-profiler export uploaded as
+Detector semantics version 1.1.0. The evidence is a client continuous-profiler export uploaded as
 `obs-19.json` through the artifact upload endpoint and routed by owner_d/aws/artifact_handler.py, which
 calls `artifact_inputs` here to normalize it:
 
 - CPU: folded/collapsed stacks (`frame;frame;frame count`, root first; written by py-spy
   `--format raw`, Pyroscope collapsed exports, async-profiler `collapsed`, stackcollapse-perf), either
-  as raw text or as JSON `{"stack": [...], "count": n}` objects. The format is detected by content.
+  as raw text or as JSON `{"stack": [...], "count": n}` objects, or a speedscope document with sampled
+  profiles (py-spy `--format speedscope`). The format is detected by content.
 - memory (optional): in-use bytes per function over a series of snapshots, or one collapsed in-use
   export per snapshot.
 
 Each profile becomes `cpu-profile:<name>` and/or `memory-profile:<name>` scope items with one `artifact`
 source each. Hot spots are functions whose self or inclusive share of the CPU samples exceeds the
-configured maximum; leak candidates are functions whose in-use memory grows in (nearly) every interval.
+configured maximum; leak candidates are functions whose in-use memory grows in (nearly) every interval and
+keeps growing in the second half of the series (a warm-up step followed by a plateau is not a leak).
+
+Input is bounded for the 256 MB artifact-parser Lambda and the EventBridge detail limit: counts and byte
+values below 10**18, at most MAX_FUNCTIONS distinct functions per profile part (more is not evaluated).
 
 Repository scans never call this check (SUPPORTED_KIND "artifact"): without an artifact it is
 `unavailable`. Missing, malformed or too-small input is never reported as clean.
@@ -29,7 +34,7 @@ from collections import Counter, defaultdict
 from itertools import pairwise
 
 CHECK_ID = "OBS-19"
-DETECTOR_VERSION = "1.0.0"
+DETECTOR_VERSION = "1.1.0"
 SUPPORTED_KIND = "artifact"  # scanner/adapters/owner_d.py reports artifact checks unavailable in repo scans
 ARTIFACT_KIND = "artifact"
 ARTIFACT_NAME = "obs-19.json"
@@ -56,6 +61,9 @@ MAX_PROFILES = 5
 MAX_SNAPSHOTS = 60
 MAX_KEY_CHARS = 120
 MAX_COUNT_DIGITS = 18
+MAX_COUNT = 10 ** MAX_COUNT_DIGITS  # exclusive bound on every sample count, byte value and total (bounded strings)
+MAX_FUNCTIONS = 5000  # distinct functions per profile part; bounds Lambda memory and the normalized payload
+MAX_TIMESTAMP_CHARS = 64
 SHARE_DIGITS = 4
 SHARE_TOLERANCE = 1e-4
 
@@ -69,6 +77,7 @@ MEMORY_FIXED = {"profile", "profiler", "input_format", "unit", "snapshot_count",
 MEMORY_RECORD = {"function", "file", "location", "in_use_bytes"}
 PROFILE_KEYS = {"name", "sample_type", "cpu", "memory"}
 ARTIFACT_KEYS = {"profiler", "settings", "profiles"}
+MEMRAY_KEYS = {"top_allocations_by_size", "total_num_allocations", "total_bytes_allocated"}  # memray stats --json
 
 REFERENCES = (
     "https://github.com/AWS-env/environmental-hacks/issues/243",
@@ -120,11 +129,14 @@ def _require(condition, message):
 
 
 def _is_number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    if isinstance(value, bool):
+        return False
+    return isinstance(value, int) or (isinstance(value, float) and math.isfinite(value))  # no float(huge int)
 
 
 def _is_count(value):
-    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+    """A nonnegative integer below MAX_COUNT: bounded, so every number printed in a result is at most 18 digits."""
+    return isinstance(value, int) and not isinstance(value, bool) and 0 <= value < MAX_COUNT
 
 
 def _fmt(value):
@@ -140,7 +152,9 @@ def _pct(part, whole):
 _PYSPY = re.compile(r"^(?P<name>.*?\S) \((?P<file>[^()]+?)(?::(?P<line>\d{1,9}))?\)$")  # name (file:line)
 _PYROSCOPE = re.compile(r"^(?P<file>\S+?):(?P<line>\d{1,9}) - (?P<name>\S.*)$")  # file:line - name
 _SUFFIX = re.compile(r"(?:_\[[a-z0-9]\]|\+0x[0-9a-fA-F]+)$")  # async-profiler frame type, perf offset
-_PSEUDO_ROOT = re.compile(r"^(?:process \d+:.*|thread \((?:0x[0-9a-fA-F]+|\d+)\)|thread \d+)$")  # py-spy
+# py-spy 0.4 (src/main.rs, stack_trace.rs): `process <pid>:"<cmdline>"`, `thread (<0xID or tid>)` and, when the
+# thread name is known, `thread (<id>): <name>`.
+_PSEUDO_ROOT = re.compile(r"^(?:process \d+:.*|thread \((?:0x[0-9a-fA-F]+|\d+)\)(?:: .*)?|thread \d+)$")
 _STACK_LINE = re.compile(rf"^(?P<stack>.*?\S)[ \t]+(?P<count>\d{{1,{MAX_COUNT_DIGITS}}})$")
 
 
@@ -189,17 +203,101 @@ def _parse_stack_objects(items, what):
         frames = stack.split(";") if isinstance(stack, str) else stack
         if not isinstance(frames, list) or not frames or any(not isinstance(f, str) or not f.strip() for f in frames):
             raise _Invalid(f"{what}[{index}].stack must be a nonempty list of frames (or 'a;b;c')")
-        if not _is_count(count) or count >= 10 ** MAX_COUNT_DIGITS:
-            raise _Invalid(f"{what}[{index}].count must be a nonnegative integer")
+        if not _is_count(count):
+            raise _Invalid(f"{what}[{index}].count must be a nonnegative integer below 10^{MAX_COUNT_DIGITS}")
         stacks.append((list(frames), count))
     return stacks
 
 
+def is_speedscope(value):
+    """A speedscope document (https://www.speedscope.app/file-format-schema.json), e.g. py-spy --format speedscope."""
+    return isinstance(value, dict) and ("speedscope" in str(value.get("$schema", ""))
+                                        or ("shared" in value and "profiles" in value))
+
+
+def _speedscope_frame(frame, index, what):
+    if not isinstance(frame, dict) or not isinstance(frame.get("name"), str) or not frame["name"].strip():
+        raise _Invalid(f'{what} shared.frames[{index}] must be an object with a nonempty "name"')
+    name, file, line = frame["name"], frame.get("file"), frame.get("line")
+    if not isinstance(file, str) or not file.strip():
+        return name
+    if _is_count(line) and line > 0:
+        return f"{name} ({file}:{line})"
+    return f"{name} ({file})"
+
+
+def parse_speedscope(document, what="cpu"):
+    """([(frames, count)], notes) from a speedscope document's sampled profiles, merged like one collapsed export.
+
+    Samples are root-first indices into `shared.frames`. Each profile (py-spy writes one per thread) adds its
+    samples; a sample counts weight / the smallest positive weight in the document (py-spy weights every
+    sample 1/rate seconds), or the weight itself when all weights are whole numbers. Evented profiles are skipped.
+    """
+    shared, profiles = document.get("shared"), document.get("profiles")
+    frames = shared.get("frames") if isinstance(shared, dict) else None
+    if not isinstance(frames, list) or not frames:
+        raise _Invalid(f"{what} speedscope document needs a nonempty shared.frames list")
+    if not isinstance(profiles, list) or not profiles:
+        raise _Invalid(f"{what} speedscope document needs a nonempty profiles list")
+    sampled, notes = [], []
+    for index, profile in enumerate(profiles):
+        kind = profile.get("type") if isinstance(profile, dict) else None
+        if kind != "sampled":
+            shown = repr(kind[:40] if isinstance(kind, str) else type(kind).__name__)
+            notes.append(f"{what} speedscope profiles[{index}] is not a sampled profile ({shown}); skipped")
+            continue
+        samples, weights = profile.get("samples"), profile.get("weights")
+        if not isinstance(samples, list):
+            raise _Invalid(f"{what} speedscope profiles[{index}].samples must be a list of frame index lists")
+        if weights is None:
+            weights = [1] * len(samples)
+        if not isinstance(weights, list) or len(weights) != len(samples) or not all(
+                _is_number(w) and 0 <= w < MAX_COUNT for w in weights):
+            raise _Invalid(f"{what} speedscope profiles[{index}].weights must be one nonnegative number per sample")
+        sampled.append((index, samples, weights))
+    if not sampled:
+        raise _Invalid(f"{what} speedscope document has no sampled profiles (evented profiles are not supported)")
+    every = [w for _, _, weights in sampled for w in weights]
+    if all(float(w).is_integer() for w in every):
+        quantum = 1
+    else:
+        quantum = min((w for w in every if w > 0), default=1)
+        if any(abs(w / quantum - round(w / quantum)) > 0.01 for w in every):
+            raise _Invalid(f"{what} speedscope weights are not whole multiples of one sample; "
+                           "export sample counts (or equal per-sample weights)")
+    counts, empty = Counter(), 0
+    for index, samples, weights in sampled:
+        for stack, weight in zip(samples, weights):
+            if not isinstance(stack, list) or not all(_is_count(i) and i < len(frames) for i in stack):
+                raise _Invalid(f"{what} speedscope profiles[{index}] has a sample that is not a list of "
+                               "shared.frames indices")
+            if not stack:
+                empty += 1
+                continue
+            counts[tuple(stack)] += round(weight / quantum)
+    if empty:
+        notes.append(f"{what} speedscope: {empty} empty samples (no frames) were ignored")
+    if not counts:
+        raise _Invalid(f"{what} speedscope document has no nonempty samples")
+    texts = {}
+    stacks = []
+    for stack, count in counts.items():
+        for i in stack:
+            if i not in texts:
+                texts[i] = _speedscope_frame(frames[i], i, what)
+        stacks.append(([texts[i] for i in stack], count))
+    return stacks, notes
+
+
 def _stacks(value, what):
-    """Detect the format by content: a string is collapsed text, a list holds stack objects."""
+    """Detect the format by content: a string is collapsed text, a list holds stack objects, an object is a
+    speedscope document. Returns (stacks, input_format, notes)."""
     if isinstance(value, str):
-        return parse_collapsed(value, what), "collapsed"
-    return _parse_stack_objects(value, what), "stacks"
+        return parse_collapsed(value, what), "collapsed", []
+    if is_speedscope(value):
+        stacks, notes = parse_speedscope(value, what)
+        return stacks, "speedscope", notes
+    return _parse_stack_objects(value, what), "stacks", []
 
 
 def _strip_pseudo_roots(frames):
@@ -211,14 +309,20 @@ def _strip_pseudo_roots(frames):
 
 
 class _Frames:
-    def __init__(self):
-        self.cache, self.meta, self.lines = {}, {}, defaultdict(Counter)
+    def __init__(self, what):
+        self.what, self.cache, self.meta, self.lines = what, {}, {}, defaultdict(Counter)
 
     def __call__(self, frame):
         parsed = self.cache.get(frame)
         if parsed is None:
-            parsed = self.cache[frame] = parse_frame(frame)
-            self.meta.setdefault(parsed[0], parsed[1:3])
+            parsed = parse_frame(frame)
+            if parsed[0] not in self.meta:
+                if len(self.meta) >= MAX_FUNCTIONS:
+                    raise _Invalid(f"{self.what} has more than {MAX_FUNCTIONS} distinct functions; not evaluated. "
+                                   "Upload one service per profile, or drop rarely sampled stacks before upload")
+                self.meta[parsed[0]] = parsed[1:3]
+            if len(self.cache) < 4 * MAX_FUNCTIONS:  # raw frame texts differ by line; keep the cache bounded
+                self.cache[frame] = parsed
         return parsed
 
     def location(self, key, preferred=None):
@@ -234,7 +338,7 @@ class _Frames:
 
 def cpu_profile_data(stacks, *, profile, profiler, input_format):
     """Contract `data` for one CPU profile: per-function self/inclusive samples as `cpu:<function>` fields."""
-    frames = _Frames()
+    frames = _Frames("cpu")
     self_samples, inclusive, roots, edges = Counter(), Counter(), Counter(), Counter()
     self_lines = defaultdict(Counter)
     total = 0
@@ -254,6 +358,8 @@ def cpu_profile_data(stacks, *, profile, profiler, input_format):
         roots[keys[0]] += count
         for pair in {(caller, callee) for caller, callee in pairwise(keys) if caller != callee}:
             edges[pair] += count
+    if total >= MAX_COUNT:
+        raise _Invalid(f"cpu has {MAX_COUNT_DIGITS + 1} or more digits of total samples; convert to sample counts")
     top_callee = Counter()
     for (caller, _), count in edges.items():
         top_callee[caller] = max(top_callee[caller], count)
@@ -286,7 +392,7 @@ def memory_profile_data(memory, *, profile, profiler):
         raise _Invalid('memory.unit must be "bytes"')
     if ("series" in memory) == ("snapshots" in memory):
         raise _Invalid('memory needs exactly one of "series" or "snapshots"')
-    frames = _Frames()
+    frames = _Frames("memory")
     totals = defaultdict(Counter)  # key -> snapshot index -> bytes
     if "series" in memory:
         series, input_format = memory["series"], "series"
@@ -295,7 +401,8 @@ def memory_profile_data(memory, *, profile, profiler):
         lengths = set()
         for frame, values in series.items():
             if not frame.strip() or not isinstance(values, list) or not all(_is_count(v) for v in values):
-                raise _Invalid(f"memory.series[{frame[:80]!r}] must be a list of nonnegative integer bytes")
+                raise _Invalid(f"memory.series[{frame[:80]!r}] must be a list of nonnegative integer bytes "
+                               f"below 10^{MAX_COUNT_DIGITS}")
             lengths.add(len(values))
             key, _, _, line = frames(frame)
             for index, value in enumerate(values):
@@ -310,7 +417,11 @@ def memory_profile_data(memory, *, profile, profiler):
         if not isinstance(snapshots, list) or not snapshots:
             raise _Invalid("memory.snapshots must be a nonempty list of collapsed in-use exports")
         count = len(snapshots)
+        if count > MAX_SNAPSHOTS:
+            raise _Invalid(f"memory needs 1 to {MAX_SNAPSHOTS} snapshots (got {count}); downsample before upload")
         for index, snapshot in enumerate(snapshots):
+            if is_speedscope(snapshot):
+                raise _Invalid(f"memory.snapshots[{index}] must be a collapsed in-use export, not speedscope")
             for raw_frames, value in _stacks(snapshot, f"memory.snapshots[{index}]")[0]:
                 key, _, _, line = frames(_strip_pseudo_roots(raw_frames)[-1])
                 totals[key][index] += value
@@ -318,12 +429,16 @@ def memory_profile_data(memory, *, profile, profiler):
                     frames.lines[key][line] += value
     if not 1 <= count <= MAX_SNAPSHOTS:
         raise _Invalid(f"memory needs 1 to {MAX_SNAPSHOTS} snapshots (got {count}); downsample before upload")
+    if any(value >= MAX_COUNT for per_key in totals.values() for value in per_key.values()):
+        raise _Invalid(f"memory in-use bytes per function must stay below 10^{MAX_COUNT_DIGITS}")
     data = {"profile": profile, "profiler": profiler, "input_format": input_format, "unit": "bytes",
             "snapshot_count": count, "function_count": len(frames.meta)}
     if "timestamps" in memory:
         stamps = memory["timestamps"]
-        if not isinstance(stamps, list) or len(stamps) != count or not all(isinstance(s, str) and s for s in stamps):
-            raise _Invalid("memory.timestamps must be one nonempty string per snapshot")
+        if not isinstance(stamps, list) or len(stamps) != count or not all(
+                isinstance(s, str) and 0 < len(s) <= MAX_TIMESTAMP_CHARS for s in stamps):
+            raise _Invalid(f"memory.timestamps must be one nonempty string (at most {MAX_TIMESTAMP_CHARS} "
+                           "characters) per snapshot")
         data["timestamps"] = stamps
     for key in sorted(frames.meta):
         function, file = frames.meta[key]
@@ -356,6 +471,14 @@ def _profiles(data):
         data = {"cpu": data}  # raw collapsed text: one CPU profile
     if not isinstance(data, dict):
         raise ArtifactError(f"{ARTIFACT_NAME} needs a JSON object or collapsed stack text")
+    if is_speedscope(data):  # a whole speedscope document (py-spy --format speedscope): one CPU profile
+        exporter = data.get("exporter")
+        profiler = exporter.strip() if isinstance(exporter, str) and 0 < len(exporter.strip()) <= 100 else "speedscope"
+        return profiler, {}, [{"name": "default", "cpu": data}]
+    if MEMRAY_KEYS & set(data):
+        raise ArtifactError("this looks like `memray stats --json`: one aggregate with no time series, so OBS-19 "
+                            "cannot judge a leak trend from it; upload in-use memory per snapshot as "
+                            '"memory" (see the OBS-19 README), or the memray stats as llm-16.json')
     if "profiles" in data:
         unknown = set(data) - ARTIFACT_KEYS
         profiles = data["profiles"]
@@ -410,7 +533,8 @@ def artifact_inputs(data, *, name=ARTIFACT_NAME, run=None):
                 if part == "cpu":
                     if profile.get("sample_type", "cpu") != "cpu":
                         raise _Invalid('sample_type must be "cpu" (on-CPU samples)')
-                    stacks, input_format = _stacks(profile["cpu"], "cpu")
+                    stacks, input_format, cpu_notes = _stacks(profile["cpu"], "cpu")
+                    notes.extend(f"profile {label}: {note}" for note in cpu_notes[:5])
                     payload = cpu_profile_data(stacks, profile=label, profiler=profiler, input_format=input_format)
                 else:
                     payload = memory_profile_data(profile["memory"], profile=label, profiler=profiler)
@@ -434,8 +558,8 @@ def _read_settings(context, keys):
     settings = {}
     for key in keys:
         value = context[key]
-        if not _is_number(value):
-            return None, f"context.{key} must be a number"
+        if not _is_number(value) or abs(value) >= MAX_COUNT:
+            return None, f"context.{key} must be a number below 10^{MAX_COUNT_DIGITS}"
         if key in ("max_self_cpu_share", "max_inclusive_cpu_share", "min_monotonic_fraction") and not 0 < value <= 1:
             return None, f"context.{key} must be greater than 0 and at most 1"
         if key == "min_total_samples" and (not isinstance(value, int) or value < 1):
@@ -490,8 +614,8 @@ def _cpu_problems(data, profile):
         return problems
     if data["sample_type"] != "cpu":
         return ['sample_type must be "cpu"']
-    if data["input_format"] not in ("collapsed", "stacks"):
-        return ['input_format must be "collapsed" or "stacks"']
+    if data["input_format"] not in ("collapsed", "stacks", "speedscope"):
+        return ['input_format must be "collapsed", "stacks" or "speedscope"']
     total = data["total_samples"]
     if not _is_count(total) or not _is_count(data["stack_count"]):
         return ["total_samples and stack_count must be nonnegative integers"]
@@ -505,7 +629,8 @@ def _cpu_problems(data, profile):
             return [f"{field} counts are inconsistent (self <= inclusive <= total_samples; callee, root <= inclusive)"]
         for share_key, count in (("self_share", own), ("inclusive_share", inclusive)):
             share = record[share_key]
-            if not _is_number(share) or abs(share - (count / total if total else 0)) > SHARE_TOLERANCE:
+            expected = count / total if total else 0
+            if not _is_number(share) or not 0 <= share <= 1 or abs(share - expected) > SHARE_TOLERANCE:
                 return [f"{field}.{share_key} does not match its samples / total_samples"]
         self_sum += own
     if self_sum != total:
@@ -574,19 +699,28 @@ def _memory_findings(data, settings, source):
     count = data["snapshot_count"]
     steps = count - 1
     items = []
+    half = steps // 2  # the second half of the series starts at this snapshot
+    late_steps = steps - half
+    minimum = settings["min_leak_growth_bytes"]
     for field, record in _records(data, MEMORY_FIELD).items():
         series = record["in_use_bytes"]
         growing = sum(later > earlier for earlier, later in pairwise(series))
         growth = series[-1] - series[0]
-        if growth <= 0 or growth < settings["min_leak_growth_bytes"]:
+        if growth <= 0 or growth < minimum:
             continue
         if growing / steps < settings["min_monotonic_fraction"]:
+            continue
+        # Sustained: the second half must grow by at least its pro-rated share of min_leak_growth_bytes, so a
+        # warm-up step followed by a (jittery) plateau is not a leak, while warm-up followed by steady growth is.
+        late = series[-1] - series[half]
+        if late <= 0 or late * steps < minimum * late_steps:
             continue
         items.append((growth, {
             "identity": "leak-candidate:" + field[len(MEMORY_FIELD):],
             "summary": (f"Profile {data['profile']} ({data['profiler']}): in-use memory attributed to "
                         f"{record['function']} at {_where(record)} grew from {series[0]} to {series[-1]} bytes "
-                        f"(+{growth}) across {count} snapshots and increased in {growing} of {steps} intervals (min_monotonic_fraction "
+                        f"(+{growth}) across {count} snapshots, +{late} over the last {late_steps} intervals, "
+                        f"and increased in {growing} of {steps} intervals (min_monotonic_fraction "
                         f"{_fmt(settings['min_monotonic_fraction'])}); a leak candidate."),
             "confidence": "medium" if growing == steps else "low",
             "recommendation": LEAK_RECOMMENDATION,

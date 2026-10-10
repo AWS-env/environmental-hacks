@@ -52,6 +52,34 @@ def stack_objects(text):
     return rows
 
 
+def speedscope(text, *, rate=100, threads=1, pseudo_root=None):
+    """The same profile as py-spy 0.4 `--format speedscope` writes it: shared frames, one sampled profile per
+    thread listing every sample root-first with weight 1/rate seconds."""
+    frames, index, samples = [], {}, []
+    for line in text.splitlines():
+        stack, count = line.rsplit(" ", 1)
+        indices = []
+        for part in ([pseudo_root] if pseudo_root else []) + stack.split(";"):
+            if part not in index:
+                index[part] = len(frames)
+                name, _, location = part.partition(" (")
+                file, _, lineno = location.rstrip(")").rpartition(":")
+                if part == pseudo_root:  # py-spy writes pseudo frames with an empty file and line 0
+                    frames.append({"name": part, "file": "", "line": 0})
+                elif location:
+                    frames.append({"name": name, "file": file, "line": int(lineno)})
+                else:
+                    frames.append({"name": part})
+            indices.append(index[part])
+        samples += [indices] * int(count)
+    chunks = [samples[t::threads] for t in range(threads)]
+    return {"$schema": "https://www.speedscope.app/file-format-schema.json", "activeProfileIndex": None,
+            "name": "py-spy profile", "exporter": "py-spy@0.4.2", "shared": {"frames": frames},
+            "profiles": [{"type": "sampled", "name": f'Thread 0x7F3A{t} "MainThread"', "unit": "seconds",
+                          "startValue": 0.0, "endValue": len(chunk) / rate, "samples": chunk,
+                          "weights": [1 / rate] * len(chunk)} for t, chunk in enumerate(chunks)]}
+
+
 def run(artifact, *, context=None, keep=None):
     """artifact -> (input payload, validated result)."""
     _, reference, scope, sources, _ = obs19.artifact_inputs(artifact)
@@ -163,11 +191,120 @@ class InputFormatTests(unittest.TestCase):
         self.assertNotEqual(long_key, obs19.parse_frame("x" * 499 + "y")[0])
 
     def test_pyspy_process_and_thread_pseudo_frames_are_not_entry_points(self):
-        text = "\n".join(f'process 7:"python app.py";thread (0x7F3A);{line}' for line in HOT.splitlines())
-        payload, result = run({"cpu": text})
+        # py-spy 0.4 --threads: `thread (<0xID>)` on macOS or `thread (<tid>)`, plus `: <name>` when known.
+        for thread in ("thread (0x7F3A)", "thread (0x7F3A1C2B3740): MainThread", "thread (12345): worker-1"):
+            with self.subTest(thread=thread):
+                text = "\n".join(f'process 7:"python app.py";{thread};{line}' for line in HOT.splitlines())
+                payload, result = run({"cpu": text})
+                self.assertEqual(list(by_identity(result)), ["hot-spot:render (app/views.py)"])
+                self.assertEqual(payload["sources"][0]["data"]["cpu:<module> (app.py)"]["root_samples"], 10000)
+                self.assertFalse(any("thread" in field for field in payload["sources"][0]["data"]))
+
+
+class SpeedscopeTests(unittest.TestCase):
+    """py-spy `--format speedscope` (speedscope.json, as owner C's CI uploads it) is accepted as CPU input."""
+
+    @staticmethod
+    def strip(result):
+        return [(f["identity"], f["summary"], f["evidence"][1]["value"]) for f in result["findings"]]
+
+    def test_speedscope_document_matches_the_collapsed_profile(self):
+        _, collapsed = run({"profiler": "py-spy@0.4.2", "cpu": HOT})
+        for threads in (1, 3):
+            with self.subTest(threads=threads):
+                payload, result = run(speedscope(HOT, threads=threads))  # the whole file is the document
+                data = payload["sources"][0]["data"]
+                self.assertEqual((data["input_format"], data["profiler"], data["total_samples"]),
+                                 ("speedscope", "py-spy@0.4.2", 10000))
+                self.assertEqual(payload["scope"], ["cpu-profile:default"])
+                self.assertEqual(self.strip(result), self.strip(collapsed))
+
+    def test_speedscope_thread_pseudo_frames_are_dropped(self):
+        payload, result = run(speedscope(HOT, pseudo_root="thread (0x7F3A1C2B3740): MainThread"))
         self.assertEqual(list(by_identity(result)), ["hot-spot:render (app/views.py)"])
-        self.assertEqual(payload["sources"][0]["data"]["cpu:<module> (app.py)"]["root_samples"], 10000)
         self.assertFalse(any("thread" in field for field in payload["sources"][0]["data"]))
+
+    def test_speedscope_inside_a_named_profile_with_memory(self):
+        m = 1048576
+        payload, result = run({"profiles": [{"name": "api", "cpu": speedscope(HOT),
+                                             "memory": {"series": {"put (a.py:1)": [k * m for k in range(1, 7)]}}}]})
+        self.assertEqual(payload["scope"], ["cpu-profile:api", "memory-profile:api"])
+        self.assertEqual(sorted(by_identity(result)), ["hot-spot:render (app/views.py)", "leak-candidate:put (a.py)"])
+
+    def test_integer_weights_count_as_samples_and_evented_profiles_are_skipped(self):
+        document = speedscope(HOT)
+        profile = document["profiles"][0]
+        profile.update(unit="none", weights=[2] * len(profile["samples"]))
+        document["profiles"].append({"type": "evented", "name": "x", "unit": "none", "events": []})
+        _, _, _, sources, notes = obs19.artifact_inputs(document)
+        self.assertEqual(sources[0]["data"]["total_samples"], 20000)
+        self.assertIn("profiles[1] is not a sampled profile ('evented'); skipped", " ".join(notes))
+
+    def test_unusable_speedscope_documents_are_not_evaluated(self):
+        def edit(change):
+            document = speedscope("main;work 1000")
+            change(document)
+            return document
+
+        cases = [
+            (edit(lambda d: d["profiles"][0].update(type="evented")), "has no sampled profiles"),
+            (edit(lambda d: d["profiles"][0]["weights"].__setitem__(0, 0.015)), "not whole multiples of one sample"),
+            (edit(lambda d: d["profiles"][0]["samples"].__setitem__(0, [9])), "not a list of shared.frames indices"),
+            (edit(lambda d: d["profiles"][0]["weights"].pop()), "one nonnegative number per sample"),
+            (edit(lambda d: d["shared"].__setitem__("frames", [])), "nonempty shared.frames"),
+        ]
+        for artifact, reason in cases:
+            with self.subTest(reason=reason):
+                payload, result = run(artifact)
+                self.assertIn("normalization_error", payload["sources"][0]["data"])
+                self.assertEqual(result["status"], "unavailable")
+                self.assertIn(reason, " ".join(result["coverage"]["limitations"]))
+
+    def test_memray_stats_are_refused_with_the_reason(self):
+        stats = {"metadata": {}, "total_num_allocations": 10, "total_bytes_allocated": 100,
+                 "top_allocations_by_size": [{"location": "f:a.py:1", "size": 100, "count": 1}]}
+        with self.assertRaisesRegex(obs19.ArtifactError, "memray stats --json.*no time series"):
+            obs19.artifact_inputs(stats)
+
+
+class BoundedInputTests(unittest.TestCase):
+    def test_function_count_is_capped(self):
+        limit = obs19.MAX_FUNCTIONS
+        payload, result = run({"cpu": "\n".join(f"main;f{i} 1" for i in range(limit - 1))},
+                              context=obs19.REFERENCE_SETTINGS | {"min_total_samples": 1})
+        self.assertEqual(payload["sources"][0]["data"]["function_count"], limit)  # main + limit - 1
+        self.assertEqual(result["status"], "completed")
+        payload, result = run({"cpu": "\n".join(f"main;f{i} 1" for i in range(limit))})
+        self.assertIn("normalization_error", payload["sources"][0]["data"])
+        self.assertEqual(result["status"], "unavailable")
+        self.assertIn(f"more than {limit} distinct functions; not evaluated", result["coverage"]["limitations"][0])
+        _, result = run({"memory": {"series": {f"f{i}": [1] * 5 for i in range(limit + 1)}}})
+        self.assertIn(f"memory has more than {limit} distinct functions", result["coverage"]["limitations"][0])
+
+    def test_line_numbers_do_not_count_as_functions(self):
+        payload, _ = run({"cpu": "\n".join(f"main;work (a.py:{i}) 1" for i in range(2 * obs19.MAX_FUNCTIONS))})
+        self.assertEqual(payload["sources"][0]["data"]["function_count"], 2)
+
+    def test_counts_and_bytes_have_at_most_18_digits(self):
+        top = 10 ** 18 - 1
+        payload, _ = run({"memory": {"series": {"a": [top] * 5}}})
+        self.assertEqual(payload["sources"][0]["data"]["memory:a"]["in_use_bytes"], [top] * 5)
+        cases = [
+            ({"memory": {"series": {"a": [10 ** 18] * 5}}}, "nonnegative integer bytes below 10^18"),
+            ({"memory": {"series": {"a (x.py:1)": [top] * 5, "a (x.py:2)": [1] * 5}}}, "must stay below 10^18"),
+            ({"memory": {"snapshots": [f"a {top}\nb;a 1"] * 5}}, "must stay below 10^18"),
+            ({"memory": {"series": {"a": [1] * 5}, "timestamps": ["t" * 65] * 5}}, "at most 64 characters"),
+            ({"cpu": [{"stack": ["a"], "count": 10 ** 18}]}, "below 10^18"),
+            ({"cpu": f"a {top}\nb 1"}, "digits of total samples"),
+            ({"cpu": "a 1" + "0" * 18}, "is not 'frame;frame;... count'"),
+        ]
+        for artifact, reason in cases:
+            with self.subTest(reason=reason):
+                payload, result = run(artifact)
+                self.assertEqual(result["status"], "unavailable")
+                self.assertIn(reason, result["coverage"]["limitations"][0])
+        _, result = run({"cpu": HOT}, context=obs19.REFERENCE_SETTINGS | {"min_total_samples": 10 ** 4000})
+        self.assertIn("min_total_samples must be a number below 10^18", result["coverage"]["limitations"][0])
 
 
 class LeakTests(unittest.TestCase):
@@ -200,6 +337,32 @@ class LeakTests(unittest.TestCase):
         m = self.MIB
         _, result = run(self.memory(warmup=(0, 0, 0, 0, 0, 50 * m), small=(1, 2, 3, 4, 5, 6)))
         self.assertEqual((result["status"], result["findings"]), ("completed", []))
+
+    def test_warm_up_then_plateau_is_not_a_leak(self):
+        # Every interval grows, but after the first jump the growth is tens of KB: warm-up, not a leak.
+        _, result = run(self.memory(warmup=(0, 40_000_000, 40_050_000, 40_060_000, 40_065_000)))
+        self.assertEqual((result["status"], result["findings"]), ("completed", []))
+        # A jump followed by a jittery plateau (4 of 5 intervals grow).
+        _, result = run(self.memory(jitter=(0, 40_000_000, 40_100_000, 40_050_000, 40_200_000, 40_300_000)))
+        self.assertEqual((result["status"], result["findings"]), ("completed", []))
+
+    def test_steady_growth_after_warm_up_is_still_a_leak(self):
+        m = self.MIB
+        _, result = run(self.memory(steady=(10 * m, 12 * m, 14 * m, 16 * m, 18 * m, 20 * m),
+                                    warm_then_leak=(0, 40 * m, 41 * m, 42 * m, 43 * m, 44 * m)))
+        self.assertEqual({k: f["confidence"] for k, f in by_identity(result).items()},
+                         {"leak-candidate:steady (app/cache.py)": "medium",
+                          "leak-candidate:warm_then_leak (app/cache.py)": "medium"})
+        self.assertIn("+3145728 over the last 3 intervals",
+                      by_identity(result)["leak-candidate:warm_then_leak (app/cache.py)"]["summary"])
+
+    def test_second_half_growth_threshold_is_pro_rated(self):
+        m = self.MIB
+        # 5 snapshots: the second half is the last 2 of 4 intervals and must grow by at least 2/4 MiB.
+        _, result = run(self.memory(at=(0, 3 * m, 3 * m + 1, 3 * m + 2, 3 * m + 1 + m // 2)))
+        self.assertEqual(list(by_identity(result)), ["leak-candidate:at (app/cache.py)"])
+        _, result = run(self.memory(below=(0, 3 * m, 3 * m + 1, 3 * m + 2, 3 * m + m // 2)))
+        self.assertEqual(result["findings"], [])
 
     def test_below_minimum_snapshots_is_not_evaluated(self):
         _, result = run(self.memory(put=(1, 2 * self.MIB, 3 * self.MIB, 4 * self.MIB)))
@@ -396,6 +559,33 @@ class ArtifactRouteTests(AwsTestCase):
                 self.assertEqual(out["outcome"], "refused")
                 self.assertIn(reason, out["reason"])
         self.assertEqual(self.fakes["events"].entries, [])
+
+    def test_oversized_numbers_are_bounded_and_fit_one_event(self):
+        # ~1.4 MB of 4000-digit integers used to produce a 1.27 MB result, which made common.event_entries raise
+        # (over MAX_DETAIL_BYTES) and sent the event to the DLQ instead of reporting it.
+        big = 10 ** 3999
+        profiles = [{"name": f"p{p}", "memory": {"series": {f"f{i}": [big * (k + 1) + i for k in range(14)]
+                                                             for i in range(5)}}} for p in range(obs19.MAX_PROFILES)]
+        body = json.dumps({"profiles": profiles}).encode()
+        self.assertGreater(len(body), 1_400_000)
+        out = self.run_key(body, dry_run=True)
+        self.assertEqual((out["outcome"], out["results"][0]["status"]), ("evaluated", "unavailable"))
+        self.assertIn("below 10^18", " ".join(out["result_payloads"][0]["coverage"]["limitations"]))
+        for entry in common.event_entries(out["result_payloads"], bus_name="findings-hub",
+                                          source=artifact_handler.SOURCE):
+            self.assertLess(len(entry["Detail"].encode()), common.MAX_DETAIL_BYTES)
+
+    def test_too_many_functions_are_reported_not_evaluated(self):
+        body = json.dumps({"cpu": "\n".join(f"main;handler_{i} (app/m{i}.py:{i}) 1" for i in range(20_000))})
+        out = self.run_key(body.encode(), dry_run=True)
+        self.assertEqual(out["results"][0]["status"], "unavailable")
+        self.assertIn("distinct functions", " ".join(out["result_payloads"][0]["coverage"]["limitations"]))
+
+    def test_pyspy_speedscope_upload_is_evaluated(self):
+        out = self.run_key(json.dumps(speedscope(HOT, threads=2)).encode(), dry_run=True)
+        self.assertEqual(out["results"], [{"check_id": "OBS-19", "status": "completed", "scope": 1, "evaluated": 1,
+                                           "findings": 1}])
+        self.assertIn("(py-spy@0.4.2)", out["result_payloads"][0]["findings"][0]["summary"])
 
     def test_largest_accepted_artifact_fits_one_event(self):
         m = 1048576
