@@ -138,7 +138,17 @@ def tst12_inputs(data, identity):
     return tst12, context, scope, sources, notes
 
 
-ROUTES = {"tst-12.json": tst12_inputs}
+def obs19_inputs(data, identity):
+    """OBS-19 continuous-profiler artifact (format: owner_d.obs19.artifact_inputs); its refusals become Refused."""
+    from owner_d import obs19
+
+    try:
+        return obs19.artifact_inputs(data, name=identity["name"], run=identity["run"])
+    except obs19.ArtifactError as exc:
+        raise Refused(str(exc)) from None
+
+
+ROUTES = {"tst-12.json": tst12_inputs, "obs-19.json": obs19_inputs}
 
 
 def llm16_inputs(data, identity):

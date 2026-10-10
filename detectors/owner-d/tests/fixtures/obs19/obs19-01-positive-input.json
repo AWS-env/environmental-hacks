@@ -1,0 +1,229 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "gha-4242-1",
+  "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+  "check_id": "OBS-19",
+  "detector_version": "1.1.0",
+  "context": {
+    "min_total_samples": 1000,
+    "max_self_cpu_share": 0.1,
+    "max_inclusive_cpu_share": 0.5,
+    "min_leak_snapshots": 5,
+    "min_monotonic_fraction": 0.8,
+    "min_leak_growth_bytes": 1048576
+  },
+  "scope": [
+    "cpu-profile:checkout-api",
+    "memory-profile:checkout-api"
+  ],
+  "sources": [
+    {
+      "source_id": "profile-0-cpu",
+      "scope_id": "cpu-profile:checkout-api",
+      "kind": "artifact",
+      "locator": "obs-19.json from GitHub Actions run 4242-1: profile checkout-api (cpu)",
+      "data": {
+        "profile": "checkout-api",
+        "profiler": "py-spy",
+        "input_format": "collapsed",
+        "sample_type": "cpu",
+        "total_samples": 9000,
+        "stack_count": 11,
+        "function_count": 13,
+        "cpu:<module> (app.py)": {
+          "function": "<module>",
+          "file": "app.py",
+          "location": "app.py:10",
+          "self_samples": 0,
+          "inclusive_samples": 9000,
+          "self_share": 0.0,
+          "inclusive_share": 1.0,
+          "top_callee_samples": 9000,
+          "root_samples": 9000
+        },
+        "cpu:accept (app/server.py)": {
+          "function": "accept",
+          "file": "app/server.py",
+          "location": "app/server.py:60",
+          "self_samples": 900,
+          "inclusive_samples": 900,
+          "self_share": 0.1,
+          "inclusive_share": 0.1,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:auth (app/auth.py)": {
+          "function": "auth",
+          "file": "app/auth.py",
+          "location": "app/auth.py:14",
+          "self_samples": 500,
+          "inclusive_samples": 500,
+          "self_share": 0.0556,
+          "inclusive_share": 0.0556,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:cache_get (app/cache.py)": {
+          "function": "cache_get",
+          "file": "app/cache.py",
+          "location": "app/cache.py:20",
+          "self_samples": 700,
+          "inclusive_samples": 700,
+          "self_share": 0.0778,
+          "inclusive_share": 0.0778,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:gc_collect (app/server.py)": {
+          "function": "gc_collect",
+          "file": "app/server.py",
+          "location": "app/server.py:15",
+          "self_samples": 400,
+          "inclusive_samples": 400,
+          "self_share": 0.0444,
+          "inclusive_share": 0.0444,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:handle (app/server.py)": {
+          "function": "handle",
+          "file": "app/server.py",
+          "location": "app/server.py:120",
+          "self_samples": 0,
+          "inclusive_samples": 4700,
+          "self_share": 0.0,
+          "inclusive_share": 0.5222,
+          "top_callee_samples": 3000,
+          "root_samples": 0
+        },
+        "cpu:health (app/server.py)": {
+          "function": "health",
+          "file": "app/server.py",
+          "location": "app/server.py:30",
+          "self_samples": 500,
+          "inclusive_samples": 500,
+          "self_share": 0.0556,
+          "inclusive_share": 0.0556,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:load_user (app/db.py)": {
+          "function": "load_user",
+          "file": "app/db.py",
+          "location": "app/db.py:30",
+          "self_samples": 900,
+          "inclusive_samples": 900,
+          "self_share": 0.1,
+          "inclusive_share": 0.1,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:log_request (app/logs.py)": {
+          "function": "log_request",
+          "file": "app/logs.py",
+          "location": "app/logs.py:5",
+          "self_samples": 700,
+          "inclusive_samples": 700,
+          "self_share": 0.0778,
+          "inclusive_share": 0.0778,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:metrics_flush (app/metrics.py)": {
+          "function": "metrics_flush",
+          "file": "app/metrics.py",
+          "location": "app/metrics.py:9",
+          "self_samples": 600,
+          "inclusive_samples": 600,
+          "self_share": 0.0667,
+          "inclusive_share": 0.0667,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:render (app/views.py)": {
+          "function": "render",
+          "file": "app/views.py",
+          "location": "app/views.py:42",
+          "self_samples": 3000,
+          "inclusive_samples": 3000,
+          "self_share": 0.3333,
+          "inclusive_share": 0.3333,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        },
+        "cpu:serve (app/server.py)": {
+          "function": "serve",
+          "file": "app/server.py",
+          "location": "app/server.py:88",
+          "self_samples": 0,
+          "inclusive_samples": 9000,
+          "self_share": 0.0,
+          "inclusive_share": 1.0,
+          "top_callee_samples": 4700,
+          "root_samples": 0
+        },
+        "cpu:to_json (app/serialize.py)": {
+          "function": "to_json",
+          "file": "app/serialize.py",
+          "location": "app/serialize.py:12",
+          "self_samples": 800,
+          "inclusive_samples": 800,
+          "self_share": 0.0889,
+          "inclusive_share": 0.0889,
+          "top_callee_samples": 0,
+          "root_samples": 0
+        }
+      }
+    },
+    {
+      "source_id": "profile-0-memory",
+      "scope_id": "memory-profile:checkout-api",
+      "kind": "artifact",
+      "locator": "obs-19.json from GitHub Actions run 4242-1: profile checkout-api (memory)",
+      "data": {
+        "profile": "checkout-api",
+        "profiler": "py-spy",
+        "input_format": "series",
+        "unit": "bytes",
+        "snapshot_count": 6,
+        "function_count": 2,
+        "timestamps": [
+          "2026-10-10T10:00:00Z",
+          "2026-10-10T10:10:00Z",
+          "2026-10-10T10:20:00Z",
+          "2026-10-10T10:30:00Z",
+          "2026-10-10T10:40:00Z",
+          "2026-10-10T10:50:00Z"
+        ],
+        "memory:cache_put (app/cache.py)": {
+          "function": "cache_put",
+          "file": "app/cache.py",
+          "location": "app/cache.py:31",
+          "in_use_bytes": [
+            4194304,
+            6291456,
+            8388608,
+            10485760,
+            12582912,
+            14680064
+          ]
+        },
+        "memory:render (app/views.py)": {
+          "function": "render",
+          "file": "app/views.py",
+          "location": "app/views.py:42",
+          "in_use_bytes": [
+            2097152,
+            2101248,
+            2093056,
+            2099200,
+            2097152,
+            2101248
+          ]
+        }
+      }
+    }
+  ]
+}
