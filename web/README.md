@@ -75,3 +75,11 @@ read local system metrics. Pause/resume the stream, switch demo devices, change 
 time window or toggle chart series. The dashboard fits a single viewport at tested
 1366×768, 1440×900, 1680×1050 and 390×844 sizes. GSAP animates panel entrances,
 metric counters and chart paths, respecting the reduced-motion preference.
+## Illustrative particle pipeline
+
+The loading preview uses the shared architecture graph, with seven independent
+particle streams for dashboard delivery, static scans, artifacts, telemetry,
+estimates/readback, OAuth and scheduled alerts. Trails and stage highlights are
+visual illustrations, not live AWS telemetry. The status bar still reports the
+real scan API state and elapsed time; completed/error states use the real report
+flow. Client code is never executed by this preview.
