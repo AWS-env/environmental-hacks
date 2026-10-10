@@ -1,0 +1,28 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst03-001",
+  "commit_sha": "3333333333333333333333333333333333333333",
+  "check_id": "TST-03",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python",
+    "max_production_methods": 4,
+    "production_packages": [
+      "shop"
+    ]
+  },
+  "scope": [
+    "file:tests/test_shop.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_shop.py",
+      "kind": "static",
+      "locator": "tests/test_shop.py",
+      "content": "# Synthetic TST-03 positives: each test calls more than 4 distinct production methods.\nimport unittest\n\nimport pytest\n\nfrom shop import pricing\nfrom shop.cart import Cart\nfrom shop.inventory import Inventory, restock\n\n\nclass CartTest(unittest.TestCase):\n    def setUp(self):\n        self.inventory = Inventory()\n\n    def test_checkout_flow(self):\n        cart = Cart()\n        cart.add(\"apple\", 2)\n        cart.add(\"pear\", 1)\n        cart.remove(\"pear\")\n        cart.apply_coupon(\"SAVE10\")\n        self.assertRaises(KeyError, lambda: cart.pop(\"plum\"))\n        self.assertEqual(cart.total(), 9)\n\n    def test_stock_and_prices(self):\n        self.inventory.reserve(\"apple\", 2)\n        self.inventory.release(\"apple\", 1)\n        self.assertEqual(self.inventory.available(\"apple\"), 9)\n        restock(\"apple\", 10)\n        self.assertAlmostEqual(pricing.discount(10, 0.1), 9.0)\n\n\n@pytest.fixture\ndef cart():\n    return Cart()\n\n\ndef test_everything(cart):\n    cart.add(\"apple\", 1)\n    cart.remove(\"apple\")\n    cart.clear()\n    assert cart.count() == 0\n    assert cart.total() == 0\n    assert pricing.tax(10) == 1\n    assert pricing.discount(10, 0.5) == 5\n    restock(\"apple\", 1)\n    assert Inventory().reserve(\"apple\", 1)\n    assert Cart.from_dict({\"apple\": 1})\n"
+    }
+  ]
+}

@@ -2795,3 +2795,75 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm09/llm09-01-positive-input.json
 ```
 
+## TST-03 — Eager Test
+
+Flags tests that call more distinct production methods/functions than a
+configured limit, adapting tsDetect's
+[Eager Test](https://github.com/TestSmells/TestSmellDetector/blob/master/src/main/java/testsmell/smell/EagerTest.java)
+("a test method invokes several methods of the production object"). PyNose
+has no Eager Test because Python has no reliable test-to-production class
+mapping, so the caller names the production code. It is static (`ast` only)
+and uses the same input, test recognition and per-file "nothing to flag" note
+as TST-06.
+
+### Context settings (required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_production_methods` | Most distinct production calls a test may make | `4` |
+| `production_packages` | Dotted module prefixes that are the code under test | the repo's own packages, e.g. `["shop"]` |
+
+`4` is tsDetect's `SpadiniThresholds` value (Spadini et al., MSR 2020);
+`1` reproduces tsDetect's default rule ("more than one"). Without
+`production_packages` nothing can be called production, so an empty result
+would be a false clean claim. A missing or invalid setting makes the result
+`unavailable`.
+
+### Detection rule
+
+Production code is whatever the test file imports (absolute or relative) from
+a module under `production_packages`. Module paths with a test-ish segment
+(`test`, `tests`, `testing`, `_testing`, `conftest`, `test_*`, `*_test(s)`)
+are never production. A call is a production call when it is:
+
+- a production function or class method: `restock(...)`, `pricing.tax(...)`,
+  `Cart.from_dict(...)`;
+- a method on a production object: a local variable, `with ... as` target,
+  same-file pytest fixture parameter or `self.<attr>` (set in `setUp`,
+  `setUpClass`, `setup_method`, the class body or the test) bound directly to
+  a call of a production callable; or a chain rooted at one (`Cart().add()`,
+  `make_cart().add()`).
+
+Calls are counted once per distinct dotted name (`Cart.total` and
+`Order.total` are two; `total` on two `Cart` objects is one), across the
+whole body including lambdas, nested functions and assertion arguments. Not
+counted: constructors (capitalised names such as `Cart()` or `Q()`),
+assertion calls, builtins, stdlib/third-party/mock/test-helper imports
+(unless listed), calls on `self`, calls on locals not bound to a production
+call, attribute reads, and method names the test patches
+(`patch.object(X, "m")`, `@patch("pkg.mod.X.m")`,
+`monkeypatch.setattr(X, "m", v)`). A name re-bound in the test shadows the
+import. There is no type inference: objects returned by production methods
+and fixtures from `conftest.py` are not followed, so counts are lower bounds.
+
+A test is flagged when its count is strictly above `max_production_methods`.
+Unconditionally skipped tests are not flagged. One finding per test; evidence
+starts at the `def` line, and the summary lists the calls in first-call
+order. Confidence:
+
+- `medium` above twice the limit;
+- `low` otherwise.
+
+`# noqa: TST-03` on the `def` line suppresses a finding. The identity is the
+qualified test name, with `#n` for a redefined name.
+
+The taxonomy cites an energy association for this smell (Kendall tau 0.432,
+SRC-15). That evidence comes from JUnit/Maven projects and is not shown to
+transfer to Python, so no measurements are emitted.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst03/tst03-01-positive-input.json
+```
