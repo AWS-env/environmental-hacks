@@ -1,0 +1,117 @@
+# Synthetic fixture (INF07-02): current-generation / Graviton compute, unresolved intrinsics and unjudged families.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  NodeType:
+    Type: String
+    Default: m7g.large
+  WorkerType:
+    Type: String
+  FunctionArch:
+    Type: String
+    Default: arm64
+Conditions:
+  IsProd: !Equals [!Ref AWS::AccountId, "123456789012"]
+Mappings:
+  Sizes:
+    prod: {Type: m4.xlarge}
+Globals:
+  Function:
+    Architectures:
+      - arm64
+Resources:
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: m7g.large
+  ComputeServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: c7i.2xlarge
+  BurstServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t4g.small
+  X86Current:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: m6i.large
+  GpuServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: g4dn.xlarge
+  HighFrequency:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: m5zn.large
+  MacBuilder:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: mac1.metal
+  FromParameter:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref NodeType
+  NoDefaultParameter:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref WorkerType
+  Conditional:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !If [IsProd, m4.xlarge, m4.large]
+  FromMapping:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !FindInMap [Sizes, prod, Type]
+  ConditionalProperties:
+    Type: AWS::EC2::Instance
+    Properties: !If [IsProd, {InstanceType: m4.large}, {InstanceType: m4.xlarge}]
+  AttributeBased:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceRequirements:
+          VCpuCount: {Min: 2}
+          MemoryMiB: {Min: 4096}
+  Db:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: aurora-postgresql
+      DBInstanceClass: db.r7g.large
+  Cache:
+    Type: AWS::ElastiCache::ReplicationGroup
+    Properties:
+      ReplicationGroupDescription: sessions
+      CacheNodeType: cache.r7g.large
+  Search:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      ClusterConfig:
+        InstanceType: r7g.large.search
+        DedicatedMasterEnabled: false
+        DedicatedMasterType: m4.large.search
+  ArmFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: arn:aws:iam::123456789012:role/fn
+      Architectures: [arm64]
+      Code: {ZipFile: "def handler(e, c): return e"}
+  ParameterArchFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: arn:aws:iam::123456789012:role/fn
+      Architectures: [!Ref FunctionArch]
+      Code: {ZipFile: "def handler(e, c): return e"}
+  GlobalsArmFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs20.x
+      Handler: index.handler
+      CodeUri: src/
+  Queue:
+    Type: AWS::SQS::Queue

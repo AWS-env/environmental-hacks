@@ -1,0 +1,45 @@
+# Synthetic fixture (INF07-06): confidence tiers, engine boundaries and evidence lines.
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  FreeTierHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t2.micro
+  SqlServerDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: sqlserver-se
+      DBInstanceClass: db.m4.large
+  ImageFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      PackageType: Image
+      Role: arn:aws:iam::123456789012:role/fn
+      Code: {ImageUri: 123456789012.dkr.ecr.ap-south-1.amazonaws.com/app:latest}
+  CustomRuntimeFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: provided.al2023
+      Handler: bootstrap
+      Role: arn:aws:iam::123456789012:role/fn
+      Code: {S3Bucket: artifacts, S3Key: rust.zip}
+  BatchCompute:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      Type: MANAGED
+      ComputeResources:
+        Type: EC2
+        MaxvCpus: 64
+        InstanceTypes:
+          - optimal
+          - c6g
+          - c4
+          - r5.2xlarge
+  SearchMasters:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      EngineVersion: OpenSearch_2.11
+      ClusterConfig:
+        InstanceType: r6g.large.search
+        DedicatedMasterEnabled: true
+        DedicatedMasterType: c5.large.search

@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf07-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "INF-07",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "iac"
+  },
+  "scope": [
+    "file:template-positive.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:template-positive.yaml",
+      "scope_id": "file:template-positive.yaml",
+      "kind": "static",
+      "locator": "template-positive.yaml",
+      "content": "# Synthetic fixture (INF07-01): compute declared on older or x86 families with a more efficient equivalent.\nAWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nParameters:\n  BastionType:\n    Type: String\n    Default: t2.micro\n    AllowedValues: [t2.micro, t3.micro, t4g.micro]\nResources:\n  WebServer:\n    Type: AWS::EC2::Instance\n    Properties:\n      InstanceType: m4.large\n      ImageId: ami-0123456789abcdef0\n  Bastion:\n    Type: AWS::EC2::Instance\n    Properties:\n      InstanceType: !Ref BastionType\n  WorkerTemplate:\n    Type: AWS::EC2::LaunchTemplate\n    Properties:\n      LaunchTemplateData:\n        InstanceType: c4.xlarge\n  WorkerGroup:\n    Type: AWS::AutoScaling::AutoScalingGroup\n    Properties:\n      MinSize: \"1\"\n      MaxSize: \"4\"\n      MixedInstancesPolicy:\n        LaunchTemplate:\n          LaunchTemplateSpecification:\n            LaunchTemplateId: !Ref WorkerTemplate\n            Version: !GetAtt WorkerTemplate.LatestVersionNumber\n          Overrides:\n            - InstanceType: m7g.large\n            - InstanceType: m5.large\n  Nodes:\n    Type: AWS::EKS::Nodegroup\n    Properties:\n      ClusterName: app\n      NodeRole: arn:aws:iam::123456789012:role/node\n      Subnets: [subnet-1]\n      InstanceTypes: [t3.medium]\n  OrdersDb:\n    Type: AWS::RDS::DBInstance\n    Properties:\n      Engine: postgres\n      DBInstanceClass: db.r4.large\n  ReportsDb:\n    Type: AWS::RDS::DBInstance\n    Properties:\n      Engine: mysql\n      DBInstanceClass: db.m5.large\n  SessionCache:\n    Type: AWS::ElastiCache::CacheCluster\n    Properties:\n      Engine: redis\n      NumCacheNodes: 1\n      CacheNodeType: cache.t2.micro\n  SearchDomain:\n    Type: AWS::OpenSearchService::Domain\n    Properties:\n      ClusterConfig:\n        InstanceType: m4.large.search\n        InstanceCount: 2\n  ResizeFunction:\n    Type: AWS::Lambda::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.handler\n      Role: arn:aws:iam::123456789012:role/fn\n      Code:\n        ZipFile: \"def handler(event, context): return event\"\n  ApiFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: nodejs20.x\n      Handler: index.handler\n      CodeUri: src/\n      Architectures:\n        - x86_64\n"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+# Synthetic fixture (INF07-05): a macro can rewrite resources, so the template is not evaluated.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: [AWS::Serverless-2016-10-31, CompanyDefaults]
+Resources:
+  Web:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: m4.large

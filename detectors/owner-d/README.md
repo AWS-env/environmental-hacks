@@ -3495,3 +3495,132 @@ Python.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst08/tst08-01-positive-input.json
 ```
+
+## INF-07 — Less efficient instance/processor family
+
+Flags compute that a CloudFormation/SAM template declares on an older or less
+efficient family when a more efficient equivalent exists. This v1 is a static
+IaC proxy. It proves "declared on an older/x86 family that has a newer or
+Graviton equivalent", not that the workload runs inefficiently, is compatible
+with the successor, or that the successor is offered in the project's Region.
+Templates are read as text and are never deployed, resolved or sent to AWS. It
+uses the `textstatic.py` runner and `owner_d/miniyaml.py`.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Supported files:
+
+- **CloudFormation/SAM YAML**: `.yaml`/`.yml`
+- **CloudFormation JSON**: `.json`, including CDK-synthesized
+  `cdk.out/*.template.json`
+- **`.template`** files in either syntax
+
+A file counts as a template when it has a `Resources` mapping. No context
+settings are required.
+
+### Detection rule
+
+| Resource | Property (identity `<LogicalId>:<property>`) |
+| --- | --- |
+| `AWS::EC2::Instance`, `AWS::AutoScaling::LaunchConfiguration` | `InstanceType` |
+| `AWS::EC2::LaunchTemplate` | `LaunchTemplateData.InstanceType` |
+| `AWS::AutoScaling::AutoScalingGroup` | `MixedInstancesPolicy.LaunchTemplate.Overrides` (each `InstanceType`) |
+| `AWS::EKS::Nodegroup` | `InstanceTypes` |
+| `AWS::Batch::ComputeEnvironment` | `ComputeResources.InstanceTypes` (a bare family such as `c4` counts) |
+| `AWS::RDS::DBInstance` | `DBInstanceClass` |
+| `AWS::ElastiCache::CacheCluster`, `AWS::ElastiCache::ReplicationGroup` | `CacheNodeType` |
+| `AWS::OpenSearchService::Domain`, `AWS::Elasticsearch::Domain` | `ClusterConfig`/`ElasticsearchClusterConfig` `.InstanceType` and `.DedicatedMasterType` |
+| `AWS::Lambda::Function`, `AWS::Serverless::Function` | `Architectures` (incl. SAM `Globals.Function`) |
+
+The family table is small and explicit (`inf07.py`). Only these families are
+judged:
+
+| Tier | EC2 families → suggested successor | Confidence |
+| --- | --- | --- |
+| Older generation | t1/t2 → t3 or t4g; m1/m3/m4 → m7i or m7g; m2 → r7i or r7g; c1/c3/c4 → c7i or c7g; r3/r4 → r7i or r7g | medium (t1/t2: low) |
+| x86 with a Graviton equivalent | t3/t3a → t4g; m5/m5a → m7g; m5d/m5ad → m7gd; c5/c5a → c7g; c5d → c7gd; c5n → c7gn; r5/r5a → r7g; r5d/r5ad → r7gd | low |
+
+Managed services use their own tables:
+
+- **RDS**: `db.t2`, `db.m3`/`m4`, `db.r3`/`r4` are older (successors
+  `db.t3`/`db.m6i`/`db.r6i`, or `db.t4g`/`db.m7g`/`db.r7g`). `db.t3`/`m5`/`r5`
+  are flagged as Graviton candidates only when `Engine` is a literal MySQL,
+  MariaDB, PostgreSQL or Aurora engine. Oracle, SQL Server and Db2 have no
+  Graviton classes, and a missing or intrinsic `Engine` is unknown.
+- **ElastiCache**: `cache.t1`/`t2`, `m3`/`m4`, `c1`, `r3`/`r4` are older
+  (successors `cache.t3`/`m5`/`r5`, or `cache.t4g`/`m7g`/`r7g`); `cache.t3`/`m5`/`r5`
+  are Graviton candidates.
+- **OpenSearch**: `t2`, `m3`/`m4`, `c4`, `r3`/`r4` (`*.search` or
+  `*.elasticsearch`) are older (successors `t3`, `m5`, `c5`, `r5`, or
+  `m7g`/`c7g`/`r7g`). `m5`/`c5`/`r5` are Graviton candidates only on
+  `AWS::OpenSearchService::Domain` without an `Elasticsearch_*` `EngineVersion`.
+  A `DedicatedMasterType` is ignored when `DedicatedMasterEnabled: false`.
+
+Graviton candidates are `low` because AMIs, container images and native
+dependencies need arm64 builds, and the template cannot show that. Older
+generations are `medium`, because a newer x86 generation of the same family is
+usually a drop-in move. t1/t2 are `low`, because they are often chosen for the
+free tier or burst credits.
+
+Lambda functions are flagged when `Architectures` is omitted (Lambda's default
+is `x86_64`) or is the literal `[x86_64]`:
+
+- `medium`: `Architectures` is omitted on a zip package with a Python, Node.js,
+  Ruby, Java or .NET runtime. Such packages usually move unchanged, apart from
+  native extensions.
+- `low`: an explicit `x86_64`, which may be a deliberate compatibility choice;
+  container images (`PackageType: Image`) and `provided.*` runtimes, which
+  need an arm64 build; or an unknown runtime.
+
+A `!Ref` to a template parameter is resolved to its literal `Default`. Such
+findings are `low` because a deployment can override the default, and the
+evidence is the `Default` line. Other intrinsics (`!If`, `!FindInMap`, `!Sub`,
+`Fn::If` around `Properties`) and `Architectures` values given by `!Ref` are
+not resolved and are not flagged. A list (node group, Batch, ASG overrides)
+yields one finding that names every flagged entry; the evidence is the first
+flagged entry. Otherwise the evidence is the property line, the
+`Architectures` line(s), or the logical-ID..`Type` lines when `Architectures`
+is omitted.
+
+Legitimate exceptions (not flagged):
+
+- `# noqa` / `# noqa: INF-07` on the cited line or in the comment lines
+  directly above the resource (YAML only). Use it for licensing, certified
+  AMIs, drivers or x86-only binaries.
+- Lambda runtimes without an arm64 build (`go1.x`, `python3.7` and older,
+  `nodejs10.x` and older, `java8`, `dotnetcore2.1`, `ruby2.5`, `provided`).
+  Upgrading the runtime comes first.
+- Lambda functions synthesized by the CDK framework: custom-resource
+  providers, `LogRetention` and bucket-notification handlers.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- invalid JSON, or YAML outside the miniyaml subset
+- YAML/JSON files without CloudFormation `Resources`, such as Kubernetes
+  manifests (a `kubernetes.io/arch: amd64` nodeSelector is not judged)
+- templates with a macro `Transform` other than
+  `AWS::Serverless-2016-10-31`/`AWS::LanguageExtensions`, or with
+  `Fn::Transform`/`AWS::Include` or `Fn::ForEach`
+- Terraform/HCL (`.tf`), CDK source code (synthesize it first), Pulumi and
+  Serverless Framework files
+
+### Limitations
+
+No inventory, utilisation or Compute Optimizer data is read. The taxonomy's
+AWS Config / Compute Optimizer half needs a client read-only role and is
+blocked on OQ-7. No measurements are emitted.
+
+The check does not judge 6th/7th-generation x86, GPU, accelerated or
+storage-optimised families, attribute-based `InstanceRequirements`, Spot
+Fleet/EC2 Fleet, EMR, SageMaker, Batch `optimal`, or whether a function is
+used with Lambda@Edge (which requires `x86_64`). It does not check whether a
+successor is offered in the project's Region.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/inf07/inf07-01-positive-input.json
+```
