@@ -1,0 +1,39 @@
+{
+  "total_num_allocations": 182044,
+  "total_bytes_allocated": 31981568,
+  "allocation_size_histogram": [
+    {"min_bytes": 1, "max_bytes": 64, "count": 171223},
+    {"min_bytes": 65, "max_bytes": 4096, "count": 10652},
+    {"min_bytes": 4097, "max_bytes": 1048576, "count": 169}
+  ],
+  "allocator_type_distribution": {"PYMALLOC_MALLOC": 171877, "MALLOC": 167},
+  "top_allocations_by_size": [
+    {"location": "invoke:/home/runner/work/example/example/positive.py:51", "size": 8388608},
+    {"location": "_parse:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/anthropic/_response.py:293", "size": 6291456},
+    {"location": "read:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/httpx/_models.py:881", "size": 3145728},
+    {"location": "<module>:/home/runner/work/example/example/positive.py:3", "size": 2097152},
+    {"location": "read:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/botocore/response.py:99", "size": 1048576},
+    {"location": "chat:/home/runner/work/example/example/positive.py:24", "size": 524288},
+    {"location": "_get_code_from_file:<frozen runpy>:266", "size": 93317}
+  ],
+  "top_allocations_by_count": [
+    {"location": "_parse:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/anthropic/_response.py:293", "count": 96000},
+    {"location": "invoke:/home/runner/work/example/example/positive.py:51", "count": 41000}
+  ],
+  "top_modules_by_allocation_size": [],
+  "top_modules_by_allocation_count": [],
+  "metadata": {
+    "start_time": "2026-10-10 09:12:03.104000+00:00",
+    "end_time": "2026-10-10 09:12:41.877000+00:00",
+    "total_allocations": 182044,
+    "total_frames": 0,
+    "peak_memory": 41943040,
+    "command_line": "/home/runner/work/example/example/.venv/bin/memray run -o llm16.bin -m pytest tests/test_api.py",
+    "pid": 2231,
+    "main_thread_id": 1,
+    "python_allocator": "pymalloc",
+    "has_native_traces": false,
+    "trace_python_allocators": false,
+    "file_format": 0
+  }
+}

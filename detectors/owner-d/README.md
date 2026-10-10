@@ -119,6 +119,7 @@ as JSON. It never executes it. The file name picks the check:
 | Name | Check | Content |
 | --- | --- | --- |
 | `tst-12.json` | TST-12 artifact mode | `{"framework": "pytest", "settings": {...optional TST-12 maxima}, "tests": [{"test_id", "duration_seconds", "sleep_seconds", "network_call_count", "fixture_bytes", "setup_seconds"}]}` |
+| `llm-16.json` | LLM-16 artifact mode | unmodified `memray stats --json` output, optional `"settings": {"max_buffered_response_bytes"}`; one `artifact:llm-16.json` scope ([LLM-16](#runtime-confirmation-artifact-mode)) |
 
 Each test becomes one `test:<test_id>` scope item. The reference settings apply unless `settings` overrides
 them. Results go through `validate_pair` and are published to `findings-hub` with source
@@ -4515,10 +4516,13 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
 
 Flags LLM API calls in Python request handlers that do not stream, so the
 whole reply is generated and held in memory before anything reaches the
-client. The taxonomy detects this by memory profiling. This v1 is a static
-proxy: it proves that a handler makes a non-streaming call whose output is not
-capped small. It does not measure response length, peak memory or latency, and
-emits no measurements. AWS lists "streaming responses are used for
+client. The taxonomy detects this by memory profiling. The primary mode is a
+static proxy: it proves that a handler makes a non-streaming call whose output
+is not capped small. It does not measure response length, peak memory or
+latency, and emits no measurements. Since 1.1.0 a client-CI memray profile can
+be added as optional runtime confirmation (see
+[Runtime confirmation](#runtime-confirmation-artifact-mode)). AWS lists
+"streaming responses are used for
 user-facing interactions to reduce memory footprint and improve
 time-to-first-token" as a desired outcome
 ([AGENTSUS02-BP03](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp03.html)).
@@ -4526,7 +4530,17 @@ time-to-first-token" as a desired outcome
 ### Input
 
 A contract v1 `input` payload with one `static` source per scope item
-(`file:<path>`, `.py` only) and the context setting below.
+(`file:<path>`, `.py` only) and the context setting below. The detector picks
+the mode from each scope item's source kinds, like TST-12:
+
+| Scope | Sources | Mode |
+| --- | --- | --- |
+| `file:<path>` | exactly one `static` source | static (unchanged since 1.0.0) |
+| `file:<path>` | one `static` source plus memray `artifact` frames | static + runtime confirmation |
+| `artifact:<name>` | memray `artifact` frames only | artifact |
+
+A payload without `artifact` sources is evaluated exactly as in 1.0.0, so
+repository scans are unaffected.
 
 ### Context settings (all required)
 
@@ -4581,12 +4595,83 @@ The identity is `<qualified function>:<provider>.<api>` with `#2` for repeats.
 Missing, non-Python or unparseable files are left out of `evaluated_scope`,
 never reported clean.
 
+### Runtime confirmation (artifact mode)
+
+Runtime evidence comes from the client's own CI (issue #461, OQ-1), through
+the same path as TST-12: the workflow profiles its tests or a load script with
+[memray](https://bloomberg.github.io/memray/stats.html), exports
+`memray stats --json`, and uploads the file under the name **`llm-16.json`**
+through the [artifact upload endpoint](../../hub/README.md#artifact-upload-endpoint).
+The [artifact parser](#artifact-route) routes that name to LLM-16. Nothing is
+executed; the file is only parsed.
+
+```bash
+memray run -o llm16.bin -m pytest tests/test_api.py
+memray stats --json -o llm-16.json llm16.bin   # upload as llm-16.json
+```
+
+The file is the unmodified `memray stats --json` output, the same format Owner
+A's CODE-C6.1 and Owner C's PY-05/PY-11 accept. LLM-16 reads
+`top_allocations_by_size` (`{"location": "<function>:<file>:<line>", "size": <bytes>}`)
+and `metadata.peak_memory`; other keys are ignored. An optional top-level
+`"settings": {"max_buffered_response_bytes": <bytes>}` overrides the reference
+value. Each allocation site becomes one `artifact` source whose normalized
+`data` is `{"profiler": "memray", "location", "function", "file", "line",
+"allocated_bytes", "peak_memory"}` (`llm16.memray_frames`).
+
+- **Confirmation** (`file:<path>` scope with the static source): a frame in
+  that file on the line(s) of a static finding that allocated strictly more than
+  `max_buffered_response_bytes` confirms it. The finding keeps its identity
+  and fingerprint, gains the frame's `location`, `allocated_bytes` and
+  `peak_memory` as artifact evidence, and its confidence goes up one step
+  (`low` to `medium`, `medium` to `high`). CI paths are matched by suffix
+  (`/home/runner/work/x/x/app/api.py` matches `app/api.py`).
+- **On its own** (`artifact:llm-16.json` scope, what the parser publishes):
+  frames in functions that read a whole response body, above the threshold,
+  are flagged. Anthropic and OpenAI SDK `read`/`aread`/`json`/`text`/`content`/
+  `parse`/`_parse`/`_process_response` frames are `medium`. httpx
+  `Response.read`/`json`/... and botocore `StreamingBody.read`
+  (Bedrock `invoke_model` bodies) are `low`, because they read any HTTP
+  response. The identity is `response-read:<path below site-packages>:<function>`
+  (for example `response-read:anthropic/_response.py:_parse`), with no line
+  numbers or install paths. Other frames are not judged without their source
+  file.
+
+Without an artifact, runtime confirmation is unavailable: the result is the
+static one, unchanged. A missing, malformed or non-matching artifact never
+makes a static result clean or dirty; unusable frames are listed as
+limitations. Missing artifact settings leave the static findings in place and
+make only the confirmation (or an `artifact:` scope) unavailable.
+
+Limits: memray stats lists only the top allocation sites (`-n`, default 5)
+and attributes each allocation to the innermost Python frame, summed over the
+whole profiled run. It is not per request and not the high-water mark of one
+site. A call site is therefore confirmed only when memray attributes the
+allocation to that line, for example `json.loads(...["body"].read())` in the
+handler. Allocations inside an SDK carry no caller, so they cannot be tied to
+a repository `file:line`.
+
+### Context settings (artifact mode, optional for static scans)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_buffered_response_bytes` | Largest number of bytes memray may attribute to a response-reading frame over the profiled run | `1048576` |
+
+Team judgment: 1 MiB is about 64 complete 4,096-token replies (about 16 KB of
+text each). It is not part of `REFERENCE_SETTINGS`, so repository scans keep
+the static context. The artifact parser applies it unless the upload's
+`settings` override it.
+
 ### Run
 
 ```bash
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm16/llm16-01-positive-input.json
 ```
+
+`llm16-a01-artifact-input.json` is the artifact-mode example, built from the
+synthetic `memray-stats.json` fixture, which has the field layout of a real
+memray 1.x export.
 ## LLM-03 — Bloated system prompts / redundant instructions (static proxy)
 
 Flags LLM API calls in Python source whose statically resolvable system

@@ -2,6 +2,7 @@ import io
 import json
 import unittest
 import urllib.parse
+from pathlib import Path
 
 from tests.aws_fakes import NOW, SHA, AwsTestCase, ClientError, FakeTable, mock_env
 from findings_hub import writer
@@ -15,6 +16,7 @@ HEAVY = {"test_id": "tests/test_api.py::test_fetch_users", "duration_seconds": 1
          "network_call_count": 3, "fixture_bytes": 52428800, "setup_seconds": 4.1}
 LIGHT = {"test_id": "tests/test_api.py::test_parse", "duration_seconds": 0.01, "sleep_seconds": 0,
          "network_call_count": 0, "fixture_bytes": 1024, "setup_seconds": 0.001}
+MEMRAY_STATS = (Path(__file__).resolve().parent / "fixtures" / "llm16" / "memray-stats.json").read_bytes()
 
 
 class FakeS3:
@@ -91,6 +93,43 @@ class ArtifactParserTests(AwsTestCase):
     def test_per_test_framework_wins(self):
         out = self.run_key("tst-12.json", artifact(dict(HEAVY, framework="jest")), dry_run=True)
         self.assertIn("jest test", out["result_payloads"][0]["findings"][0]["summary"])
+
+    def test_llm16_memray_stats_are_routed_evaluated_and_published(self):
+        out = self.run_key("llm-16.json", MEMRAY_STATS)
+        self.assertEqual((out["outcome"], out["artifact"]), ("evaluated", "llm-16.json"))
+        self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
+        self.assertEqual(out["results"], [{"check_id": "LLM-16", "status": "completed", "scope": 1, "evaluated": 1,
+                                           "findings": 2}])
+        entry = self.fakes["events"].entries[0]
+        result = json.loads(entry["Detail"])
+        validate(result)
+        self.assertEqual(result["context"], {"max_buffered_response_bytes": 1048576})
+        self.assertEqual([(f["scope_id"], f["identity"]) for f in result["findings"]], [
+            ("artifact:llm-16.json", "response-read:anthropic/_response.py:_parse"),
+            ("artifact:llm-16.json", "response-read:httpx/_models.py:read")])
+        self.assertEqual(result["findings"][0]["evidence"][0]["locator"],
+                         "llm-16.json from GitHub Actions run 4242-1: _parse:/home/runner/work/example/example/.venv/"
+                         "lib/python3.12/site-packages/anthropic/_response.py:293")
+        self.assertNotIn("123456789012", entry["Detail"])
+        stored = writer.ingest({"source": entry["Source"], "detail-type": entry["DetailType"], "detail": result,
+                                "id": "evt-llm16"}, s3=None, table=FakeTable(), allowed_buckets=set(), now=NOW)
+        self.assertEqual(stored["outcome"], "stored")
+
+    def test_llm16_settings_override_the_reference_threshold(self):
+        body = json.dumps(json.loads(MEMRAY_STATS) | {"settings": {"max_buffered_response_bytes": 10 ** 9}}).encode()
+        out = self.run_key("llm-16.json", body, dry_run=True)
+        self.assertEqual((out["results"][0]["findings"], out["published"]), (0, 0))
+
+    def test_llm16_unusable_memray_exports_are_refused(self):
+        stats = json.loads(MEMRAY_STATS)
+        for body, reason in [(b"[]", "needs a `memray stats --json` object"),
+                             (artifact(HEAVY), "not a `memray stats --json` export"),
+                             (json.dumps(stats | {"settings": {"max_cpu": 1}}).encode(), "settings may only contain"),
+                             (json.dumps({"top_allocations_by_size": [{"location": "x", "size": 1}]}).encode(),
+                              "no usable allocation sites")]:
+            with self.subTest(reason=reason):
+                self.fakes["events"].entries.clear()
+                self.assert_refused(self.run_key("llm-16.json", body), reason)
 
     def test_duplicate_and_unusable_tests_become_limitations(self):
         out = self.run_key("tst-12.json", artifact(HEAVY, HEAVY, {"duration_seconds": 1}, "x"), dry_run=True)

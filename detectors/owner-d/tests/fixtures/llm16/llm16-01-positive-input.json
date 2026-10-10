@@ -5,7 +5,7 @@
   "scan_id": "scan-llm16-001",
   "commit_sha": "ffffffffffffffffffffffffffffffffffffffff",
   "check_id": "LLM-16",
-  "detector_version": "1.0.0",
+  "detector_version": "1.1.0",
   "context": {
     "language": "python",
     "max_buffered_output_tokens": 256
