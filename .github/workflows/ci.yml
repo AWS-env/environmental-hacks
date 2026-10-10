@@ -134,6 +134,7 @@ jobs:
           python -m pip install 'cfn-lint>=1,<2'
           cfn-lint infra/scan-api/template.yaml
           cfn-lint cdk/owner-d/artifact-upload.yaml
+          cfn-lint cdk/owner-d/hub-api.yaml
 
       - name: Detect project manifest
         id: detect
