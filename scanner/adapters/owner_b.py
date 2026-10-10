@@ -67,9 +67,17 @@ class OwnerB:
         self.entry = entry
 
     def run(self, ctx):
+        # A public repository scan has no route/capture/policy mapping. Keep registered
+        # NET checks visible as unavailable rather than omitting them or inventing telemetry.
+        registered = node.call("owner-b", self.entry, "list")["checks"]
+        network_runs = [CheckRun(check_id, OWNER, "owner-b-network-contract", unavailable=(
+            "Source-only repository scan has no snapshot-correlated network capture, route mapping "
+            "or reviewed policy metadata. Supply contract v1 input through the network artifact "
+            "connector and verify the hub report; no runtime network waste is confirmed."))
+            for check_id in registered if re.fullmatch(r"NET-\d{2}", check_id)]
         files = [(p, c) for p, c in ctx.files if p.endswith(".php")]
         if not files:
-            return [CheckRun(CHECK_ID, OWNER, NAME, not_applicable="no PHP (.php) files collected")]
+            return [CheckRun(CHECK_ID, OWNER, NAME, not_applicable="no PHP (.php) files collected"), *network_runs]
         payload = ctx.input(CHECK_ID, VERSION, ctx.context(language="php", adapter=NAME),
                             [static_source(p, c) for p, c in files])
         run = CheckRun(CHECK_ID, OWNER, NAME, payload=payload)
@@ -78,4 +86,4 @@ class OwnerB:
             run.result = translate(payload, response["files"])
         except (RuntimeError, KeyError, TypeError, ValueError) as error:
             run.error = f"owner B scan failed: {error}"
-        return [run]
+        return [run, *network_runs]

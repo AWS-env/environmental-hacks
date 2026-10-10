@@ -1,4 +1,6 @@
-# Owner B: G01 checks
+# Owner B detectors
+
+Registered network/API/serialization checks use the validated contract interface described in [NETWORK.md](NETWORK.md). Their AWS artifact connector is deployed and verified with hub readback. Public source-only scans list them as unavailable without correlated captures and reviewed policies; synthetic integration cases do not confirm client runtime waste.
 
 `evaluate(input)` from index.js is the validated contract-v1 API. This issue branch registers DB-34 (#136). The shared G01 engine and its regression tests are common prerequisites; other detector registrations are reviewed in their own PRs. `cli.js` accepts an input JSON path. The original `scanSource`/`scanFile` interface remains a legacy compatibility API; its heuristic findings must never be published as shared-contract results.
 

@@ -7,5 +7,8 @@ const jobs={
   'JOB-01':require('../checks/job-01'),
   'JOB-06':require('../checks/job-06'),
 };
-function evaluate(input){return jobs[input.check_id]?jobs[input.check_id].evaluate(input):database.evaluate(input);}
-module.exports={evaluate,jobs};
+const network={
+  'NET-01':require('../checks/net-01'),
+};
+function evaluate(input){return network[input.check_id]?network[input.check_id].evaluate(input):jobs[input.check_id]?jobs[input.check_id].evaluate(input):database.evaluate(input);}
+module.exports={evaluate,jobs,network};
