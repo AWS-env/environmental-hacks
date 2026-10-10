@@ -16,11 +16,16 @@ a ``waste`` path and a clean ``control`` path, and every emitted item is labeled
 * LLM-05  (opt-in, not part of ``all``) a two-step pipeline whose second ``chat`` call sends the same model the
           same request (identical ``gen_ai.input.messages.hash``), vs a chain whose second request carries the
           first step's output. No LLM is called
+* LLM-17  (opt-in, not part of ``all``) ``runs`` agent capacity lines per path: the same bursty worker demand
+          against a pool statically sized for the theoretical maximum (64 workers), vs a pool sized for the
+          observed peak (8 workers)
 
 The event selects what to emit: ``{"scenario": "all" | "OBS-11" | "OBS-17" | "OBS-04" | "OBS-06" | "LLM-10"}``,
-or ``{"scenario": "LLM-05"}``. Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series`` (OBS-06
-request ids), ``tool_calls`` (LLM-10 iterations); ``path`` (LLM-10 and LLM-05: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
-no dependency beyond the Python runtime (boto3 is used only for PutMetricData).
+or the opt-in ``{"scenario": "LLM-05"}`` / ``{"scenario": "LLM-17"}``. Optional knobs, each clamped: ``repeat``
+(OBS-11 lines), ``series`` (OBS-06 request ids), ``tool_calls`` (LLM-10 iterations), ``runs`` (LLM-17 capacity
+lines per path); ``path`` (LLM-10, LLM-05 and LLM-17: ``both``, ``waste`` or ``control``). Subsegments are sent
+straight to the Lambda X-Ray daemon over UDP, so the function needs no dependency beyond the Python runtime
+(boto3 is used only for PutMetricData).
 """
 
 import hashlib
@@ -35,14 +40,15 @@ import uuid
 NAMESPACE = "OwnerD/Demo"
 METRIC_NAME = "RequestLatencyMs"
 SCENARIOS = ("OBS-11", "OBS-17", "OBS-04", "OBS-06", "LLM-10")  # what "all" runs
-OPT_IN_SCENARIOS = ("LLM-05",)  # selected by name only, so "all" keeps its output
+OPT_IN_SCENARIOS = ("LLM-05", "LLM-17")  # selected by name only, so "all" keeps its output
 
 # OBS-06 series bound: request_id values come from a fixed pool, endpoint from a fixed list.
 REQUEST_ID_POOL = 40
 ENDPOINTS = ("/checkout", "/search")
 MAX_METRIC_SERIES = REQUEST_ID_POOL + len(ENDPOINTS)
 
-LIMITS = {"repeat": (20, 1, 50), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25)}
+LIMITS = {"repeat": (20, 1, 50), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25),
+          "runs": (25, 1, 50)}
 SPAN_SECONDS = 0.01
 
 
@@ -339,6 +345,32 @@ def llm05(emit, path="both"):
     return summary
 
 
+# ---- LLM-17: capacity sized for the theoretical maximum -----------------------------------------------
+
+# Each agent run logs its pool's provisioned capacity next to what it used, in the JSON shape owner D's LLM-17
+# query reads (agent, capacity_kind, capacity_provisioned, capacity_used). Both pools see the same bursty
+# demand; only the provisioned size differs.
+AGENT_POOLS = (("waste", "demo_static_agent_pool", 64), ("control", "demo_rightsized_agent_pool", 8))
+WORKER_DEMAND = (1, 2, 1, 3, 2, 1, 6, 2, 1, 4)  # workers busy per run; peak 6
+
+
+def llm17(emit, runs, path="both"):
+    if path not in LLM10_PATHS:
+        raise ValueError(f"path must be one of {', '.join(LLM10_PATHS)}")
+    summary = {}
+    for label, agent, provisioned in AGENT_POOLS:
+        if path not in ("both", label):
+            continue
+        used = [WORKER_DEMAND[i % len(WORKER_DEMAND)] for i in range(runs)]
+        for value in used:
+            emit.json("LLM-17", label, level="INFO", message="agent run finished", agent=agent,
+                      capacity_kind="workers", capacity_provisioned=provisioned, capacity_used=value)
+        summary[f"{label}_runs"] = runs
+        summary[f"{label}_provisioned"] = provisioned
+        summary[f"{label}_peak_used"] = max(used)
+    return summary
+
+
 # ---- entry points ---------------------------------------------------------------------------------------
 
 def _scenarios(value):
@@ -371,6 +403,7 @@ def run(event=None, write=None, cloudwatch=None, xray=None):
         "OBS-06": lambda: obs06(emit, _knob(event, "series")),
         "LLM-10": lambda: llm10(emit, _knob(event, "tool_calls"), event.get("path", "both")),
         "LLM-05": lambda: llm05(emit, event.get("path", "both")),
+        "LLM-17": lambda: llm17(emit, _knob(event, "runs"), event.get("path", "both")),
     }
     emitted = {check: steps[check]() for check in selected}
     return {"synthetic": True, "run_id": emit.run_id, "scenarios": list(selected), "emitted": emitted}

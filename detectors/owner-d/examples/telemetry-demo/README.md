@@ -22,6 +22,7 @@ X-Ray subsegments. Owner D's telemetry analyzers then have real evidence to read
 | `OBS-06` | `RequestLatencyMs` keyed by `request_id` (`req-000`..`req-039`, one series per request). | `RequestLatencyMs` keyed by `endpoint` (2 values). | `ListMetrics` shows a dimension whose value count grows with traffic, next to a bounded one. |
 | `LLM-10` | `invoke_agent demo_unbounded_agent` runs `tool_calls` turns (default 12, max 25). Each turn is a `chat` span followed by `execute_tool get_order_status` with byte-identical arguments. It ends with `stop_reason=max_iterations`. | `invoke_agent demo_bounded_agent`: 3 `chat` turns and 2 different tools (`get_order_status`, then `draft_reply`), ending with `stop_reason=answer_ready`. | Owner D's LLM-10 detector flags the waste run for `identical-tool-calls` (12 > 3) and `iteration-budget` (12 > 10). The control run stays under both limits. |
 | `LLM-05` (opt-in) | `invoke_agent demo_redundant_pipeline`: 2 `chat` calls with the same model and the same `gen_ai.input.messages.hash`; step 2 re-sends step 1's request unchanged. | `invoke_agent demo_chained_pipeline`: the same first call, then a second request that carries step 1's output (2 distinct digests). | Owner D's LLM-05 detector flags the waste run for `consecutive-identical-calls` (2 > 1) and leaves the control run alone. |
+| `LLM-17` (opt-in) | `runs` JSON lines (default 25, max 50) from `demo_static_agent_pool`, sized for a theoretical maximum of 64 workers, each with `capacity_kind=workers`, `capacity_provisioned=64` and the workers that run used (1-6, peak 6). | The same demand against `demo_rightsized_agent_pool`, provisioned for 8 workers. | Owner D's LLM-17 query reads the `agent`/`capacity_*` fields. Once a pool has 100 lines in a 24-hour window (4 invocations at the default `runs`), LLM-17 flags the waste pool (`agent-capacity`, peak 9.4% of 64) and leaves the control pool (75% of 8) alone. The function's own REPORT lines are at 128 MB, the Lambda minimum, so its memory is never flagged. |
 
 Shared dimensions on every metric: `synthetic`, `check=OBS-06` and `path`.
 
@@ -69,9 +70,10 @@ removes the need to bundle `aws-xray-sdk`, which is not in the Python runtime. T
 
 `scenario` takes `all` (the default) or one of `OBS-11`, `OBS-17`, `OBS-04`, `OBS-06` or `LLM-10`. Short
 forms such as `obs11` are also accepted. Each numeric knob is optional and is clamped to its maximum.
-`LLM-05` (or `llm05`) is opt-in: `all` does not run it, so the output of `all` is unchanged.
+`LLM-05` (or `llm05`) and `LLM-17` (or `llm17`) are opt-in: `all` does not run them, so the output of `all`
+is unchanged. `runs` (LLM-17 capacity lines per path) defaults to 25 and is clamped to 50.
 
-`path` applies to LLM-10 and LLM-05 and takes `both` (the default), `waste` or `control`. Both runs share one
+`path` applies to LLM-10, LLM-05 and LLM-17 and takes `both` (the default), `waste` or `control`. Both runs share one
 entrypoint, so a clean-only result needs a time window that contains only `"path": "control"` traces.
 
 The response summarizes what was emitted, along with a `run_id` that also appears in every log line.
@@ -120,6 +122,17 @@ done
 The `llm10` scenario sends no custom metrics. Ten runs cost almost nothing: 10 X-Ray traces, which fall
 within the 100,000 free traces each month, and a few log lines. Re-run any call that reports
 `"xray": "not_sampled"`.
+
+LLM-17 evaluates a pool once it has `min_invocations` (100) capacity lines in a window of at least 24 hours.
+Four `llm17` invocations at the default `runs` (25 lines per pool each) are enough. They send no metrics or
+traces, only 50 short log lines each.
+
+```bash
+for i in $(seq 4); do
+  aws lambda invoke --function-name owner-d-telemetry-demo --cli-binary-format raw-in-base64-out \
+    --payload '{"scenario":"llm17"}' --profile aws-agent --region ap-south-1 /tmp/telemetry-demo-llm17.json
+done
+```
 
 Read-only checks that the evidence landed. Metrics can take a few minutes to appear, and traces about a
 minute:

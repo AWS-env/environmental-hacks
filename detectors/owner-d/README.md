@@ -92,7 +92,7 @@ A pair that fails is refused: it is not published and is listed under
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
-| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17 |
+| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-17 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
 | `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12 (artifact mode) |
 
@@ -218,8 +218,8 @@ minimum.
 ### Registered checks (one line each)
 
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
-(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11 and
-OBS-17 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
+(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11,
+OBS-17 and LLM-17 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
 API pages use an adapter. The adapter builds the sources with account-free
@@ -234,9 +234,10 @@ TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:n
 Without `checks`, the telemetry analyzer runs INF-01 and OBS-06. OBS-06 needs
 `list_metrics` (for example `{"namespace": "OwnerD/Demo"}`); without it,
 ListMetrics lists every namespace. Pass `"checks": ["INF-01"]` to run only
-one of them. The log analyzer runs OBS-07, OBS-11 and OBS-17 by default.
-OBS-11 and OBS-17 each run one Logs Insights query over the allowlisted groups
-(billed per GB scanned); pass `"checks": ["OBS-07"]` to skip both.
+one of them. The log analyzer runs OBS-07, OBS-11, OBS-17 and LLM-17 by
+default. OBS-11, OBS-17 and LLM-17 each run one Logs Insights query over the
+allowlisted groups (billed per GB scanned); pass `"checks": ["OBS-07"]` to skip
+them.
 
 Raw shapes:
 
@@ -2264,6 +2265,140 @@ responses shaped on the X-Ray segment document format, not production traces.
 The telemetry demo's opt-in `LLM-05` scenario emits a matching waste/control
 pair (see `examples/telemetry-demo/README.md`).
 
+
+## LLM-17 — Static provisioning / sizing for theoretical max (agent workloads)
+
+Flags agent workloads whose capacity is sized for a theoretical maximum that
+their real peak never approaches: a Lambda function whose memory is mostly
+unused even by its largest invocation, or an agent pool (workers,
+concurrency, token budget) whose busiest run uses a small share of it. The
+taxonomy row (source AWS Well-Architected agentic AI lens AGENTSUS02-BP03)
+asks for utilization metrics, so the check is telemetry only
+(`SUPPORTED_KIND = "telemetry"`). A repository scan reports it `unavailable`.
+A static proxy such as "agent Lambdas declared with `MemorySize >= 3008`" was
+left out. A declared size says nothing about use, and Lambda memory also sets
+CPU, so such a rule could not tell waste from a CPU-bound function.
+
+### Input
+
+`owner_d.llm17.LOGS_INSIGHTS_QUERY` runs on `owner-d-log-analyzer` over the
+allowlisted groups and the analyzer's window (24 hours by default). It uses
+only the role's existing `logs:StartQuery`/`GetQueryResults` (and
+`DescribeLogGroups` for discovery):
+
+```text
+filter (@type = "REPORT" and ispresent(@memorySize) and ispresent(@maxMemoryUsed))
+    or (ispresent(agent) and ispresent(capacity_kind) and ispresent(capacity_provisioned) and ispresent(capacity_used))
+| fields coalesce(@memorySize, capacity_provisioned) as l17_provisioned,
+    coalesce(@maxMemoryUsed, capacity_used) as l17_used,
+    coalesce(agent, "") as l17_agent, coalesce(capacity_kind, "") as l17_kind
+| stats count(*) as invocations, max(l17_used) as peak_used, pct(l17_used, 99) as p99_used,
+    avg(l17_used) as avg_used, min(@timestamp) as first_seen, max(@timestamp) as last_seen
+    by @log, l17_agent, l17_kind, l17_provisioned
+```
+
+It reads two kinds of capacity record:
+
+- Lambda `REPORT` lines. Logs Insights parses `@memorySize` and
+  `@maxMemoryUsed` (the peak memory of one invocation) for every function in
+  the text log format, without app changes. They are in units of 10^6 bytes, as
+  in the AWS sample query "Determine the amount of overprovisioned memory", so
+  the normalizer divides by 1,000,000 to get MB.
+- Agent capacity lines: a JSON log event (or the first JSON fragment of a
+  Lambda log line) with `agent`, `capacity_kind` (for example `workers`,
+  `concurrency`, `max_tokens`), `capacity_provisioned` and `capacity_used`,
+  logged once per agent run:
+
+  ```json
+  {"level": "INFO", "message": "agent run finished", "agent": "support_agent", "capacity_kind": "workers", "capacity_provisioned": 64, "capacity_used": 3}
+  ```
+
+The query returns aggregates only: invocations (REPORT lines or capacity
+lines), peak (`max`), p99 (`pct`) and average use, and first/last seen, per
+log group, agent, kind and provisioned size. No message text leaves CloudWatch
+Logs.
+
+`normalize_logs_insights(raw, *, settings)` builds one `telemetry` source per
+workload, with the account ID removed from `@log`:
+
+| Workload | Scope ID | Identity |
+| --- | --- | --- |
+| Lambda memory | `resource:log-group/<name>#lambda-memory` | `lambda-memory` |
+| Agent capacity | `resource:log-group/<name>#agent/<agent>/<capacity_kind>` | `agent-capacity` |
+
+A queried group with neither kind of record keeps a `resource:log-group/<name>`
+scope item without a source, so it is reported as not evaluated, never as
+clean. Data fields: `log_group`, `workload`, `agent`, `capacity_kind`, `unit`
+(`MB` or `count`), `window`, `window_hours`, `provisioned`, `invocations`,
+`peak_used`, `p99_used`, `avg_used`, `first_seen`, `last_seen`, `other_sizes`
+and `problems`. When a workload was seen at more than one provisioned size
+(resized in the window, or several functions sharing a log group), the most
+recently seen size is judged and the others are listed in `other_sizes`. These
+go into `problems` and leave the workload unevaluated: the row limit was hit;
+a row without `@log`; the query window is unknown; a non-numeric value; p99 or
+average above the peak. Agent names and kinds must be simple identifiers
+(letters, digits, `_.:@/-`); other rows are skipped with a note.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_invocations` | Fewest invocations (REPORT lines or agent capacity lines) at the current size before a workload is evaluated | `100` |
+| `min_window_hours` | Shortest query window that is evaluated, so the window covers at least a daily cycle | `24` |
+| `max_peak_utilization` | A workload whose peak use is strictly below this share of its provisioned size is flagged | `0.3` |
+
+`llm17.REFERENCE_SETTINGS` holds these values and the registry's LLM-17
+defaults copy them; a test keeps the two equal. All three are team choices:
+30% means at least 70% of the capacity stayed unused even at the busiest
+moment. Missing or invalid settings make the result `unavailable`.
+
+### Detection rule
+
+For each workload with at least `min_invocations` at its current size, in a
+window of at least `min_window_hours`, the workload is flagged when
+`peak_used / provisioned < max_peak_utilization`. The peak is the largest
+value in the window, not an average, so a bursty workload whose bursts use
+the capacity is not flagged. The summary reports the provisioned size, the
+peak, p99 and average use, the invocation count, the window and the capacity
+left unused at the peak. Confidence is `medium`. Evidence: `provisioned`,
+`peak_used`, `p99_used`, `invocations`, `window_hours`. Fingerprints use the
+workload identity per scope, so changing numbers keep the finding.
+
+Not flagged:
+
+- workloads already at the smallest size (128 MB Lambda memory, 1 unit of
+  agent capacity); this is noted;
+- peaks above the provisioned size (under-provisioned or bursting); this is
+  noted.
+
+Too few invocations, a short window or missing records make the workload
+unevaluated (`partial` or `unavailable`), never clean. Measurements stay
+absent.
+
+### Limitations
+
+- The peak is only what the window shows. A monthly peak, or capacity reserved
+  for a known event, is not visible in a 24-hour window. Widen
+  `logs.lookback_hours` (up to 168).
+- Lambda memory also sets CPU, so a CPU-bound function can run longer at a
+  smaller size. The recommendation asks the team to confirm with Lambda Power
+  Tuning.
+- JSON-format Lambda platform records (`platform.report`) are not read.
+- Functions sharing one log group cannot be told apart.
+- Provisioned concurrency, container or GPU sizing and other capacity that is
+  not logged are not covered.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m pytest detectors/owner-d/tests/test_llm17.py -q
+```
+
+The test inputs are synthetic Logs Insights rows. The telemetry demo's opt-in
+`LLM-17` scenario emits matching agent capacity lines: a waste pool of 64
+workers and a control pool of 8 workers, with the same bursty demand (peak 6).
+The demo function's own REPORT lines are at 128 MB, the Lambda minimum, so
+they are noted, not flagged (see `examples/telemetry-demo/README.md`).
 
 ## OBS-04 — Unstructured logs requiring query-time parsing
 

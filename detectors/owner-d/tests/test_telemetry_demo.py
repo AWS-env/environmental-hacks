@@ -343,6 +343,101 @@ class Llm05Detector(unittest.TestCase):
         self.assertIn("recorded no comparable input", json.dumps(result["coverage"]["limitations"]))
 
 
+class Llm17(unittest.TestCase):
+    """Opt-in LLM-17 scenario: the same bursty demand against a 64-worker pool (waste) and an 8-worker pool."""
+
+    def test_capacity_lines_carry_the_fields_the_llm17_query_reads(self):
+        result, lines, cloudwatch, xray = run(scenario="LLM-17")
+        rows = records(lines)
+        self.assertEqual(len(rows), 2 * demo.LIMITS["runs"][0])
+        for row in rows:
+            self.assertEqual((row["check"], row["capacity_kind"]), ("LLM-17", "workers"))
+            self.assertIs(row["synthetic"], True)
+        pools = {(r["path"], r["agent"], r["capacity_provisioned"]) for r in rows}
+        self.assertEqual(pools, {("waste", "demo_static_agent_pool", 64), ("control", "demo_rightsized_agent_pool", 8)})
+        self.assertEqual(max(r["capacity_used"] for r in rows), 6)
+        self.assertEqual((cloudwatch.calls, xray.documents), ([], []))
+        self.assertEqual(result["emitted"]["LLM-17"], {"waste_runs": 25, "waste_provisioned": 64, "waste_peak_used": 6,
+                                                       "control_runs": 25, "control_provisioned": 8,
+                                                       "control_peak_used": 6})
+
+    def test_opt_in_only_knob_and_path_selection(self):
+        self.assertNotIn("LLM-17", demo.SCENARIOS)
+        self.assertEqual(run(scenario="llm17")[0]["scenarios"], ["LLM-17"])
+        _, lines, _, _ = run(scenario="LLM-17", path="waste", runs=500)
+        self.assertEqual({r["path"] for r in records(lines)}, {"waste"})
+        self.assertEqual(len(lines), 50)
+        with self.assertRaises(ValueError):
+            run(scenario="LLM-17", path="sometimes")
+
+
+try:
+    from owner_d import llm17
+except ImportError:
+    llm17 = None
+
+
+@unittest.skipIf(llm17 is None, "owner_d.llm17 not on this branch")
+class Llm17Detector(unittest.TestCase):
+    """The demo's lines, aggregated the way LLM-17's Logs Insights query does, through the real normalizer."""
+
+    GROUP = f"/aws/lambda/{FUNCTION}"
+    WINDOW = {"start": "2026-10-09T12:00:00Z", "end": "2026-10-10T12:00:00Z"}
+
+    def rows(self, invocations):
+        lines = []
+        for _ in range(invocations):
+            lines += run(scenario="LLM-17")[1]
+        by_pool = {}
+        for record in records(lines):
+            key = (record["agent"], record["capacity_kind"], record["capacity_provisioned"])
+            by_pool.setdefault(key, []).append(record["capacity_used"])
+        rows = [{"@log": f"123456789012:{self.GROUP}", "l17_agent": agent, "l17_kind": kind,
+                 "l17_provisioned": str(provisioned), "invocations": str(len(used)), "peak_used": str(max(used)),
+                 "p99_used": str(sorted(used)[int(0.99 * (len(used) - 1))]),
+                 "avg_used": str(sum(used) / len(used)), "first_seen": "2026-10-10 10:00:00.000",
+                 "last_seen": "2026-10-10 10:05:00.000"} for (agent, kind, provisioned), used in by_pool.items()]
+        # the demo function's own REPORT lines: 128 MB (the Lambda minimum), about 45 MB used
+        rows.append({"@log": f"123456789012:{self.GROUP}", "l17_provisioned": "128000000",
+                     "invocations": str(invocations), "peak_used": "45000000", "p99_used": "45000000",
+                     "avg_used": "43000000", "first_seen": "2026-10-10 10:00:00.000",
+                     "last_seen": "2026-10-10 10:05:00.000"})
+        return rows
+
+    def evaluate(self, rows):
+        normalized = llm17.normalize_logs_insights({"rows": rows, "log_groups": [self.GROUP], "window": self.WINDOW,
+                                                    "truncated": False, "region": "ap-south-1"})
+        payload = {"schema_version": "1.0", "kind": "input", "repository_id": "github:AWS-env/telemetry-demo",
+                   "scan_id": "scan-telemetry-demo", "commit_sha": "0" * 40, "check_id": "LLM-17",
+                   "detector_version": llm17.DETECTOR_VERSION, "context": dict(llm17.REFERENCE_SETTINGS),
+                   "scope": normalized["scope"], "sources": normalized["sources"]}
+        return llm17.evaluate(payload)
+
+    def test_waste_pool_is_flagged_control_is_not(self):
+        result = self.evaluate(self.rows(4))  # 4 invocations x 25 runs = 100 capacity lines per pool
+        self.assertEqual(result["status"], "partial")  # 4 REPORT lines are below min_invocations
+        self.assertEqual([(f["scope_id"], f["identity"]) for f in result["findings"]],
+                         [(llm17.scope_id_for(self.GROUP, "demo_static_agent_pool", "workers"), "agent-capacity")])
+        self.assertIn("provisions 64 workers", result["findings"][0]["summary"])
+        self.assertIn(llm17.scope_id_for(self.GROUP, "demo_rightsized_agent_pool", "workers"),
+                      result["coverage"]["evaluated_scope"])
+
+    def test_the_128_mb_demo_function_is_never_flagged(self):
+        rows = self.rows(100)
+        result = self.evaluate(rows)
+        self.assertEqual(result["status"], "completed")
+        self.assertIn(llm17.scope_id_for(self.GROUP), result["coverage"]["evaluated_scope"])
+        self.assertEqual([f["identity"] for f in result["findings"]], ["agent-capacity"])
+        rows[-1].update(peak_used="30000000", p99_used="30000000", avg_used="28000000")  # even at 23% of 128 MB
+        result = self.evaluate(rows)
+        self.assertEqual([f["identity"] for f in result["findings"]], ["agent-capacity"])
+        self.assertIn("already the smallest size (128 MB)", json.dumps(result["coverage"]["limitations"]))
+
+    def test_three_invocations_are_below_min_invocations(self):
+        result = self.evaluate(self.rows(3))
+        self.assertEqual((result["status"], result["findings"]), ("unavailable", []))
+
+
 class XRayDaemon(unittest.TestCase):
     HEADER = "Root=1-5f84c7a1-0123456789abcdef01234567;Parent=0123456789abcdef;Sampled=1;Lineage=a:0"
 

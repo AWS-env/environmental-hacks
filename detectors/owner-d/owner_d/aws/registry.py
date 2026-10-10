@@ -94,6 +94,8 @@ CHECKS = (
     TelemetryCheck("OBS-17", "owner_d.obs17", "logs_insights", defaults=OBS17_DEFAULTS),
     TelemetryCheck("LLM-05", "owner_d.llm05", "traces", normalizer="owner_d.llm05:normalize_xray_traces",
                    adapter="xray_traces", defaults=LLM05_DEFAULTS),
+    TelemetryCheck("LLM-17", "owner_d.llm17", "logs_insights",  # defaults = llm17.REFERENCE_SETTINGS
+                   defaults={"min_invocations": 100, "min_window_hours": 24, "max_peak_utilization": 0.3}),
 )
 
 
