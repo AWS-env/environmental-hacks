@@ -142,12 +142,15 @@ steps:
         "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=owner-d-artifact-upload" | jq -r .value)
       curl -sf -X POST "$ARTIFACT_UPLOAD_URL" -H "Authorization: Bearer $token" \
         -d '{"artifacts":["junit.xml"]}' > presign.json
-      args=$(jq -r '.uploads["junit.xml"].fields | to_entries[] | "-F \(.key)=\(.value)"' presign.json)
-      curl -sf $args -F file=@junit.xml "$(jq -r '.uploads["junit.xml"].url' presign.json)"
+      args=()  # --form-string: field values are sent literally (no @file or <file expansion)
+      while IFS= read -r kv; do args+=(--form-string "$kv"); done \
+        < <(jq -r '.uploads["junit.xml"].fields | to_entries[] | "\(.key)=\(.value)"' presign.json)
+      curl -sf "${args[@]}" -F file=@junit.xml "$(jq -r '.uploads["junit.xml"].url' presign.json)"
 ```
 
 Responses: `401` for a missing, expired or invalid token; `403` for a repository not on the allowlist;
-`400` for a bad body; `503` when GitHub's keys can't be fetched. Tokens and presigned fields are never logged.
+`400` for a bad body; `503` when GitHub's keys can't be fetched. S3 answers the upload itself with `204`, or
+`400 EntityTooLarge` above the size cap. Tokens and presigned fields are never logged.
 
 ```bash
 ./scripts/build-owner-d-artifact-upload.sh  # prints cdk/owner-d/build/owner-d-artifact-upload-<sha>.zip
