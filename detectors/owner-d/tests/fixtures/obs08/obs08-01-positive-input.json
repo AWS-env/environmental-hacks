@@ -1,0 +1,33 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs08-001",
+  "commit_sha": "8888888888888888888888888888888888888888",
+  "check_id": "OBS-08",
+  "detector_version": "1.0.0",
+  "context": {
+    "min_scrape_interval_seconds": 15,
+    "max_raw_retention_days": 15
+  },
+  "scope": [
+    "file:operator.yaml",
+    "file:server.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:operator.yaml",
+      "scope_id": "file:operator.yaml",
+      "kind": "static",
+      "locator": "operator.yaml",
+      "content": "# Synthetic fixture (OBS-08): Prometheus Operator resources.\napiVersion: monitoring.coreos.com/v1\nkind: Prometheus\nmetadata:\n  name: k8s\n  namespace: monitoring\nspec:\n  replicas: 2\n  scrapeInterval: 5s\n  retention: 30d\n  serviceMonitorSelector: {}\n---\napiVersion: monitoring.coreos.com/v1\nkind: Prometheus\nmetadata:\n  name: default-interval\nspec:\n  retention: 90d\n---\napiVersion: monitoring.coreos.com/v1\nkind: Prometheus\nmetadata:\n  name: default-retention\nspec:\n  scrapeInterval: 5s\n---\napiVersion: monitoring.coreos.com/v1\nkind: Prometheus\nmetadata:\n  name: short-retention\nspec:\n  scrapeInterval: 1s\n  retention: 7d\n---\napiVersion: monitoring.coreos.com/v1alpha1\nkind: PrometheusAgent\nmetadata:\n  name: agent\nspec:\n  scrapeInterval: 10s\n  remoteWrite:\n    - url: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-1234abcd/api/v1/remote_write\n      sigv4:\n        region: ap-south-1\n"
+    },
+    {
+      "source_id": "src:server.yaml",
+      "scope_id": "file:server.yaml",
+      "kind": "static",
+      "locator": "server.yaml",
+      "content": "# Synthetic fixture (OBS-08): Prometheus config in a ConfigMap, served by a Deployment in the same file.\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: prometheus-config\n  namespace: monitoring\ndata:\n  prometheus.yml: |\n    global:\n      scrape_interval: 10s\n      evaluation_interval: 30s\n    scrape_configs:\n      - job_name: node\n        static_configs:\n          - targets: [\"node-exporter:9100\"]\n      - job_name: envoy\n        scrape_interval: 1s\n        static_configs:\n          - targets: [\"envoy:9901\"]\n      - job_name: kube-state-metrics\n        scrape_interval: 30s\n        static_configs:\n          - targets: [\"kube-state-metrics:8080\"]\n---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: prometheus\n  namespace: monitoring\nspec:\n  replicas: 1\n  template:\n    spec:\n      containers:\n        - name: prometheus\n          image: quay.io/prometheus/prometheus:v3.5.0\n          args:\n            - --config.file=/etc/prometheus/prometheus.yml\n            - --storage.tsdb.path=/prometheus\n            - --storage.tsdb.retention.time=90d\n        - name: config-reloader\n          image: quay.io/prometheus-operator/prometheus-config-reloader:v0.85.0\n"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+# Synthetic fixture (OBS-08): Prometheus config in a ConfigMap, served by a Deployment in the same file.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 10s
+      evaluation_interval: 30s
+    scrape_configs:
+      - job_name: node
+        static_configs:
+          - targets: ["node-exporter:9100"]
+      - job_name: envoy
+        scrape_interval: 1s
+        static_configs:
+          - targets: ["envoy:9901"]
+      - job_name: kube-state-metrics
+        scrape_interval: 30s
+        static_configs:
+          - targets: ["kube-state-metrics:8080"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+  namespace: monitoring
+spec:
+  replicas: 1
+  template:
+    spec:
+      containers:
+        - name: prometheus
+          image: quay.io/prometheus/prometheus:v3.5.0
+          args:
+            - --config.file=/etc/prometheus/prometheus.yml
+            - --storage.tsdb.path=/prometheus
+            - --storage.tsdb.retention.time=90d
+        - name: config-reloader
+          image: quay.io/prometheus-operator/prometheus-config-reloader:v0.85.0

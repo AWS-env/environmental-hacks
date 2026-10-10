@@ -1,0 +1,46 @@
+# Synthetic fixture (OBS-08): Thanos compactors.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: thanos-compact
+  namespace: monitoring
+spec:
+  template:
+    spec:
+      containers:
+        - name: compact
+          image: quay.io/thanos/thanos:v0.39.2
+          args:
+            - compact
+            - --wait
+            - --objstore.config-file=/etc/thanos/objstore.yaml
+            - --downsampling.disable
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: thanos-compact-downsampled
+spec:
+  template:
+    spec:
+      containers:
+        - name: compact
+          image: quay.io/thanos/thanos:v0.39.2
+          args:
+            - compact
+            - --wait
+            - --retention.resolution-raw=0d
+            - --retention.resolution-5m=90d
+            - --retention.resolution-1h=1y
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: thanos-compact-short-raw
+spec:
+  template:
+    spec:
+      containers:
+        - name: compact
+          image: quay.io/thanos/thanos:v0.39.2
+          args: ["compact", "--wait", "--downsampling.disable", "--retention.resolution-raw=7d"]

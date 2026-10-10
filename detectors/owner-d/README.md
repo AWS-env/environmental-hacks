@@ -4489,3 +4489,113 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm11/llm11-01-positive-input.json
 ```
 
+
+## OBS-08 — Raw high-resolution metrics kept long without downsampling
+
+Flags metric configs that scrape at a high resolution and keep those raw
+samples for a long time with no downsampling, and Thanos compactors that run
+with downsampling switched off. The check is static: configs are read as text
+with `owner_d/miniyaml.py` (collector configs through `owner_d/otelconfig.py`)
+and are never applied, rendered or resolved. It pairs a scrape interval only
+with a store visible in the same file. It does not observe sample volumes or
+the alerts that read the series, so it emits no measurements.
+
+Prometheus local storage and Amazon Managed Service for Prometheus (AMP) keep
+every raw sample until retention; only the Thanos compactor downsamples (5m
+after 40h, 1h after 10d). CloudWatch high-resolution metrics are out of scope:
+CloudWatch keeps data points under 60 s for 3 hours and then rolls them up by
+itself.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item and the context settings below. Supported `.yaml`/`.yml` content:
+
+- Prometheus Operator `Prometheus`/`PrometheusAgent` resources
+  (`monitoring.coreos.com/*`)
+- kube-prometheus-stack values (`prometheus.prometheusSpec`)
+- Prometheus server configs (`global`, `scrape_configs`, `remote_write`), as a
+  plain file or a `|` string in a `ConfigMap` `data` entry, together with a
+  Prometheus server container in a Kubernetes workload or Compose service in
+  the same file
+- OpenTelemetry Collector configs with a `prometheus` receiver (plain,
+  `OpenTelemetryCollector`, `ConfigMap`)
+- Thanos compactor (`thanos compact`) containers in Kubernetes workloads and
+  Compose services
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_scrape_interval_seconds` | Scrape intervals strictly below this are high-resolution | `15` |
+| `max_raw_retention_days` | Raw retention strictly above this is long | `15` |
+
+The module exposes the reference values as `REFERENCE_SETTINGS`. 15 s is the
+interval of the Prometheus example config (the documented default is 1m); the
+issue names 1s/10s scrapes. 15 days is Prometheus' default local retention and
+how long CloudWatch keeps 1-minute data. Missing or invalid settings (absent,
+not a positive number) make the result `unavailable`.
+
+### Detection rule
+
+Durations use the Prometheus `<duration>` format (`1y2w3d4h5m6s7ms`, `0`).
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `Prometheus/[<ns>/]<name>:scrapeInterval` | The effective `spec.scrapeInterval` (default `30s`) is high-resolution and a store is long: `spec.retention` (operator default `24h` when retention, retentionSize and retentionPercentage are all unset) or an AMP `remoteWrite` | medium; low when only AMP is long |
+| `values/prometheus.prometheusSpec:scrapeInterval` | The same for kube-prometheus-stack values; retention must be explicit, because the chart default depends on the chart version | medium; low when only AMP is long |
+| `[ConfigMap/<name>:<key>:]global:scrape_interval`, `[…]job/<job_name>:scrape_interval` | A global interval that at least one job inherits, or a job's own interval, is high-resolution and a store is long: the Prometheus server in the same file (`--storage.tsdb.retention.time`, deprecated `--storage.tsdb.retention`, default `15d` without retention flags), or a `remote_write` to an AMP workspace (`aps-workspaces.<region>.amazonaws.com/workspaces/...`) | medium; low when only AMP is long |
+| `[<collector label>]receiver/<id>:global:scrape_interval`, `…:job/<name>:scrape_interval` | A collector `prometheus` receiver scrapes at high resolution and its metrics pipeline exports to a `prometheusremotewrite` exporter with an AMP endpoint | low |
+| `<Kind>/[<ns>/]<name>:<container>:downsampling.disable`, `service/<name>:downsampling.disable` | `thanos compact` runs with `--downsampling.disable` and `--retention.resolution-raw` is unset or `0d` (kept forever) or long | medium |
+
+AMP stores samples for 150 days by default (configurable up to 1095). The
+workspace retention is not visible in a scraper config, so AMP-only findings
+are `low`. A repeated identity gets `#n`.
+
+Not flagged:
+
+- intervals at or above the threshold, and global intervals that every job
+  overrides
+- high-resolution scrapes whose stores are all short (for example
+  `retention: 7d`, or the operator default `24h`)
+- Thanos compactors with downsampling on, or with downsampling off and a short
+  raw retention
+- hits with `# noqa` / `# noqa: OBS-08` on the hit line or directly above the
+  job item or container
+
+Not judged (a file with nothing else to report is listed as a limitation,
+never reported clean):
+
+- Prometheus servers in agent mode (`--agent`, `--enable-feature=agent`), which
+  have no local TSDB
+- size-only retention (`retentionSize`, `--storage.tsdb.retention.size`), whose
+  time bound is unknown
+- non-AMP remote-write targets and collector exporters, whose retention and
+  downsampling are not visible
+- unresolved values (`${VAR}`, `$(VAR)`) and several Prometheus servers in one
+  file with different retention
+- a Prometheus server with long retention whose scrape config is in another
+  file, and scrape configs with no store in the file
+
+Not evaluated: development/test paths (tokens `dev`, `development`, `debug`,
+`local`, `test(s)`, `testing`, `testdata`, `e2e`, `ci`, `devcontainer`), Helm/Go
+templates and YAML outside the `miniyaml` subset. Other files are out of scope
+(`Unsupported`), so the scan worker passes only matching inputs to the check.
+
+### Limitations
+
+The check reads one file at a time. It cannot see ServiceMonitor/PodMonitor
+`interval` overrides, `scrape_config_files`, `additionalScrapeConfigs`, stores
+in other files or the AMP workspace retention. A sub-minute interval can be a
+real need (fast SLO burn alerts, autoscaling on Prometheus metrics); the rule
+cannot see which series those read, so keep the high resolution for those jobs
+only and record the decision with `# noqa: OBS-08`. Mimir/Cortex,
+VictoriaMetrics, Thanos Receive, Grafana Agent/Alloy and CloudWatch agent
+configs are not covered.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs08/obs08-01-positive-input.json
+```
