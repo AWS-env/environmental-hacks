@@ -3956,3 +3956,88 @@ normalizer.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm06/llm06-01-positive-input.json
 ```
+
+## LLM-14 — Unbounded agent memory / history reprocessed every turn (static proxy)
+
+Flags LLM calls in Python source that are sent a whole conversation history
+which grows on every turn with no visible bound, so each turn reprocesses all
+earlier turns. AWS
+[AGENTSUS02-BP01](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp01.html)
+lists "reprocessing complete historical context on every turn instead of
+pulling only the relevant slice" as an anti-pattern. This v1 is a static
+proxy: it proves that the history at this call site grows without a bound, not
+how many tokens are re-sent or how long conversations last, and it emits no
+measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only). No context settings are required.
+
+### Detection rule
+
+LLM calls are recognised by `owner_d/llmcalls.py`. The history is the
+conversation argument: `messages` for Anthropic `messages.*`, OpenAI chat
+completions and Bedrock `converse`/`converse_stream`, `input` for the OpenAI
+Responses API, and `messages` in a static `invoke_model` body
+(`json.dumps(<dict>)`). It must be sent whole: `h`, `h + [...]`,
+`[system, *h]`, `list(h)`, `h.copy()` or `h[:]`.
+
+| Rule | Flagged when | Confidence |
+| --- | --- | --- |
+| L — loop | The call is in a `while`/`for` loop. `h` is a local or module name created once before that loop (`[]`, a list literal or comprehension, `list()`, `deque()` without `maxlen`, or a parameter) and grows inside the loop (`append`/`extend`/`insert`/`+=`/`h = h + [...]`/`h = [*h, ...]`) | `medium`; `low` for a `for` loop over data, a parameter or an unknown OpenAI-compatible client |
+| P — persistent | `self.<attr>` is created once (in `__init__`/`__post_init__`, as a class attribute or `field(default_factory=list)`) and grows in another method; or a module-level list grows inside a function. Every request then re-sends all earlier requests' turns | `medium` (`low` for an unknown OpenAI-compatible client) |
+
+Not flagged (bounded, or data flow this check does not follow):
+
+- slices and summaries as the argument (`h[-10:]`, `[system] + h[-6:]`,
+  `summarise(h)`);
+- `deque(maxlen=...)` and initial values that are not plain lists (custom
+  memory classes, `load_history()`);
+- any trimming or rebinding of `h`: `pop`/`popleft`/`remove`/`clear`,
+  `del h[...]`, item or slice assignment, `h = h[-n:]`, `h = []`, a
+  `reset()` method that rebinds `self.h`, or a subclass in the same file that
+  trims it;
+- `len(h)` in a comparison (`if len(h) > 40: break`), and `h` passed to any
+  function other than the LLM call, logging and plain reads (`trim(h)`,
+  `count_tokens(h)`), which might bound it;
+- aliases (`other = h`) and use in a nested function or lambda;
+- loops with an explicit iteration budget: `range(...)`, `itertools.islice`,
+  literal collections, `while n < limit`. LLM-10 checks iteration budgets in
+  traces;
+- server-side state or truncation (`previous_response_id`, `conversation`,
+  `truncation`, `context_management`), `extra_body` and `**kwargs` that are
+  not statically known;
+- single-turn scripts and histories created per call (no loop, no
+  persistence);
+- histories on other objects (`state.messages`, `agent.memory`),
+  LangChain/LangGraph/LlamaIndex/LiteLLM/Agents SDK memory, and other SDK
+  clients (`Groq()`, ...).
+
+`# noqa` or `# noqa: LLM-14` on the call suppresses it.
+
+LLM-04 flags several sequential call sites in one function that re-send the
+same history; LLM-14 flags one call site that re-sends a growing history on
+every turn. A loop with two call sites can appear in both. A tool-use agent
+loop is flagged too: each step needs the latest tool call and result, not
+every earlier turn.
+
+The identity is `<qualified function>:<provider>.<api>:<history>`, e.g.
+`chat:anthropic.messages.create:messages` or
+`Assistant.ask:openai.chat.completions.create:self.history`; a repeat gets
+`#2`. Missing, non-Python or unparseable files are left out of
+`evaluated_scope`, never reported clean.
+
+Not evaluated: trimming done by a caller or in another file, and object
+lifetimes (an instance created per conversation is still flagged, because the
+whole conversation is re-sent every turn). The taxonomy's telemetry route
+(CloudWatch Logs Insights through `owner-d-log-analyzer`: input tokens per
+turn growing within a conversation) is a follow-up; this module defines no
+`LOGS_INSIGHTS_QUERY` yet.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm14/llm14-01-positive-input.json
+```
