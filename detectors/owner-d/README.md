@@ -4367,3 +4367,125 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm03/llm03-01-positive-input.json
 ```
 
+## LLM-11 — Re-embedding or re-running inference on unchanged inputs (static proxy)
+
+Flags Python code that embeds the same document corpus again on every run,
+with no change detection, and LLM requests repeated unchanged once per loop
+element. LangChain's [indexing API](https://blog.langchain.dev/syncing-data-sources-to-vector-stores/)
+exists to "avoid re-computing embeddings over unchanged content". LlamaIndex's
+[ingestion pipeline](https://developers.llamaindex.ai/python/framework/module_guides/loading/ingestion_pipeline/)
+skips a document when "the hash is unchanged". Amazon Bedrock Knowledge Bases
+[sync incrementally](https://docs.aws.amazon.com/bedrock/latest/userguide/kb-data-source-sync-ingest.html),
+processing "only added, modified, or deleted documents since the last sync".
+AWS [AGENTSUS02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp02.html)
+says: "Every duplicate model call ... is work the agent fleet has already done
+once".
+
+This v1 is a static proxy. It shows that the code re-embeds or re-asks, not
+that the inputs really are unchanged between runs. It emits no measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only). No context settings are required, so there is no
+`REFERENCE_SETTINGS`.
+
+### Detection rule
+
+**1. Whole corpus re-embedded on every run** (`<scope>:reembed:<api>`).
+
+Embedding calls:
+- LangChain vector store `from_documents`/`from_texts` (and the `a*` variants);
+- `add_documents`/`add_texts` on a LangChain store created in the file;
+- `embed_documents` on LangChain embeddings created in the file;
+- LlamaIndex `VectorStoreIndex.from_documents`;
+- OpenAI `embeddings.create`;
+- Bedrock `invoke_model` with an `embed` model ID (from `owner_d/llmcalls.py`).
+
+`BM25Retriever`/`TFIDFRetriever` and the non-vector LlamaIndex indexes
+(summary, keyword, tree) do not embed and are ignored.
+
+A call is flagged when all of the following hold:
+
+- **Corpus input.** Its input comes, through assignments, loop targets,
+  `append`/`extend` and splitter calls in the same scope (or module-level
+  names), from a bulk read of a location fixed in the code. Bulk reads:
+  - `*Loader(...).load()`/`load_and_split()`/`lazy_load()`;
+  - `*Reader(...).load_data()`;
+  - `glob.glob`, `os.listdir`/`walk`/`scandir`, `Path.glob`/`rglob`/`iterdir`;
+  - `open(...)`;
+  - `pandas.read_*`, `datasets.load_dataset`;
+  - S3 `list_objects*`.
+
+  A fixed location is a literal, a module constant, an environment variable,
+  an `os.path.join`/`Path` of those, or `__file__`. Uploads, parameters,
+  request data and `self.*` paths are new input, not unchanged input.
+- **Unconditional.** It is not under an `if`/`else`/`match`/`except`/
+  conditional expression, and no earlier `if` in its scope returns, raises,
+  continues or breaks. Emptiness tests on the corpus itself (`if not docs:`,
+  `if len(chunks) == 0:`) and `if __name__ == "__main__":` are not guards.
+  When the call is in a function, it is not flagged if every call of that
+  function in the file sits behind an existence check (`os.path.exists`,
+  `isdir`, `*exist*()`, `count()`, ...) or in an `except` fallback.
+- **Runs repeatedly.** Either the file also queries the index
+  (`as_retriever`, `as_query_engine`, `as_chat_engine`, `similarity_search*`,
+  `max_marginal_relevance_search*`, `embed_query`, `get_relevant_documents`,
+  or an embedding of a non-corpus input), or the call is inside a Lambda
+  `handler(event, context)`, a function decorated with
+  `route`/`get`/`post`/.../`on_event`/`task`/`shared_task`/`scheduled_job`, or
+  a `while True:` loop.
+
+**2. The same request re-sent in a loop** (`<scope>:loop-invariant:<api>`).
+
+A recognised LLM call (Anthropic `messages.*`, OpenAI chat completions /
+responses, Bedrock `converse`/`invoke_model`) or OpenAI `embeddings.create` in
+a `for` loop over a collection is flagged when no part of the request depends
+on the loop. That means no name in the request is:
+- a loop target;
+- assigned or mutated in the loop (method-call receiver, subscript/attribute
+  store);
+- passed to another call in the loop, other than `print`/`len`.
+
+The request may contain no calls except `json.dumps`, and no `**kwargs`.
+
+### Not flagged
+
+- Files with any change detection: a `hashlib`/`xxhash`/`mmh3`/`blake3`
+  import or `md5`/`sha*`/`blake2*`/`crc32` call, `getmtime`/`st_mtime`, S3
+  `ETag`/`LastModified`, the LangChain indexing API
+  (`index`/`aindex`, `*RecordManager`), `CacheBackedEmbeddings`, a LlamaIndex
+  `IngestionPipeline` or `refresh_ref_docs`.
+- Persist-and-load patterns: `if os.path.exists(DIR): load ... else: build`,
+  `try: FAISS.load_local(...) except: FAISS.from_documents(...)`, and per-item
+  `if id in seen: continue`.
+- Ingest-only scripts that embed and exit, with no query in the file and no
+  recurring entry point, because they may run once.
+- Query-time embedding of a single user query.
+- Repeated requests in `range(...)`/`itertools.count`/`repeat` loops
+  (sampling), inside `try`/`with`/`if` in the loop (retries such as tenacity
+  `with attempt:`), or in loops with `break`/`return` (first success).
+- Comprehensions and `while` loops.
+- Test files (`test_*.py`, `*_test.py`, `conftest.py`, `tests/`), `test*`
+  functions and `Test*` classes.
+- `# noqa` or `# noqa: LLM-11` on the evidence line.
+
+Notebooks are not Python files. Like other unsupported, missing or
+unparseable files, they are left out of `evaluated_scope` and never reported
+clean.
+
+A repeat gets `#2`. Confidence is `medium`. It is `low` for repeated
+`chat.completions` requests on a client not created in the file.
+
+**Reviewer challenge case:** an app that builds
+`VectorStoreIndex.from_documents(SimpleDirectoryReader("data").load_data())`
+inside `@st.cache_resource` and queries it is flagged. The cache embeds once
+per process, but every restart, deploy or new replica embeds the unchanged
+corpus again.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm11/llm11-01-positive-input.json
+```
+
