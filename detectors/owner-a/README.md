@@ -94,5 +94,12 @@ aws cloudformation deploy --stack-name owner-a-detectors --template-file cdk/own
   --parameter-overrides CodeBucket=owner-a-deploy-<account>-ap-south-1 CodeKey=<zip name>
 ```
 
+**Drift check.** The deployed zip is only what was last uploaded, so merging detector changes does not update it. After a merge, run the
+read-only check; it builds this checkout and compares its `CodeSha256` with both deployed functions (exit 1 = redeploy needed):
+
+```bash
+AWS_PROFILE=<profile> scripts/check-owner-a-deploy.sh        # AWS_CLI=/path/to/aws if `aws` is not on PATH
+```
+
 Inline `detector.result.v1` events are stored by the owner-d writer with evidence level `unverified` (no input travels with the event); pointer events
 (`DetectorResultPointer.v1`) need the results bucket on the writer's allow-list.
