@@ -1,0 +1,158 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "route:catalog"
+    ],
+    "limitations": [
+      "Bounded read-only evidence analysis. Client metadata/policy assertions require review; no inferred energy, carbon or savings. Sampled observations are not total workload counts."
+    ]
+  },
+  "findings": [
+    {
+      "identity": "catalog:catalog:GET:retry-policy",
+      "summary": "Correlated failing client retries violate the supplied retry delay/cap or Retry-After policy.",
+      "recommendation": "Use capped exponential backoff with jitter and honor Retry-After; retain deadlines and idempotency guarantees.",
+      "evidence": [
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "attempts",
+          "value": [
+            {
+              "id": "a0",
+              "retry_group": "logical1",
+              "destination": "catalog",
+              "operation": "GET",
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "attempt": 1,
+              "start_ms": 0,
+              "end_ms": 10,
+              "status": 503,
+              "client_retry": true,
+              "poll": false
+            },
+            {
+              "id": "a1",
+              "retry_group": "logical1",
+              "destination": "catalog",
+              "operation": "GET",
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "attempt": 2,
+              "start_ms": 10,
+              "end_ms": 20,
+              "status": 503,
+              "client_retry": true,
+              "poll": false
+            },
+            {
+              "id": "a2",
+              "retry_group": "logical1",
+              "destination": "catalog",
+              "operation": "GET",
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "attempt": 3,
+              "start_ms": 20,
+              "end_ms": 30,
+              "status": 503,
+              "client_retry": true,
+              "poll": false
+            },
+            {
+              "id": "a3",
+              "retry_group": "logical1",
+              "destination": "catalog",
+              "operation": "GET",
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "attempt": 4,
+              "start_ms": 30,
+              "end_ms": 40,
+              "status": 503,
+              "client_retry": true,
+              "poll": false
+            },
+            {
+              "id": "a4",
+              "retry_group": "logical1",
+              "destination": "catalog",
+              "operation": "GET",
+              "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "attempt": 5,
+              "start_ms": 40,
+              "end_ms": 50,
+              "status": 503,
+              "client_retry": true,
+              "poll": false
+            }
+          ]
+        },
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "retry_policy",
+          "value": {
+            "idempotent": true,
+            "jitter": false,
+            "backoff": false,
+            "max_attempts": 0
+          }
+        },
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "trace",
+          "value": {
+            "complete": true,
+            "sampled": false
+          }
+        }
+      ],
+      "references": [
+        "https://aws.amazon.com/builders-library/timeouts-retries-and-backoff-with-jitter/"
+      ],
+      "confidence": "medium",
+      "scope_id": "route:catalog",
+      "fingerprint": "71ce6c1aa13aee1c3b628a830949728f1f391882aff3502b8d912ee20fb9da73"
+    }
+  ],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-05-1",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-05",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_change_fraction": 0.1,
+    "max_cpu_regression_fraction": 0.1,
+    "max_noise_fraction": 0.1,
+    "max_poll_interval_seconds": 60,
+    "max_small_bytes": 1024,
+    "min_array_elements": 1000,
+    "min_calls": 5,
+    "min_connection_ratio": 0.8,
+    "min_conversion_cpu_ms": 10,
+    "min_duplicate_requests": 2,
+    "min_improvement_fraction": 0.2,
+    "min_payload_bytes": 1024,
+    "min_polls": 100,
+    "min_pressure_fraction": 0.75,
+    "min_repeated_requests": 10,
+    "min_repetitions": 5,
+    "min_response_bytes": 1024,
+    "min_retry_attempts": 3,
+    "min_retry_delay_ms": 100,
+    "min_serial_gap_ms": 0,
+    "min_unused_fraction": 0.5,
+    "mode": "runtime",
+    "objective": "bytes",
+    "rule_version": "network-1"
+  },
+  "scope": [
+    "route:catalog"
+  ]
+}
