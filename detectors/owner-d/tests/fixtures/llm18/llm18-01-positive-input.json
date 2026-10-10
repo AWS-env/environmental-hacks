@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm18-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "LLM-18",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "iac+config+source"
+  },
+  "scope": [
+    "file:infra/main.tf",
+    "file:agent/app.py",
+    "file:deploy/agent-deployment.yaml",
+    "file:web/agent.ts"
+  ],
+  "sources": [
+    {
+      "source_id": "src:infra/main.tf",
+      "scope_id": "file:infra/main.tf",
+      "kind": "static",
+      "locator": "infra/main.tf",
+      "content": "# Synthetic fixture for LLM-18: the agent runs in us-east-1, its knowledge base in us-west-2.\nvariable \"aws_region\" {\n  type    = string\n  default = \"us-east-1\"\n}\n\nprovider \"aws\" {\n  region = var.aws_region\n}\n\nprovider \"aws\" {\n  alias  = \"west\"\n  region = \"us-west-2\"\n}\n\nresource \"aws_lambda_function\" \"agent\" {\n  function_name = \"support-agent\"\n  role          = aws_iam_role.agent.arn\n  handler       = \"app.handler\"\n  runtime       = \"python3.12\"\n\n  environment {\n    variables = {\n      BEDROCK_REGION = \"us-west-2\"\n      LOG_LEVEL      = \"INFO\"\n    }\n  }\n}\n\nresource \"aws_opensearchserverless_collection\" \"kb\" {\n  provider = aws.west\n  name     = \"support-kb\"\n  type     = \"VECTORSEARCH\"\n}\n\nresource \"aws_opensearchserverless_collection\" \"audit\" {\n  name = \"support-audit\"\n  type = \"SEARCH\"\n}\n"
+    },
+    {
+      "source_id": "src:agent/app.py",
+      "scope_id": "file:agent/app.py",
+      "kind": "static",
+      "locator": "agent/app.py",
+      "content": "\"\"\"Synthetic fixture for LLM-18: an agent calling Bedrock and OpenSearch Serverless in other Regions.\"\"\"\nimport os\n\nimport boto3\nfrom langchain_aws import ChatBedrockConverse\nfrom opensearchpy import AWSV4SignerAuth, OpenSearch, RequestsHttpConnection\n\nMODEL_REGION = \"us-west-2\"\nSTORE_HOST = \"abc123xyz.eu-west-1.aoss.amazonaws.com\"\n\nbedrock = boto3.client(\"bedrock-runtime\", region_name=MODEL_REGION)\nuploads = boto3.client(\"s3\", region_name=\"eu-west-1\")\nauth = AWSV4SignerAuth(boto3.Session().get_credentials(), \"eu-west-1\", \"aoss\")\nsearch = OpenSearch(\n    hosts=[{\"host\": STORE_HOST, \"port\": 443}],\n    http_auth=auth,\n    use_ssl=True,\n    connection_class=RequestsHttpConnection,\n)\n\n\ndef summarizer():\n    return ChatBedrockConverse(model=\"anthropic.claude-3-5-haiku-20241022-v1:0\", region_name=os.environ[\"AWS_REGION\"])\n\n\ndef handler(event, context):\n    reply = bedrock.converse(modelId=\"anthropic.claude-3-5-sonnet-20240620-v1:0\", messages=event[\"messages\"])\n    return reply[\"output\"]\n"
+    },
+    {
+      "source_id": "src:deploy/agent-deployment.yaml",
+      "scope_id": "file:deploy/agent-deployment.yaml",
+      "kind": "static",
+      "locator": "deploy/agent-deployment.yaml",
+      "content": "# Synthetic fixture for LLM-18: the worker pinned to us-east-1, its embedding endpoint elsewhere.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: embed-worker\nspec:\n  template:\n    spec:\n      containers:\n        - name: worker\n          image: example/embed-worker:1.4\n          env:\n            - name: AWS_REGION\n              value: us-east-1\n            - name: EMBEDDING_REGION\n              value: \"ap-southeast-2\"\n            - name: QUEUE_URL\n              value: https://sqs.us-east-1.amazonaws.com/123456789012/embed\n"
+    },
+    {
+      "source_id": "src:web/agent.ts",
+      "scope_id": "file:web/agent.ts",
+      "kind": "static",
+      "locator": "web/agent.ts",
+      "content": "// Synthetic fixture for LLM-18: a TypeScript agent with a Bedrock client in another Region.\nimport { BedrockRuntimeClient, ConverseCommand } from \"@aws-sdk/client-bedrock-runtime\";\nimport { S3Client } from \"@aws-sdk/client-s3\";\n\nconst assets = new S3Client({ region: \"eu-central-1\" });\n\nexport const bedrock = new BedrockRuntimeClient({\n  maxAttempts: 3,\n  region: \"eu-central-1\",\n});\n\nexport async function ask(prompt: string) {\n  return bedrock.send(new ConverseCommand({ modelId: \"amazon.nova-lite-v1:0\", messages: [] }));\n}\n"
+    }
+  ]
+}
