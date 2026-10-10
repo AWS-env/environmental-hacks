@@ -19,6 +19,7 @@ import { checkCodeC51 } from "./checks/code-c5-1/index.js";
 import { checkCodeC104 } from "./checks/code-c10-4/index.js";
 import { checkCodeC67 } from "./checks/code-c6-7/index.js";
 import { checkCodeC66 } from "./checks/code-c6-6/index.js";
+import { checkCodeC114 } from "./checks/code-c11-4/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -165,6 +166,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC66(parsed),
       limitations: [
         "Reliability finding with low energy weight: handles that are stored, passed on or returned are treated as owned elsewhere, and CPython refcounting often closes a dropped file immediately.",
+      ],
+    },
+  ],
+  [
+    "CODE-C11.4",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC114(parsed),
+      limitations: [
+        "Only calls made directly in an async def are seen; blocking work hidden behind helper functions or libraries is not detected, and a single-request handler may not be affected.",
       ],
     },
   ],
