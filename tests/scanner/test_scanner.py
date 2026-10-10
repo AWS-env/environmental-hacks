@@ -121,6 +121,40 @@ class ScannerTest(unittest.TestCase):
         report.pop("timings"), again.pop("timings")
         self.assertEqual(report, again)
 
+    def add_settings_gated_files(self):
+        (self.root / "tests/test_orders.py").write_text(
+            "from app.service import add_item, render\n\n\n"
+            "def test_add_and_render():\n    items = add_item(1)\n    text = render(items)\n    assert text == \"1\"\n")
+        (self.root / "docker-compose.yml").write_text("services:\n  web:\n    image: example/web:1.0\n"
+                                                      "    deploy:\n      replicas: 3\n")
+
+    def test_settings_gated_owner_d_checks_run_with_readme_reference_settings(self):
+        self.add_settings_gated_files()
+        report = self.scan([OwnerD()])
+        # Without REFERENCE_SETTINGS these were "unavailable" (missing required context settings).
+        for check_id in ("INF-02", "LLM-15", "OBS-18", "TST-03", "TST-07"):
+            with self.subTest(check_id):
+                self.assertEqual(self.check(report, check_id)["status"], "completed")
+        self.assertIn("reference settings applied (detectors/owner-d/README.md): max_test_statements=30",
+                      self.check(report, "TST-07")["notes"])
+        self.assertIn("settings derived from the repository: production_packages=[\"app\"]",
+                      self.check(report, "TST-03")["notes"])
+        inf02 = [f for f in report["findings"] if f["check_id"] == "INF-02"]
+        self.assertEqual([f["file"] for f in inf02], ["docker-compose.yml"])  # 3 >= min_static_replicas 2
+        self.assertEqual([f for f in report["findings"] if f["check_id"] == "TST-07"], [])  # 3 statements <= 30
+
+    def test_explicit_setting_overrides_the_reference_value(self):
+        self.add_settings_gated_files()
+        with source.resolve(str(self.root)) as target:
+            fileset = source.collect(target.root, self.limits)
+            fileset.stats["limits"]["max_test_statements"] = 2  # passed by the scanner, so it wins over 30
+            report = build_report(target, fileset, [OwnerD()], scan_id="s1", now=NOW)
+        tst07 = self.check(report, "TST-07")
+        self.assertEqual(tst07["status"], "completed")
+        self.assertFalse(any("max_test_statements" in note for note in tst07["notes"]))
+        self.assertEqual([f["file"] for f in report["findings"] if f["check_id"] == "TST-07"],
+                         ["tests/test_orders.py"])
+
     def test_detector_crash_is_an_error_not_a_clean_result(self):
         def crash(_payload):
             raise RuntimeError("boom")

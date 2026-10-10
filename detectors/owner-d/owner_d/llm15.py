@@ -25,6 +25,12 @@ NOQA = ("LLM-15", "LLM15")
 CHARS_PER_TOKEN = 4  # undercounts tokens (about 3.5 characters per token for Claude, less for JSON)
 
 SETTING_KEYS = ("max_tools_per_call", "max_tool_definition_tokens")
+# Reference values from "LLM-15 > Context settings" in detectors/owner-d/README.md; repository
+# scans pass them unless a setting is supplied explicitly.
+REFERENCE_SETTINGS = {
+    "max_tools_per_call": 20,  # README LLM-15: OpenAI's "fewer than 20 functions" soft limit
+    "max_tool_definition_tokens": 10000,  # README LLM-15: Anthropic's 10k-token tool-search guidance
+}
 # A file that defers tool loading anywhere is treated as already managing its tool context.
 DEFERRAL_MARKERS = re.compile(r"defer_loading|tool_search|toolSearch|allowed_tools", re.I)
 ITERATION_METHODS = frozenset({"keys", "values", "items"})

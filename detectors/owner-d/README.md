@@ -6,6 +6,14 @@ JSON Schema is the source of truth. Detectors here are pure functions over
 contract payloads: they never call AWS APIs, and source collection stays outside
 the detector.
 
+A static check with required context settings exposes a module-level
+`REFERENCE_SETTINGS` holding exactly the reference values from its "Context
+settings" table below. The repository scanner (`scanner/adapters/owner_d.py`)
+passes them in the contract `context` (settings the scanner sets explicitly
+win) and lists them in the check's report notes.
+`tests/test_reference_settings.py` fails if a module is missing a documented
+value. Telemetry checks take theirs from `owner_d/aws/registry.py`.
+
 ## INF-01 — Over-provisioning for unforeseen demand spikes
 
 Flags compute resources whose provisioned capacity is never approached by
@@ -2010,8 +2018,7 @@ item and the context setting below. Supported files:
 The threshold is a judgment call, so it is required, as in LLM-15/TST-07. A
 missing or invalid setting gives `unavailable`. With a single replica there is
 no idle replica for HPA or ECS Service Auto Scaling to remove, so 1 is not
-allowed. The repository scanner does not supply this setting yet, so repo
-scans report INF-02 as `unavailable`, as they do for LLM-15/TST-07.
+allowed. Repository scans pass the reference value (`REFERENCE_SETTINGS`).
 
 ### Detection rule
 
@@ -2817,7 +2824,9 @@ as TST-06.
 `1` reproduces tsDetect's default rule ("more than one"). Without
 `production_packages` nothing can be called production, so an empty result
 would be a false clean claim. A missing or invalid setting makes the result
-`unavailable`.
+`unavailable`. Repository scans derive `production_packages` from the scanned
+repository's top-level Python packages and modules (`src/` layout included,
+tests excluded).
 
 ### Detection rule
 

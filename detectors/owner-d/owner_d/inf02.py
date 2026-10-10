@@ -34,6 +34,11 @@ CHECK_ID = "INF-02"
 DETECTOR_VERSION = "1.0.0"
 NOQA = ("INF-02", "INF02")
 SETTING_KEYS = ("min_static_replicas",)
+# Reference values from "INF-02 > Context settings" in detectors/owner-d/README.md; repository
+# scans pass them unless a setting is supplied explicitly.
+REFERENCE_SETTINGS = {
+    "min_static_replicas": 2,  # README INF-02: smallest fixed replica count that is flagged
+}
 FORMATS = (
     "Kubernetes manifests (.yaml/.yml), Docker Compose files (.yaml/.yml) and CloudFormation templates "
     "(.json/.yaml/.yml)"

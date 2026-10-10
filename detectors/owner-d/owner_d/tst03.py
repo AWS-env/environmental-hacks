@@ -23,6 +23,12 @@ DETECTOR_VERSION = "1.0.0"
 NOQA = ("TST-03", "TST03")
 LIMIT_KEY = "max_production_methods"
 PACKAGES_KEY = "production_packages"
+# Reference values from "TST-03 > Context settings" in detectors/owner-d/README.md; repository
+# scans pass them unless a setting is supplied explicitly. production_packages has no fixed
+# reference ("the repo's own packages"), so the repository scanner derives it from the scanned files.
+REFERENCE_SETTINGS = {
+    "max_production_methods": 4,  # README TST-03: tsDetect's SpadiniThresholds value
+}
 MEDIUM_FACTOR = 2  # more than twice the limit is medium confidence
 _SHOWN = 8  # production calls listed in a summary
 
