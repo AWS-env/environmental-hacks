@@ -4599,3 +4599,88 @@ configs are not covered.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs08/obs08-01-positive-input.json
 ```
+
+## LLM-02 — No response cache for repeated requests (static proxy)
+
+Flags LLM calls in Python source that send a repeatable request on a code path
+that runs repeatedly, with no response cache visible in front of them. AWS
+[AGENTCOST02-BP03](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentcost02-bp03.html)
+recommends caching responses so that repeated requests are not processed
+again. This v1 is a static proxy. It proves "a repeatable call with no visible
+cache"; it does not prove that identical requests actually recur, how often,
+or what a cache would hit. It emits no measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only). No context settings are required.
+
+### Detection rule
+
+LLM calls are recognised by `owner_d/llmcalls.py`: Anthropic `messages.*`,
+OpenAI chat completions / responses / legacy completions, Bedrock
+`converse`/`invoke_model`. Streaming calls (`*.stream`, `converse_stream`,
+`invoke_model_with_response_stream`, `stream=True`) and Bedrock embedding
+models are not evaluated. A call is flagged when all three hold:
+
+| Condition | Meaning |
+| --- | --- |
+| Repeatable request | No positional arguments and no unknown `**kwargs`, and at least one of `messages`/`system`/`input`/`instructions`/`prompt`/`body` is passed. Every argument except deployment knobs (`model`, `modelId`, token caps, `top_p`, `stop`, `timeout`, `metadata`, `user`, `prompt_cache_key`, ...) is built only from literals, module constants and **small keys**. Allowed operations are f-strings, `+`/`%`, `.format()`, `.join()`, `.strip()`/`.lower()`/..., `json.dumps`, `textwrap.dedent`/`inspect.cleandoc` and `CONSTANTS[key]`. A small key is a parameter of the enclosing function that is a route path parameter (`{topic}` in `@app.get("/faq/{topic}")`, `<topic>` in Flask) or that is annotated `int`, `bool`, `Literal[...]` or an `Enum` defined in the file. Other parameters, `event[...]`, `request.*`, `self.*`, `datetime.now()`, other calls and names that are mutated anywhere in the file (`history.append(...)`) make the request dynamic. |
+| Repeated path | The call is in a request handler, or in a function that a handler reaches through calls in the same file. Request handlers are route decorators (`.get/.post/.put/.patch/.delete/.head/.options/.route/.api_route/.websocket("/...")`), Lambda handlers (`lambda_handler`, or first parameters `event, context`), Chainlit `@cl.on_message`, and Django views (first parameter `request` or `self, request` in a file that imports `django`). A `while True:` loop with no `break` also counts, as does module scope of a Streamlit script (it reruns on every interaction), and so do the functions these call. |
+| No visible cache | The file imports no cache library (`cachetools`, `redis`, `valkey`, `aioredis`, `pymemcache`, `memcache`, `pylibmc`, `aiocache`, `diskcache`, `gptcache`, `joblib`, `requests_cache`, `hishel`, `flask_caching`, `fastapi_cache`, `cashews`, `dogpile`, `beaker`, `redisvl`, `momento`). It imports no other path with `cache` in it outside `functools`/`async_lru`/`streamlit`, e.g. `django.core.cache` or `langchain_community.cache`. It does not call `set_llm_cache` or assign a `*cache*` attribute (`langchain.llm_cache = ...`, `litellm.cache = ...`). No function on the path is memoized: no decorator name contains `cache`/`memo` (`lru_cache`, `cache`, `alru_cache`, `st.cache_data`, `memory.cache`, `memoize`, ...). A memoized function fronts everything it calls. No identifier on the path contains `cache`, `memo` or `session_state`. Provider prompt-caching names (`cache_control`, `cachePoint`, `prompt_cache_key`, ...) do not count, because that is LLM-01. There is also no lookup-then-return guard (`if key in d: return ...`, or `hit = r.get(k)` then `if hit: return hit`). |
+
+Legitimate exceptions (not flagged):
+- **Intended variety.** An explicit `temperature` > 0 is treated as a request
+  for varied answers. That covers OpenAI/Anthropic `temperature`, Bedrock
+  `inferenceConfig.temperature`, and the `invoke_model` body's `temperature`
+  or `textGenerationConfig`/`inferenceConfig` temperature. So are `n` other
+  than 1 and a temperature that cannot be resolved statically. With
+  `temperature=0`, confidence is `medium`. With temperature unset, the
+  provider samples at its default, so whether varied answers are intended is
+  unknown, and confidence is `low`.
+- **Calls directly in a `for` loop or comprehension.** Re-sending the same
+  request per loop element is LLM-11.
+- Caches of any kind in front, with or without a TTL. LLM-13 judges caches
+  without a TTL.
+- Dynamic prompts.
+- One-shot module-level scripts, `main()` and functions that no entry point
+  in the file reaches.
+- Health and readiness probes: a route whose path or function name mentions
+  `health`, `liveness`, `readiness`, `livez`/`readyz`, or the word `ping`,
+  `ready` or `probe`. A probe calls the model to check that it answers, so a
+  cached response would defeat it.
+- Lambdas and class bodies.
+- `test*` functions and `Test*` classes.
+
+`# noqa` or `# noqa: LLM-02` on the call line suppresses a finding.
+
+Evidence is the call (up to 8 lines). The identity is
+`<qualified scope>:<provider>.<api>` (e.g. `faq:anthropic.messages.create`,
+`<module>:openai.chat.completions.create`), with `#2` for repeats. Confidence
+is `medium` with `temperature=0`. It is `low` with temperature unset or when
+the only provider evidence is an OpenAI-compatible `chat.completions` chain on
+a client not created in the file. A static prompt with no cache also has no
+prompt caching, so a large one can be reported by LLM-01 too. The remedies
+differ: prompt caching makes the call cheaper, while a response cache avoids
+the call. Missing, non-Python or unparseable files are left out of
+`evaluated_scope` and never reported clean.
+
+Not evaluated:
+- caches in other modules, middleware, API Gateway or a CDN;
+- prompts read from files or other modules;
+- keys passed through helper parameters;
+- Gradio callbacks;
+- LangChain/LlamaIndex/LiteLLM model wrappers;
+- other languages.
+
+The taxonomy's telemetry route (Logs Insights through
+`owner-d-log-analyzer`) is a follow-up. It needs client request logs with a
+prompt hash and cache hit/miss fields, and there is no standard format for
+those yet, so no `LOGS_INSIGHTS_QUERY` or normalizer is exported.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm02/llm02-01-positive-input.json
+```

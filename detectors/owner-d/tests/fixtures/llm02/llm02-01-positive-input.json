@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm02-001",
+  "commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "check_id": "LLM-02",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic LLM-02 positives: repeatable LLM requests on repeated paths with no response cache.\nimport enum\nimport json\nimport time\nfrom functools import lru_cache\nfrom typing import Literal\n\nimport anthropic\nimport boto3\nimport openai\nfrom fastapi import FastAPI\nfrom flask import Flask\n\napp = FastAPI()\nweb = Flask(__name__)\nclaude = anthropic.Anthropic()\nbedrock = boto3.client(\"bedrock-runtime\")\n\nSYSTEM = \"You are the support assistant for Example Corp. Answer in two sentences.\"\nFAQ_PROMPT = \"List our three most common billing questions with short answers.\"\n\n\n@lru_cache(maxsize=1)\ndef get_client():\n    return openai.OpenAI()\n\n\nclass Region(enum.Enum):\n    EU = \"eu\"\n    US = \"us\"\n\n\n@app.get(\"/faq\")\ndef faq():\n    reply = claude.messages.create(\n        model=\"claude-sonnet-4-5\",\n        max_tokens=400,\n        temperature=0,\n        system=SYSTEM,\n        messages=[{\"role\": \"user\", \"content\": FAQ_PROMPT}],\n    )\n    return {\"answer\": reply.content[0].text}\n\n\n@web.route(\"/explain/<topic>\")\ndef explain(topic):\n    client = get_client()\n    reply = client.chat.completions.create(\n        model=\"gpt-4o-mini\",\n        messages=[{\"role\": \"user\", \"content\": f\"Explain {topic} to a new customer in one paragraph.\"}],\n    )\n    return reply.choices[0].message.content\n\n\ndef lambda_handler(event, context):\n    reply = bedrock.converse(\n        modelId=\"anthropic.claude-3-haiku-20240307-v1:0\",\n        messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Write today's motivational quote for the team.\"}]}],\n        inferenceConfig={\"maxTokens\": 200, \"temperature\": 0},\n    )\n    return {\"statusCode\": 200, \"body\": reply[\"output\"][\"message\"][\"content\"][0][\"text\"]}\n\n\ndef describe_region(region: Region, tier: Literal[\"free\", \"pro\"]):\n    prompt = \"Describe the {} plan available in {}.\".format(tier, region.value)\n    reply = claude.messages.create(\n        model=\"claude-sonnet-4-5\", max_tokens=300, messages=[{\"role\": \"user\", \"content\": prompt}]\n    )\n    return reply.content[0].text\n\n\n@app.get(\"/plans/{region}\")\ndef plans(region: Region):\n    return describe_region(region, \"free\")\n\n\ndef summarise_policy():\n    body = json.dumps({\n        \"anthropic_version\": \"bedrock-2023-05-31\",\n        \"max_tokens\": 300,\n        \"temperature\": 0,\n        \"messages\": [{\"role\": \"user\", \"content\": \"Summarise our refund policy in plain English.\"}],\n    })\n    return bedrock.invoke_model(modelId=\"anthropic.claude-3-haiku-20240307-v1:0\", body=body)\n\n\n@app.post(\"/policy\")\ndef policy():\n    return summarise_policy()\n\n\ndef poll_status():\n    while True:\n        reply = claude.messages.create(\n            model=\"claude-sonnet-4-5\",\n            max_tokens=100,\n            temperature=0,\n            messages=[{\"role\": \"user\", \"content\": \"Give a one-line status greeting.\"}],\n        )\n        print(reply.content[0].text)\n        time.sleep(60)\n\n\ndef chain_client_answer(llm, page: int):\n    return llm.chat.completions.create(\n        model=\"gpt-4o-mini\", temperature=0, messages=[{\"role\": \"user\", \"content\": f\"Show tip number {page}.\"}]\n    )\n\n\n@app.get(\"/tips/{page}\")\ndef tips(page: int):\n    return chain_client_answer(openai.OpenAI(), page)\n"
+    }
+  ]
+}
