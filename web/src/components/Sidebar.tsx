@@ -11,7 +11,7 @@ export default function Sidebar() {
   const [activeItem, setActiveItem] = useState("bot");
 
   return (
-    <aside className="fixed left-3.5 top-3.5 bottom-3.5 w-[50px] rounded-full bg-[#0a0d11] shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col items-center justify-between py-4 z-50 border border-white/[0.08] select-none backdrop-blur-xl">
+    <aside className="fixed left-3.5 top-3.5 bottom-3.5 w-[50px] liquid-glass rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col items-center justify-between py-4 z-50 border border-white/[0.08] select-none">
       {/* Top Icons */}
       <div className="flex flex-col items-center gap-3.5 w-full">
         {/* Search */}
