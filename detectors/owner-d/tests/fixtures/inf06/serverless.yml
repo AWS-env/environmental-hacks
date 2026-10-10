@@ -1,0 +1,24 @@
+# Synthetic fixture (INF06-01): Serverless provider defaults size every function the same way.
+service: orders
+provider:
+  name: aws
+  runtime: nodejs20.x
+  memorySize: 2048
+  timeout: 900
+functions:
+  createOrder:
+    handler: src/create.handler
+    events:
+      - httpApi:
+          path: /orders
+          method: post
+  fulfil:
+    handler: src/fulfil.handler
+    events:
+      - sqs:
+          arn: arn:aws:sqs:ap-south-1:111111111111:orders
+  purge:
+    handler: src/purge.handler
+    events:
+      - eventBridge:
+          schedule: rate(1 day)

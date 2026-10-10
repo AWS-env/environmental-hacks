@@ -1,0 +1,68 @@
+{
+  "Resources": {
+    "ApiHandler5E7490E8": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Runtime": "nodejs20.x",
+        "MemorySize": 512,
+        "Timeout": 60
+      }
+    },
+    "ApiHandlerPermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {"Fn::GetAtt": ["ApiHandler5E7490E8", "Arn"]},
+        "Principal": "apigateway.amazonaws.com"
+      }
+    },
+    "ApiGetMethod": {
+      "Type": "AWS::ApiGateway::Method",
+      "Properties": {
+        "HttpMethod": "GET",
+        "Integration": {
+          "Type": "AWS_PROXY",
+          "Uri": {"Fn::Join": ["", ["arn:", {"Ref": "AWS::Partition"}, ":apigateway:", {"Ref": "AWS::Region"},
+            ":lambda:path/2015-03-31/functions/", {"Fn::GetAtt": ["ApiHandler5E7490E8", "Arn"]}, "/invocations"]]}
+        }
+      }
+    },
+    "StreamWorker1A2B3C4D": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Runtime": "nodejs20.x",
+        "MemorySize": 512,
+        "Timeout": 60
+      }
+    },
+    "StreamWorkerLive": {
+      "Type": "AWS::Lambda::Alias",
+      "Properties": {"FunctionName": {"Ref": "StreamWorker1A2B3C4D"}, "Name": "live"}
+    },
+    "StreamWorkerSource": {
+      "Type": "AWS::Lambda::EventSourceMapping",
+      "Properties": {
+        "FunctionName": {"Ref": "StreamWorkerLive"},
+        "EventSourceArn": "arn:aws:kinesis:ap-south-1:111111111111:stream/events"
+      }
+    },
+    "CleanupJob9F8E7D6C": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Runtime": "nodejs20.x",
+        "MemorySize": 512,
+        "Timeout": 60
+      }
+    },
+    "CleanupRule": {
+      "Type": "AWS::Events::Rule",
+      "Properties": {
+        "ScheduleExpression": "rate(1 day)",
+        "Targets": [{"Arn": {"Fn::GetAtt": ["CleanupJob9F8E7D6C", "Arn"]}, "Id": "Target0"}]
+      }
+    }
+  }
+}
