@@ -1,0 +1,17 @@
+{
+  "profiler": "py-spy",
+  "profiles": [
+    {
+      "name": "checkout-api",
+      "cpu": "process 7:\"python app.py\";thread (0x7F3A);<module> (app.py:10);serve (app/server.py:88);handle (app/server.py:120);render (app/views.py:42) 2600\nprocess 7:\"python app.py\";thread (0x7F3A);<module> (app.py:10);serve (app/server.py:88);handle (app/server.py:120);render (app/views.py:47) 400\n<module> (app.py:10);serve (app/server.py:88);handle (app/server.py:121);load_user (app/db.py:30) 900\n<module> (app.py:10);serve (app/server.py:88);handle (app/server.py:122);to_json (app/serialize.py:12) 800\n<module> (app.py:10);serve (app/server.py:88);accept (app/server.py:60) 900\n<module> (app.py:10);serve (app/server.py:88);log_request (app/logs.py:5) 700\n<module> (app.py:10);serve (app/server.py:88);metrics_flush (app/metrics.py:9) 600\n<module> (app.py:10);serve (app/server.py:88);health (app/server.py:30) 500\n<module> (app.py:10);serve (app/server.py:88);gc_collect (app/server.py:15) 400\n<module> (app.py:10);serve (app/server.py:88);cache_get (app/cache.py:20) 700\n<module> (app.py:10);serve (app/server.py:88);auth (app/auth.py:14) 500\n",
+      "memory": {
+        "unit": "bytes",
+        "timestamps": ["2026-10-10T10:00:00Z", "2026-10-10T10:10:00Z", "2026-10-10T10:20:00Z", "2026-10-10T10:30:00Z", "2026-10-10T10:40:00Z", "2026-10-10T10:50:00Z"],
+        "series": {
+          "cache_put (app/cache.py:31)": [4194304, 6291456, 8388608, 10485760, 12582912, 14680064],
+          "render (app/views.py:42)": [2097152, 2101248, 2093056, 2099200, 2097152, 2101248]
+        }
+      }
+    }
+  ]
+}

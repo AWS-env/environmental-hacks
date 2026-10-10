@@ -95,6 +95,7 @@ A pair that fails is refused: it is not published and is listed under
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-12 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
 | `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12, LLM-16, LLM-19 (artifact mode) |
+| `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12, LLM-16, LLM-19 (artifact mode), OBS-19 |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
 (plain CloudFormation). Build: `scripts/build-owner-d-telemetry.sh`. The zip
@@ -121,9 +122,10 @@ as JSON. It never executes it. The file name picks the check:
 | `tst-12.json` | TST-12 artifact mode | `{"framework": "pytest", "settings": {...optional TST-12 maxima}, "tests": [{"test_id", "duration_seconds", "sleep_seconds", "network_call_count", "fixture_bytes", "setup_seconds"}]}` |
 | `llm-16.json` | LLM-16 artifact mode | unmodified `memray stats --json` output, optional `"settings": {"max_buffered_response_bytes"}`; one `artifact:llm-16.json` scope ([LLM-16](#runtime-confirmation-artifact-mode)) |
 | `llm-19.json` | LLM-19 artifact mode | `{"settings": {...optional LLM-19 thresholds}, "servers": [{"server_id", "engine", "window_seconds", "requests", "preemptions", "kv_cache_usage_max", ...}]}`, see [LLM-19 artifact](#llm-19-artifact-llm-19json) |
+| `obs-19.json` | OBS-19 | `{"profiler": "py-spy", "settings": {...optional OBS-19 thresholds}, "profiles": [{"name", "cpu": "<collapsed stacks>", "memory": {"series": {...}}}]}` (see [OBS-19](#obs-19--cpu-heavy--leaky-application-code-found-via-continuous-profiling)) |
 
-Each test becomes one `test:<test_id>` scope item. The reference settings apply unless `settings` overrides
-them. Results go through `validate_pair` and are published to `findings-hub` with source
+Each test becomes one `test:<test_id>` scope item; each OBS-19 profile becomes `cpu-profile:<name>` and/or
+`memory-profile:<name>`. The reference settings apply unless `settings` overrides them. Results go through `validate_pair` and are published to `findings-hub` with source
 `owner-d.artifact-parser`.
 
 - Other names are logged as `ignored`.
@@ -2765,6 +2767,138 @@ emitted.
 ```bash
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs18/obs18-01-positive-input.json
+```
+
+## OBS-19 — CPU-heavy / leaky application code found via continuous profiling
+
+Flags functions that take a large share of CPU in a continuous-profiler
+export (hot spots) and functions whose in-use memory keeps growing across
+snapshots (leak candidates). The check is artifact-only (`SUPPORTED_KIND =
+"artifact"`). A repository scan reports it `unavailable` without calling it.
+With no artifact it is `unavailable`, never clean. The detector never runs
+the profiled code.
+
+### Input
+
+Client CI uploads `obs-19.json` through the
+[artifact route](#artifact-route). The upload key is
+`uploads/<github:owner/repo>/<sha>/<run_id>-<attempt>/obs-19.json`. Shape:
+
+```json
+{
+  "profiler": "py-spy",
+  "settings": {"max_self_cpu_share": 0.2},
+  "profiles": [{
+    "name": "checkout-api",
+    "cpu": "<module> (app.py:10);serve (app/server.py:88);render (app/views.py:42) 2600\n...",
+    "memory": {"unit": "bytes", "timestamps": ["2026-10-10T10:00:00Z", "..."],
+               "series": {"cache_put (app/cache.py:31)": [4194304, 6291456, "..."]}}
+  }]
+}
+```
+
+- `cpu` holds folded (collapsed) stacks, root first, one `frame;frame;frame count`
+  per line. This is the Brendan Gregg format written by py-spy `record --format raw`,
+  Pyroscope collapsed exports, async-profiler `-o collapsed` and stackcollapse-perf.
+  It can also be a list of `{"stack": ["frame", ...] or "a;b;c", "count": n}`
+  objects. The format is detected by content. Counts are nonnegative integer
+  samples; convert CPU time to samples before upload.
+- `memory` (optional) holds in-use bytes per function. Use either `series`
+  (function frame to one integer per snapshot) or `snapshots` (one collapsed
+  in-use export per snapshot; each stack's bytes count for its leaf function).
+  It allows 1 to 60 snapshots. `timestamps` is optional, with one entry per snapshot.
+- `sample_type` is optional; when present it must be `"cpu"`.
+- Shorthand: one profile can sit at the top level (`{"profiler", "cpu",
+  "memory"}`, name `default`). The whole file can also be a JSON string of
+  collapsed text. The parser only reads JSON, so raw `.folded` text must be
+  wrapped as `{"cpu": "<text>"}` before upload.
+  `owner_d.obs19.load_artifact` accepts either form for local runs.
+- Frames map to a function and `file:line` when the frame carries them:
+  `name (file:line)` (py-spy) and `file:line - name` (Pyroscope). Bare
+  frames are kept as the function name. async-profiler `_[j]`-style suffixes
+  and perf `+0x..` offsets are stripped. Leading py-spy `process ...` and
+  `thread (0x...)` pseudo frames are dropped. A function is identified by
+  name and file, so the line can move. The reported `file:line` is the line
+  with the most samples.
+
+Unknown fields, bad settings keys, no usable profile name, or no `cpu`/`memory`
+refuse the whole artifact. At most 5 profiles are read; the others are noted.
+A malformed `cpu` or `memory` part still becomes a scope item with a
+`normalization_error`, so it is reported as not evaluated.
+
+`owner_d.obs19.artifact_inputs` normalizes each part into one `artifact`
+source. The `cpu-profile:<name>` data has `profile`, `profiler`, `input_format`,
+`sample_type`, `total_samples`, `stack_count`, `function_count` and one
+`cpu:<function> (<file>)` field per function: `{function, file, location,
+self_samples, inclusive_samples, self_share, inclusive_share,
+top_callee_samples, root_samples}`. The `memory-profile:<name>` data has
+`unit`, `snapshot_count`, optional `timestamps` and one `memory:<function>`
+field per function: `{function, file, location, in_use_bytes}`. The detector
+checks that this data is consistent. Self samples must sum to the total,
+self ≤ inclusive ≤ total, and the shares must match the counts. Data that
+fails the check, including raw unnormalized exports, is left out of
+`evaluated_scope` with the reason.
+
+### Context settings (all required)
+
+CPU scope items need the first three settings and memory scope items need the
+last three. Missing or invalid settings leave those items not evaluated.
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_total_samples` | Fewest CPU samples in a profile worth judging | `1000` |
+| `max_self_cpu_share` | Largest acceptable share of samples in a function's own code | `0.1` |
+| `max_inclusive_cpu_share` | Largest acceptable share of samples in a function plus its callees | `0.5` |
+| `min_leak_snapshots` | Fewest memory snapshots needed to judge a trend | `5` |
+| `min_monotonic_fraction` | Share of snapshot-to-snapshot intervals in which memory must grow | `0.8` |
+| `min_leak_growth_bytes` | Smallest first-to-last growth reported as a leak | `1048576` |
+
+### Detection rule
+
+- A CPU profile with fewer than `min_total_samples` samples is not evaluated.
+  There are too few samples to judge it.
+- **Hot spot (self)**: a function's self samples (it is the leaf frame)
+  divided by the total is strictly greater than `max_self_cpu_share`.
+  Confidence is `high`.
+- **Hot spot (inclusive)**: a function's inclusive samples (it appears anywhere
+  in the stack; recursion counts once) divided by the total is strictly greater
+  than `max_inclusive_cpu_share`. No single direct callee may carry more than
+  that share, so only the most specific function on a hot path is reported.
+  Root frames, and functions in more than 90% of samples (entry points and
+  dispatch loops), are not reported this way. Confidence is `medium`.
+- **Leak candidate**: in a memory part with at least `min_leak_snapshots`
+  snapshots, a function's in-use bytes increase in at least
+  `min_monotonic_fraction` of the intervals. Growth from the first to the last
+  snapshot must also be at least `min_leak_growth_bytes`. Confidence is
+  `medium` when every interval grows and `low` when growth is only nearly
+  monotonic. A single step followed by a plateau (warm-up) is not reported.
+
+Identities are `hot-spot:<function> (<file>)` and
+`leak-candidate:<function> (<file>)`. They contain no line numbers. One
+finding covers both CPU signals of a function. Evidence cites the artifact's
+`total_samples` and the function's `cpu:` record (samples, shares and
+`location`), or its `memory:` record (the series) and `snapshot_count`. At
+most 5 findings are reported per scope item, largest first. The rest are
+counted in a limitation, which keeps one result inside one EventBridge event.
+
+### Limitations
+
+Shares are of the samples in one profile window, not of the service's total
+cost. A sampled profile can miss short-lived work. Memory growth inside one
+window can be warm-up or a bounded cache filling. Confirm with a longer or
+repeated profile before changing code. Inclusive hot spots can still point at
+a dispatcher whose work is spread across many small callees. Off-CPU
+(wall-clock) and GPU profiles are not supported. No energy or cost
+measurements are emitted.
+
+### Run
+
+`obs-19.json` is the upload example. `obs19-01-positive-input.json` is the
+contract input the artifact route builds from it:
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs19/obs19-01-positive-input.json
 ```
 
 
