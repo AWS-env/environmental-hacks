@@ -1,0 +1,8 @@
+# Synthetic fixture (OBS15-03): deliberate overlaps marked with noqa.
+ddtrace==2.9.2
+newrelic==9.11.0  # noqa: OBS-15 (migration to Datadog, remove by 2026-12)
+sentry-sdk==2.5.1
+# noqa: OBS-15 (Rollbar kept for the legacy dashboard)
+rollbar==1.0.0
+prometheus-client==0.20.0  # noqa: E501
+statsd==4.0.1

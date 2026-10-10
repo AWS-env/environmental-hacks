@@ -1,0 +1,22 @@
+{
+  "family": "orders-api",
+  "networkMode": "awsvpc",
+  "containerDefinitions": [
+    {
+      "name": "app",
+      "image": "123456789012.dkr.ecr.ap-south-1.amazonaws.com/orders:1.0.0",
+      "essential": true
+    },
+    {
+      "name": "xray-daemon",
+      "image": "public.ecr.aws/xray/aws-xray-daemon:3.3.12",
+      "essential": false
+    },
+    {
+      "name": "aws-otel-collector",
+      "image": "public.ecr.aws/aws-observability/aws-otel-collector:v0.40.0",
+      "command": ["--config=/etc/ecs/ecs-default-config.yaml"],
+      "essential": false
+    }
+  ]
+}

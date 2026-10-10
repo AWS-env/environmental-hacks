@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs15-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "OBS-15",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "observability-tooling"
+  },
+  "scope": [
+    "file:orders/requirements.txt",
+    "file:web/package.json",
+    "file:billing/go.mod",
+    "file:deployment.yaml",
+    "file:task-definition.json"
+  ],
+  "sources": [
+    {
+      "source_id": "src:orders/requirements.txt",
+      "scope_id": "file:orders/requirements.txt",
+      "kind": "static",
+      "locator": "orders/requirements.txt",
+      "content": "# Synthetic fixture (OBS15-01): one service that ships several overlapping tools.\nflask==3.0.3\ngunicorn==22.0.0\nddtrace==2.9.2\nnewrelic==9.11.0\nopentelemetry-api==1.25.0\nsentry-sdk[flask]==2.5.1\nrollbar==1.0.0\nprometheus-client==0.20.0\ndatadog==0.49.1\n"
+    },
+    {
+      "source_id": "src:web/package.json",
+      "scope_id": "file:web/package.json",
+      "kind": "static",
+      "locator": "web/package.json",
+      "content": "{\n  \"name\": \"web\",\n  \"private\": true,\n  \"scripts\": {\n    \"start\": \"node --require dd-trace/init server.js\"\n  },\n  \"dependencies\": {\n    \"express\": \"^4.19.2\",\n    \"dd-trace\": \"^5.17.0\",\n    \"@opentelemetry/api\": \"^1.9.0\",\n    \"@opentelemetry/sdk-node\": \"^0.52.0\",\n    \"@opentelemetry/auto-instrumentations-node\": \"^0.47.0\",\n    \"@sentry/node\": \"^8.9.2\"\n  },\n  \"devDependencies\": {\n    \"newrelic\": \"^11.19.0\",\n    \"jest\": \"^29.7.0\"\n  }\n}\n"
+    },
+    {
+      "source_id": "src:billing/go.mod",
+      "scope_id": "file:billing/go.mod",
+      "kind": "static",
+      "locator": "billing/go.mod",
+      "content": "// Synthetic fixture (OBS15-01): Go service with two tracers.\nmodule example.com/billing\n\ngo 1.22\n\nrequire (\n\tgithub.com/go-chi/chi/v5 v5.0.12\n\tgopkg.in/DataDog/dd-trace-go.v1 v1.64.1\n\tgo.opentelemetry.io/otel v1.27.0\n\tgo.opentelemetry.io/otel/sdk v1.27.0\n\tgo.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.52.0\n\tgithub.com/newrelic/go-agent/v3 v3.33.0 // indirect\n)\n"
+    },
+    {
+      "source_id": "src:deployment.yaml",
+      "scope_id": "file:deployment.yaml",
+      "kind": "static",
+      "locator": "deployment.yaml",
+      "content": "# Synthetic fixture (OBS15-01): telemetry agent sidecars in one pod.\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: checkout\n  namespace: shop\nspec:\n  template:\n    spec:\n      containers:\n        - name: app\n          image: example.com/checkout:1.4.2\n        - name: datadog-agent\n          image: gcr.io/datadoghq/agent:7.54.0\n          env:\n            - name: DD_API_KEY\n              valueFrom:\n                secretKeyRef: {name: datadog, key: api-key}\n        - name: otel-collector\n          image: otel/opentelemetry-collector-contrib:0.102.0\n---\napiVersion: apps/v1\nkind: Deployment\nmetadata:\n  name: catalog\nspec:\n  template:\n    spec:\n      initContainers:\n        - name: log-router\n          image: public.ecr.aws/aws-observability/aws-for-fluent-bit:2.32.2\n          restartPolicy: Always\n      containers:\n        - name: app\n          image: example.com/catalog:2.0.0\n        - name: fluentd\n          image: fluent/fluentd:v1.16-1\n"
+    },
+    {
+      "source_id": "src:task-definition.json",
+      "scope_id": "file:task-definition.json",
+      "kind": "static",
+      "locator": "task-definition.json",
+      "content": "{\n  \"family\": \"orders-api\",\n  \"networkMode\": \"awsvpc\",\n  \"containerDefinitions\": [\n    {\n      \"name\": \"app\",\n      \"image\": \"123456789012.dkr.ecr.ap-south-1.amazonaws.com/orders:1.0.0\",\n      \"essential\": true\n    },\n    {\n      \"name\": \"xray-daemon\",\n      \"image\": \"public.ecr.aws/xray/aws-xray-daemon:3.3.12\",\n      \"essential\": false\n    },\n    {\n      \"name\": \"aws-otel-collector\",\n      \"image\": \"public.ecr.aws/aws-observability/aws-otel-collector:v0.40.0\",\n      \"command\": [\"--config=/etc/ecs/ecs-default-config.yaml\"],\n      \"essential\": false\n    }\n  ]\n}\n"
+    }
+  ]
+}

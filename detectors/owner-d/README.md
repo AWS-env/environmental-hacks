@@ -4041,3 +4041,159 @@ turn growing within a conversation) is a follow-up; this module defines no
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm14/llm14-01-positive-input.json
 ```
+
+## OBS-15 — Duplicate/overlapping observability tools (Frankenstack)
+
+Flags one package or one pod/task that ships two or more observability tools
+doing the same job, for example Datadog's `ddtrace` next to `newrelic`, or a
+Datadog Agent sidecar next to an OpenTelemetry collector sidecar. The check is
+static. Files are read as text and are never installed, executed or resolved.
+v1 is a proxy: it proves "overlapping tools declared together". It does not
+prove that both tools are active, how much data each ingests or what they
+cost, so it emits no measurements.
+
+The taxonomy's runtime half (client account inventory through a read-only
+role: AWS Config, Resource Explorer) is blocked on OQ-7 and is not part of v1.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Supported files:
+
+- **Python**: `requirements*.txt`/`.in` and `requirements/*.txt`,
+  `pyproject.toml` (`[project].dependencies`, `[tool.poetry.dependencies]`
+  without `optional = true`) and `Pipfile` (`[packages]`)
+- **npm**: `package.json` `dependencies`
+- **Go**: `go.mod` direct `require`s
+- **Sidecars**: Kubernetes pod templates (`containers`, plus native sidecar
+  `initContainers` with `restartPolicy: Always`) and ECS task definitions
+  (task-definition JSON, `describe-task-definition` output, CloudFormation
+  `AWS::ECS::TaskDefinition` in JSON or YAML). The pod/task readers come from
+  INF-08.
+
+No context settings are required.
+
+Every dependency manifest is in scope, and a manifest without overlap is
+reported clean. YAML/JSON files are in scope only if they mention a known agent
+image.
+
+### Detection rule
+
+Tools come from an explicit table in `owner_d/obs15.py` (`PACKAGES`, `AGENTS`).
+A finding needs **two or more distinct tools in the same category**. Packages of
+one tool (`newrelic` and `@newrelic/native-metrics`) count once.
+
+| Category | Examples of distinct tools |
+| --- | --- |
+| `tracing-apm` | Datadog APM (`ddtrace`, `dd-trace`, `dd-trace-go`), New Relic, Elastic APM, AWS X-Ray SDK, OpenTelemetry, AppDynamics, Instana, Dynatrace, Scout, Honeycomb Beeline, SkyWalking |
+| `error-tracking` | Sentry, Rollbar, Bugsnag, Airbrake, Honeybadger, Raygun, TrackJS |
+| `metrics` | Prometheus client, DogStatsD, StatsD clients, CloudWatch EMF |
+| `log-shipping` | in-process shippers: watchtower/winston-cloudwatch, Logstash, Logz.io, Google Cloud Logging, Splunk HEC, Loki, Better Stack, Datadog log transports |
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `<category>` | One manifest declares two or more tools of the category | medium for `tracing-apm` and `error-tracking`, low for `metrics` and `log-shipping` |
+| `<category>` | The overlap only appears together with a sibling manifest in the same directory (see below) | low |
+| `<Kind>/[<ns>/]<name>:sidecar-agents`, `task/<family>:sidecar-agents`, `<LogicalId>:sidecar-agents` | Two or more agent containers in one pod/task collect the same signal | low |
+
+A repeated identity gets `#n`. Evidence is every declaration line (or agent
+`image:` line) of the overlapping tools in the finding's own file.
+
+**Directory grouping.** The canonical manifests `requirements.txt`,
+`requirements.in`, `pyproject.toml` and `Pipfile` in one directory, and the
+files in a `requirements/` directory, are read as one Python package. Contract
+v1 requires evidence from the finding's own scope, so each file gets its own
+finding. That finding cites only its own lines, and its summary names the tool
+declared in the sibling file. The same tool in two siblings
+(`ddtrace` in both) is not an overlap. Variants side by side, such as
+`requirements.orders.txt` and `requirements.billing.txt`, often belong to
+different deployables, so they are not correlated. If a sibling cannot be
+parsed, the limitation says so.
+
+**Sidecar signals** follow each agent's default configuration:
+
+| Agent | Signals |
+| --- | --- |
+| Datadog Agent | traces, metrics; logs only with `DD_LOGS_ENABLED=true`; no traces with `DD_APM_ENABLED=false` |
+| OpenTelemetry collector (contrib, k8s, ADOT, Splunk), Grafana Alloy/Agent | traces, metrics (pipelines live in a separate config; collector logs pipelines are often fed by the log router in the same pod) |
+| AWS X-Ray daemon | traces |
+| CloudWatch agent, New Relic infrastructure agent | metrics |
+| Fluent Bit / aws-for-fluent-bit, Fluentd, Vector, Filebeat, Promtail | logs |
+| Elastic Agent | logs, metrics |
+
+The AWS FireLens pattern (Fluent Bit for logs next to ADOT for traces and
+metrics) and Container Insights (CloudWatch agent for metrics next to Fluent
+Bit for logs) do not overlap. X-Ray daemon next to ADOT does overlap: ADOT's
+ECS default config already receives X-Ray segments.
+
+### OpenTelemetry bridges
+
+Bridges are legitimate and are not counted as a second stack:
+
+- **API and per-library instrumentation.** `opentelemetry-api`,
+  `@opentelemetry/api` and `go.opentelemetry.io/otel` are not counted, and
+  neither are per-library instrumentations (`opentelemetry-instrumentation-*`,
+  `@opentelemetry/instrumentation-*`,
+  `go.opentelemetry.io/contrib/instrumentation/*`). They only call the API, and
+  vendor tracers (ddtrace, dd-trace, dd-trace-go, Elastic APM) implement the API
+  as a bridge.
+- **What counts as OpenTelemetry.** Only an SDK, distro, exporter or zero-code
+  bundle counts: `opentelemetry-sdk`/`-distro`/`-exporter-*`,
+  `@opentelemetry/sdk-*`/`auto-instrumentations-*`/`exporter-*`,
+  `go.opentelemetry.io/otel/sdk`/`exporters`.
+- **Vendor OpenTelemetry distros** count as the same tool, OpenTelemetry:
+  ADOT, Splunk, Elastic EDOT, Honeycomb and Azure Monitor.
+- **Datadog OTLP ingest.** A Datadog Agent with OTLP ingestion enabled
+  (`DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT` or `..._HTTP_ENDPOINT`) next
+  to an OpenTelemetry collector is a bridge: the collector forwards to the
+  agent.
+
+Not flagged:
+
+- development/test dependencies: `devDependencies`, `peerDependencies`,
+  Pipfile `[dev-packages]`, optional extras, Poetry groups, PEP 735
+  `dependency-groups`, `tool.uv.dev-dependencies` and requirement files whose
+  name has a `dev`, `test`, `lint`, `docs`, `ci`, `typing`, `local`, `e2e`,
+  `bench` or `debug` token
+- Go modules marked `// indirect`, and `-r`/`-c`/`-e`/URL requirement lines
+- regular init containers, which exit before the app starts
+- declarations or agent images marked `# noqa` / `# noqa: OBS-15` (Go:
+  `// noqa: OBS-15`) on the line or on the comment lines directly above it. A
+  marked declaration does not count toward an overlap. `package.json` has no
+  comments, so a top-level `"//"` string that contains `noqa: OBS-15` marks the
+  whole file.
+
+The following are not evaluated. They are listed as limitations or as
+declined files, never reported clean:
+
+- test, example and docs paths (directory tokens `test(s)`, `testing`,
+  `testdata`, `e2e`, `example(s)`, `sample(s)`, `doc(s)`, `fixture(s)`,
+  `mock(s)`, `benchmark(s)`)
+- vendored or tooling directories (`node_modules`, `vendor`, `third_party`,
+  `site-packages`, `.venv`, `venv`, `.github`)
+- YAML/JSON without a pod template or task definition (Helm values)
+- invalid JSON/TOML, Helm/Go templates, YAML outside the `miniyaml` subset
+- a `go.mod` without a `module` directive or with an unterminated block
+- a TOML declaration that cannot be located (dotted keys)
+
+### Limitations
+
+- No measurements: ingest volume, licensing and cost need backend or billing
+  data.
+- Not seen:
+  - lockfiles and `-r` includes
+  - Maven/Gradle and .NET/Ruby (Java agents are usually attached with
+    `-javaagent`, not declared)
+  - agents attached at runtime without a dependency
+  - Compose stacks
+  - agents deployed as separate DaemonSets or in other files
+  - agent configs outside the file
+- When this is not necessarily wasteful (taxonomy): migrations and
+  organizational or vendor constraints. Mark those with `noqa`.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs15/obs15-01-positive-input.json
+```

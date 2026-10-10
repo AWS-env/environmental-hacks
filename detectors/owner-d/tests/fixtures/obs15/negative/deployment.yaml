@@ -1,0 +1,46 @@
+# Synthetic fixture (OBS15-02): one agent per signal per pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: a
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example.com/a:1
+        - name: datadog-agent
+          image: datadog/agent:7
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: b
+spec:
+  template:
+    spec:
+      containers:
+        - name: app
+          image: example.com/b:1
+        - name: collector
+          image: otel/opentelemetry-collector:0.102.0
+        - name: log-router
+          image: amazon/aws-for-fluent-bit:2.32.2
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: c
+spec:
+  initContainers:
+    - name: setup-logs
+      image: fluent/fluentd:v1.16-1
+  containers:
+    - name: app
+      image: example.com/c:1
+    - name: cloudwatch-agent
+      image: public.ecr.aws/cloudwatch-agent/cloudwatch-agent:1.300040.0b650
+    - name: xray
+      image: amazon/aws-xray-daemon:3.3.12
+    - name: fluent-bit
+      image: fluent/fluent-bit:3.0.7
