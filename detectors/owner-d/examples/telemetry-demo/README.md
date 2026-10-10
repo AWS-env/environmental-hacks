@@ -22,6 +22,7 @@ X-Ray subsegments. Owner D's telemetry analyzers then have real evidence to read
 | `OBS-06` | `RequestLatencyMs` keyed by `request_id` (`req-000`..`req-039`, one series per request). | `RequestLatencyMs` keyed by `endpoint` (2 values). | `ListMetrics` shows a dimension whose value count grows with traffic, next to a bounded one. |
 | `LLM-10` | `invoke_agent demo_unbounded_agent` runs `tool_calls` turns (default 12, max 25). Each turn is a `chat` span followed by `execute_tool get_order_status` with byte-identical arguments. It ends with `stop_reason=max_iterations`. | `invoke_agent demo_bounded_agent`: 3 `chat` turns and 2 different tools (`get_order_status`, then `draft_reply`), ending with `stop_reason=answer_ready`. | Owner D's LLM-10 detector flags the waste run for `identical-tool-calls` (12 > 3) and `iteration-budget` (12 > 10). The control run stays under both limits. |
 | `LLM-05` (opt-in) | `invoke_agent demo_redundant_pipeline`: 2 `chat` calls with the same model and the same `gen_ai.input.messages.hash`; step 2 re-sends step 1's request unchanged. | `invoke_agent demo_chained_pipeline`: the same first call, then a second request that carries step 1's output (2 distinct digests). | Owner D's LLM-05 detector flags the waste run for `consecutive-identical-calls` (2 > 1) and leaves the control run alone. |
+| `LLM-12` (opt-in) | `agents` agents (default 5, from 2 to 8) each answer the same 8 questions `rounds` times (default 3, at most 5), each through its own in-process dict. Every agent misses every question once. Lines carry `cache_name=demo-agent-local` and `cache_backend=memory`. | The same agents through one shared dict: only the first agent misses each question. Lines carry `cache_name=demo-fleet-shared` and `cache_backend=demo-shared`. | Owner D's LLM-12 detector flags `demo-agent-local` for `isolated-agent-caches` (32 of 40 misses in 120 lookups would have been hits in a shared cache) and leaves `demo-fleet-shared` alone (8 misses, one per question). |
 
 Shared dimensions on every metric: `synthetic`, `check=OBS-06` and `path`.
 
@@ -61,6 +62,15 @@ removes the need to bundle `aws-xray-sdk`, which is not in the Python runtime. T
 `handler.py`. If the invocation's trace is not sampled, nothing is sent and the response shows
 `"xray": "not_sampled"`. Invoke again in a new second.
 
+### LLM-12 log shape
+
+The opt-in `LLM-12` scenario writes one JSON line per cache lookup with `agent_id`, `cache_name`,
+`cache_backend`, `cache_result` (`hit` or `miss`) and `cache_key_hash`. The hash is a 16-hex SHA-256 digest of
+the placeholder model, the run ID and the question. No question text or answer is logged. Including the run ID
+gives every run new keys, so every run re-warms the caches the way new traffic does. One run with the
+defaults writes 240 lines (120 per path), about 50 KB, and is enough to exceed LLM-12's `min_lookups` of 100.
+Run it once, then invoke `owner-d-log-analyzer` with `"checks": ["LLM-12"]` over the demo log group.
+
 ## Event
 
 ```json
@@ -69,10 +79,12 @@ removes the need to bundle `aws-xray-sdk`, which is not in the Python runtime. T
 
 `scenario` takes `all` (the default) or one of `OBS-11`, `OBS-17`, `OBS-04`, `OBS-06` or `LLM-10`. Short
 forms such as `obs11` are also accepted. Each numeric knob is optional and is clamped to its maximum.
-`LLM-05` (or `llm05`) is opt-in: `all` does not run it, so the output of `all` is unchanged.
+`LLM-05` (or `llm05`) and `LLM-12` (or `llm12`) are opt-in: `all` does not run them, so the output of `all` is
+unchanged. `agents` and `rounds` apply to LLM-12 only.
 
-`path` applies to LLM-10 and LLM-05 and takes `both` (the default), `waste` or `control`. Both runs share one
-entrypoint, so a clean-only result needs a time window that contains only `"path": "control"` traces.
+`path` applies to LLM-10, LLM-05 and LLM-12 and takes `both` (the default), `waste` or `control`. The LLM-10
+and LLM-05 runs share one entrypoint, so a clean-only result needs a time window that contains only
+`"path": "control"` traces. The LLM-12 paths use separate cache names, so one run gives both results.
 
 The response summarizes what was emitted, along with a `run_id` that also appears in every log line.
 
@@ -148,7 +160,7 @@ fall within free tiers or plan credits.
   - With the optional daily schedule: 42 × 30 h / 730 h × $0.30 ≈ **$0.52/month**.
   - Do not schedule it hourly. That keeps all 42 series active all month, about $12.60/month.
 - **PutMetricData**: 1 request per run, at $0.01 per 1,000 requests.
-- **Logs**: about 10 KB per full run. Ingestion is about $0.50/GB, and retention is 7 days.
+- **Logs**: about 10 KB per full run, and about 50 KB per opt-in `LLM-12` run. Ingestion is about $0.50/GB, and retention is 7 days.
 - **X-Ray**: 1 trace per run. The first 100,000 traces each month are free.
 - **Lambda**: 128 MB, arm64, under 1 s per run.
 - **EventBridge Scheduler**: free while disabled.

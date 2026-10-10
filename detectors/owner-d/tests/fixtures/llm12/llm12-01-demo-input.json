@@ -1,0 +1,109 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/environmental-hacks",
+  "scan_id": "llm12-demo-modeled",
+  "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+  "check_id": "LLM-12",
+  "detector_version": "1.0.0",
+  "context": {
+    "min_lookups": 100,
+    "min_redundant_misses": 20,
+    "min_redundant_share": 0.1,
+    "shared_backends": [
+      "redis",
+      "valkey",
+      "elasticache",
+      "memorydb",
+      "memcached",
+      "dynamodb",
+      "momento"
+    ]
+  },
+  "scope": [
+    "resource:llm-cache/demo-agent-local",
+    "resource:llm-cache/demo-fleet-shared"
+  ],
+  "sources": [
+    {
+      "source_id": "logs-insights:llm-cache/demo-agent-local",
+      "scope_id": "resource:llm-cache/demo-agent-local",
+      "kind": "telemetry",
+      "locator": "logs-insights://ap-south-1/llm-cache/demo-agent-local",
+      "data": {
+        "resource_id": "demo-agent-local",
+        "resource_type": "llm_cache",
+        "bucket_cap": 20,
+        "lookups": 120,
+        "hits": 80,
+        "keys": 8,
+        "backends": {
+          "memory": {
+            "lookups": 120,
+            "hits": 80,
+            "keys": 8
+          }
+        },
+        "missed_by_histogram": [
+          {
+            "missed_by": 5,
+            "keys": 8,
+            "lookups": 120,
+            "hits": 80,
+            "missing_holders": 40
+          }
+        ],
+        "max_holders_per_key": 5,
+        "max_agents_per_key": 5,
+        "problems": [],
+        "log_groups": [
+          "/aws/lambda/owner-d-telemetry-demo"
+        ],
+        "window": {
+          "start": "2026-10-09T12:00:00Z",
+          "end": "2026-10-10T12:00:00Z"
+        }
+      }
+    },
+    {
+      "source_id": "logs-insights:llm-cache/demo-fleet-shared",
+      "scope_id": "resource:llm-cache/demo-fleet-shared",
+      "kind": "telemetry",
+      "locator": "logs-insights://ap-south-1/llm-cache/demo-fleet-shared",
+      "data": {
+        "resource_id": "demo-fleet-shared",
+        "resource_type": "llm_cache",
+        "bucket_cap": 20,
+        "lookups": 120,
+        "hits": 112,
+        "keys": 8,
+        "backends": {
+          "demo-shared": {
+            "lookups": 120,
+            "hits": 112,
+            "keys": 8
+          }
+        },
+        "missed_by_histogram": [
+          {
+            "missed_by": 1,
+            "keys": 8,
+            "lookups": 120,
+            "hits": 112,
+            "missing_holders": 8
+          }
+        ],
+        "max_holders_per_key": 5,
+        "max_agents_per_key": 5,
+        "problems": [],
+        "log_groups": [
+          "/aws/lambda/owner-d-telemetry-demo"
+        ],
+        "window": {
+          "start": "2026-10-09T12:00:00Z",
+          "end": "2026-10-10T12:00:00Z"
+        }
+      }
+    }
+  ]
+}

@@ -31,7 +31,7 @@ by scope or resource) are wired through an ``adapter`` (ADAPTERS below), which b
 sources with account-free locators: ``list_metrics`` (OBS-06), ``describe_log_groups`` (OBS-07) and
 ``xray_traces`` (LLM-10 and LLM-05: ``fn(Traces)`` plus the module's ``telemetry_sources``).
 
-Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07, OBS-11, LLM-10, OBS-17 and LLM-05 are
+Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07, OBS-11, LLM-10, OBS-17, LLM-05 and LLM-12 are
 registered below).
 """
 from __future__ import annotations
@@ -69,6 +69,12 @@ LLM05_DEFAULTS = {  # LLM-05 reference values (owner_d.llm05.REFERENCE_SETTINGS,
     "min_chain_calls": 3,
     "min_repeat_share": 0.5,
 }
+LLM12_DEFAULTS = {  # LLM-12 reference values (owner_d.llm12.REFERENCE_SETTINGS, README "LLM-12")
+    "min_lookups": 100,
+    "min_redundant_misses": 20,
+    "min_redundant_share": 0.1,
+    "shared_backends": ["redis", "valkey", "elasticache", "memorydb", "memcached", "dynamodb", "momento"],
+}
 
 
 @dataclass(frozen=True)
@@ -94,6 +100,7 @@ CHECKS = (
     TelemetryCheck("OBS-17", "owner_d.obs17", "logs_insights", defaults=OBS17_DEFAULTS),
     TelemetryCheck("LLM-05", "owner_d.llm05", "traces", normalizer="owner_d.llm05:normalize_xray_traces",
                    adapter="xray_traces", defaults=LLM05_DEFAULTS),
+    TelemetryCheck("LLM-12", "owner_d.llm12", "logs_insights", defaults=LLM12_DEFAULTS),
 )
 
 
