@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm03-001",
+  "commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "check_id": "LLM-03",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python",
+    "max_system_prompt_tokens": 200,
+    "min_repeated_instruction_chars": 40
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic LLM-03 fixture: bloated or redundant system prompts. Never executed.\nimport json\nimport textwrap\n\nimport anthropic\nimport boto3\nfrom openai import OpenAI\n\nclaude = anthropic.Anthropic()\nclient = OpenAI()\nbedrock = boto3.client(\"bedrock-runtime\")\nBEDROCK_MODEL = \"us.anthropic.claude-sonnet-4-5-20250929-v1:0\"\n\nSUPPORT_PROMPT = textwrap.dedent(\"\"\"\n    You are a support assistant for Acme Cloud.\n    - Always answer in valid JSON with the keys answer and sources.\n    - Keep answers under 120 words.\n    1. Cite the help-center article you used for every answer.\n    **IMPORTANT:** always answer in valid JSON with the keys answer and sources!\n\"\"\")\n\nPOLICY = (\n    \"You are the travel desk assistant for a mid-sized engineering company with offices in four countries. \"\n    \"Book economy class for flights shorter than six hours and premium economy for longer flights. \"\n    \"Prefer direct flights when the price difference is less than one hundred and fifty euros. \"\n    \"Hotels must be within two kilometres of the office the traveller is visiting this week. \"\n    \"Ask for manager approval when the total trip cost is more than two thousand five hundred euros. \"\n    \"Do not book refundable fares unless the traveller explicitly asks for a flexible ticket. \"\n    \"Always list the carrier, departure time, arrival time and total price for each option. \"\n    \"Offer at most three options, ordered by total price and then by total travel time. \"\n    \"When a train journey takes less than four hours, offer the train before any flight option.\"\n)\n\nRULES = \"\"\"Summarise the incident report for the on-call engineer.\nState the customer impact in the first sentence of the summary.\nNever include customer names or account numbers in the summary.\nAgain, never include customer names or account numbers in the summary.\"\"\"\n\n\ndef support(history):\n    return claude.messages.create(model=\"claude-sonnet-4-5\", max_tokens=512, system=SUPPORT_PROMPT, messages=history)\n\n\ndef plan_trip(question, user_name):\n    system = f\"\"\"You help {user_name} plan business trips.\nRecommend trains over flights for journeys under five hundred kilometres.\nMention the total travel time for every option you list.\n\nRecommend trains over flights for journeys under five hundred kilometres.\nMention the total travel time for every option you list.\"\"\"\n    messages = [{\"role\": \"system\", \"content\": system}, {\"role\": \"user\", \"content\": question}]\n    return client.chat.completions.create(model=\"gpt-5.5\", messages=messages)\n\n\ndef book(request):\n    return client.responses.create(model=\"gpt-5.5\", instructions=POLICY, input=request)\n\n\ndef summarise(report):\n    developer = {\"role\": \"developer\", \"content\": [{\"type\": \"text\", \"text\": RULES}]}\n    return client.chat.completions.create(model=\"gpt-5.5\", messages=[developer, {\"role\": \"user\", \"content\": report}])\n\n\ndef converse(messages):\n    return bedrock.converse(\n        modelId=BEDROCK_MODEL,\n        system=[\n            {\"text\": \"Translate the user's message into formal business German.\"},\n            {\"text\": \"Translate the user's message into formal business German. Keep product names in English.\"},\n        ],\n        messages=messages,\n    )\n\n\ndef invoke(messages):\n    body = {\"anthropic_version\": \"bedrock-2023-05-31\", \"max_tokens\": 256, \"system\": RULES, \"messages\": messages}\n    return bedrock.invoke_model(modelId=BEDROCK_MODEL, body=json.dumps(body))\n\n\ndef injected(llm, report):\n    return llm.chat.completions.create(model=\"gpt-5.5\", messages=[{\"role\": \"system\", \"content\": RULES}, {\"role\": \"user\", \"content\": report}])\n"
+    }
+  ]
+}
