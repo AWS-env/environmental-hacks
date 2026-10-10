@@ -1510,9 +1510,9 @@ The `synthetic-*.json` fixtures are synthetic.
 
 Flags CloudWatch Logs log groups where one log message, once timestamps, IDs and
 numbers are replaced, makes up a large share of the application events in the
-query window and is logged more than once per invocation. Typical causes are a
-retry loop that logs every attempt or a flapping health check that logs every
-poll. CloudWatch Logs bills ingestion and storage per GB
+query window and is not a per-request line (one line per invocation, spread
+over time like the invocations). Typical causes are a retry loop that logs every
+attempt or a flapping health check that logs every poll. CloudWatch Logs bills ingestion and storage per GB
 ([pricing](https://aws.amazon.com/cloudwatch/pricing/)), and Logs Insights
 [pattern analysis](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_AnalyzeLogData_Patterns.html)
 is the console way to find such "frequently occurring or high-cost log lines".
@@ -1524,19 +1524,36 @@ Without `checks`, the log analyzer runs OBS-07, OBS-11 and OBS-17.
 `owner_d.obs11.LOGS_INSIGHTS_QUERY` runs over the allowlisted log groups and
 the bounded window:
 
-```
-fields regexReplace(... substr(@message, 0, 400) ...) as normalized   # UUID, ISO timestamp, 8+ hex chars,
-| stats count(*) as n, min(@timestamp) as first, max(@timestamp) as last   #   digit runs -> <uuid> <ts> <hex> <n>,
-    by @log, normalized                                                    #   whitespace collapsed
-| fields if(n >= 10 or normalized like /<Lambda platform line>/, normalized, "<other>") as message
-| stats sum(n) as occurrences, min(first) as first_seen, max(last) as last_seen by @log, message
+```text
+fields regexReplace(regexReplace(regexReplace(regexReplace(regexReplace(regexReplace(substr(@message, 0, 400), "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", "<uuid>"), "[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}([.,][0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?", "<ts>"), "[0-9a-fA-F]{8,}", "<hex>"), "[0-9]+", "<n>"), "[[:space:]]+", " "), "^ | $", "") as normalized, concat(@logStream, " ", toMillis(datefloor(@timestamp, 1s))) as slot
+| stats count(*) as n, count_distinct(slot) as n_slots, min(@timestamp) as first, max(@timestamp) as last by @log, normalized
+| fields if(n >= 10 or normalized like /^(START|END|REPORT) RequestId: |^(INIT_START|INIT_REPORT|INIT_RUNTIME_DONE|RESTORE_START|RESTORE_REPORT|RESTORE_RUNTIME_DONE|EXTENSION|TELEMETRY)\s|"type" *: *"platform[.]/, normalized, "<other>") as message
+| stats sum(n) as occurrences, sum(n_slots) as slots, min(first) as first_seen, max(last) as last_seen by @log, message
 | sort @log asc, occurrences desc
 ```
 
-`regexReplace` uses RE2 syntax. Messages seen fewer than 10 times fold into
-one `<other>` row per log group, so the row count stays small while the totals
-stay exact. Lambda platform lines keep their own rows. Bytes scanned depend on
-the window and the log groups, not on the query.
+The first `fields` replaces UUIDs, ISO timestamps, runs of 8+ hex characters
+and digit runs in the first 400 characters with `<uuid>`, `<ts>`, `<hex>` and
+`<n>`, and collapses whitespace. `regexReplace` uses RE2 syntax. It also builds
+a **slot**: the log stream plus the second the line was logged in
+(`datefloor(@timestamp, 1s)`). A Lambda log stream belongs to one execution
+environment, which runs one invocation at a time, so lines of one retry burst
+share a slot while a line logged once per request spreads over as many slots as
+the invocations do. `count_distinct(slot)` counts the slots of each message.
+Slots stand in for request IDs because application lines written to stdout
+(`print`, or `console.log` in text format) carry no `@requestId`: Logs Insights
+discovers `@requestId` for Lambda platform lines, and Lambda adds `requestId` only
+to lines from the runtime's logging library
+([discovered fields](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_AnalyzeLogData-discoverable-fields.html),
+[Lambda log formats](https://docs.aws.amazon.com/lambda/latest/dg/monitoring-cloudwatchlogs-logformat.html)).
+`count_distinct` is approximate only at high cardinality
+([stats](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Stats.html));
+the normalizer caps a slot count at its line count.
+
+Messages seen fewer than 10 times fold into one `<other>` row per log group
+(its `slots` are not used), so the row count stays small while the totals stay
+exact. Lambda platform lines keep their own rows. It is still one query, and
+bytes scanned depend on the window and the log groups, not on the query.
 
 `normalize_logs_insights(raw, *, settings)` turns the rows into one `telemetry`
 source per `resource:log-group/<log group name>` scope item. The locator is
@@ -1550,8 +1567,9 @@ source per `resource:log-group/<log group name>` scope item. The locator is
 | `platform_events` | Lambda platform lines: `START`/`END`/`REPORT RequestId:`, `INIT_START`, `INIT_REPORT`, `INIT_RUNTIME_DONE`, `RESTORE_*`, `EXTENSION`, `TELEMETRY`, JSON `"type":"platform.*"` |
 | `application_events` | `events - platform_events` |
 | `invocations` | Number of `START RequestId:` lines, or `null` when none were seen (not a Lambda log group) |
+| `invocation_slots` | Slots of the `START` lines (at most `invocations`), or `null` with `invocations` |
 | `folded_events` | Events in the `<other>` row |
-| `messages` | Up to 20 application messages, most frequent first: `message` (redacted, at most 200 characters), `message_sha256`, `occurrences`, `share`, `first_seen`, `last_seen` |
+| `messages` | Up to 20 application messages, most frequent first: `message` (redacted, at most 200 characters), `message_sha256`, `occurrences`, `slots` (at most `occurrences`), `share`, `first_seen`, `last_seen` |
 | `omitted_messages` | Messages beyond those 20 (still counted in `application_events`) |
 
 Reported text is redacted: emails, IPv4/IPv6 addresses, long tokens, and the
@@ -1563,7 +1581,8 @@ when:
 
 - the Logs Insights row limit was reached: the last group in the rows and any
   group not seen have incomplete counts;
-- a row has a missing message or a non-integer count (that group only);
+- a row has a missing message or a non-integer count or slot count (that
+  group only);
 - a row has no `@log` (every group, since totals are unknown).
 
 ### Context settings (all required)
@@ -1592,14 +1611,28 @@ limitation names them):
 
 - Lambda platform lines;
 - heartbeat lines (`exempt_message_markers`);
-- per-request lines: when `invocations` is known and `occurrences <=
-  invocations`, the message is logged at most once per invocation on average.
-  This covers request summaries, and the demo's control path.
+- per-request lines: `invocations` is known, `occurrences <= invocations`
+  (at most one line per invocation on average), **and** the lines are no more
+  than `CLUSTER_FACTOR` (2) times as clustered as the invocations:
+  `occurrences / slots <= 2 × invocations / invocation_slots`. This covers
+  request summaries and the demo's control path. A burst logged inside one or
+  a few invocations shares a few slots, so it is flagged however many other
+  invocations the group had. The factor of 2 absorbs lines that cross a second
+  boundary and routes somewhat busier than the group as a whole. Comparing
+  with the `START` lines keeps busy functions exempt: when each execution
+  environment runs several invocations per second, the summary line and the
+  `START` lines are clustered alike.
+
+Detector 1.0.0 (issue #235) exempted every message with `occurrences <=
+invocations`, so a retry burst in one invocation was missed once the group had
+more invocations than burst lines (issue #455). Version 1.1.0 adds the slot
+test.
 
 There is one finding per flagged message, with the identity
 `repeated-log-line:<first 16 hex characters of message_sha256>`. It cites
-`messages`, `application_events`, `invocations` and `window`, and quotes
-the redacted text. Confidence:
+`messages`, `application_events`, `invocations`, `invocation_slots` and
+`window`, and quotes the redacted text with its lines per invocation and per
+slot. Confidence:
 
 - `high` when the text has no `<n>` placeholder (identical apart from
   timestamps and IDs) and `invocations` is known;
@@ -1611,8 +1644,13 @@ Measurements stay absent: the bytes of the repeated lines are not measured.
 ### Limitations
 
 - Messages are compared on their first 400 characters after normalisation.
-- A retry loop that fires on only a few invocations (fewer repeated lines than
-  invocations) is not flagged. Bursts are not timed.
+- Invocations are approximated by slots (log stream and second), not request
+  IDs. A retry loop that waits a second or more between attempts spreads over
+  slots like per-request lines, so it is not flagged while it has no more lines
+  than there are invocations.
+- A once-per-request line from a route whose invocations are more than twice as
+  clustered as the group's invocations as a whole (for example a burst of
+  requests to one route in an otherwise quiet function) is flagged.
 - Non-Lambda log groups have no invocation count, so the per-request exception
   cannot apply to them.
 
@@ -1624,18 +1662,21 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
 ```
 
 `tests/fixtures/obs11/recorded-logs-insights.json` is a real response to
-`LOGS_INSIGHTS_QUERY` for `/aws/lambda/owner-d-telemetry-demo`, last 24 hours,
-with the account ID replaced by `123456789012`. The log lines are the demo's
-synthetic output: one `all` invocation and ten `llm10` invocations, so 53
-application events. `obs11-01-positive-input.json` is built from it with
-`min_events: 50` and `min_repeats: 10`. The waste line `upstream inventory-svc
-unavailable, retrying` (20 lines, 1.8 per invocation) is flagged. The control
-line is logged once and folds into `<other>`. The two LLM-10 summary lines
-(11 lines over 11 invocations) are per-request lines. With the reference
-settings the group is not evaluated yet (53 < 100 application events). Within
-one fresh 24-hour window, four `{"scenario": "all"}` invocations (132
-application events, 80 retry lines) or two with `"repeat": 50` (126 events,
-100 retry lines) are enough for the reference settings.
+`LOGS_INSIGHTS_QUERY` for `/aws/lambda/owner-d-telemetry-demo`, last 24 hours
+(recorded 2026-10-10, 33,400 bytes scanned), with the account ID replaced by
+`123456789012`. The log lines are the demo's synthetic output: one `all`
+invocation, ten `llm10` and twelve `llm05` invocations, so 23 invocations in
+23 slots and 77 application events. `obs11-01-positive-input.json` is built
+from it with `min_events: 50` and `min_repeats: 10`. The waste line `upstream
+inventory-svc unavailable, retrying` (20 lines in one slot, all in the same
+millisecond of one invocation) is flagged; detector 1.0.0 exempted it because
+20 <= 23 invocations. The control line is logged once and folds into
+`<other>`. The four LLM-05/LLM-10 summary lines (11 or 12 lines, one per slot)
+are per-request lines, and stay exempt with `min_share: 0.1`. With the
+reference settings the group is not evaluated yet (77 < 100 application
+events). Within one fresh 24-hour window, four `{"scenario": "all"}`
+invocations (132 application events, 80 retry lines) or two with `"repeat":
+50` (126 events, 100 retry lines) are enough for the reference settings.
 
 ## OBS-17 — Verbose fields retained (full stack traces, request bodies)
 

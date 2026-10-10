@@ -5,7 +5,7 @@
   "scan_id": "scan-obs11",
   "commit_sha": "0123456789abcdef0123456789abcdef01234567",
   "check_id": "OBS-11",
-  "detector_version": "1.0.0",
+  "detector_version": "1.1.0",
   "context": {
     "min_events": 50,
     "min_repeats": 10,
@@ -26,13 +26,14 @@
       "data": {
         "log_group": "/aws/lambda/owner-d-telemetry-demo",
         "window": {
-          "start": "2026-10-09T02:39:17Z",
-          "end": "2026-10-10T02:39:17Z"
+          "start": "2026-10-09T03:03:42Z",
+          "end": "2026-10-10T03:03:42Z"
         },
-        "events": 87,
-        "platform_events": 34,
-        "application_events": 53,
-        "invocations": 11,
+        "events": 148,
+        "platform_events": 71,
+        "application_events": 77,
+        "invocations": 23,
+        "invocation_slots": 23,
         "folded_events": 11,
         "fold_threshold": 10,
         "messages": [
@@ -40,23 +41,44 @@
             "message": "{\"synthetic\":true,\"check\":\"OBS-<n>\",\"path\":\"waste\",\"run_id\":\"<hex>\",\"level\":\"WARN\",\"message\":\"upstream inventory-svc unavailable, retrying\",\"upstream\":\"inventory-svc\"}",
             "message_sha256": "447f61763b3038d5654c75dce0b649644b443b8125f245d0d2e2018490176039",
             "occurrences": 20,
-            "share": 0.3774,
+            "slots": 1,
+            "share": 0.2597,
             "first_seen": "2026-10-09 23:03:22.799",
             "last_seen": "2026-10-09 23:03:22.799"
           },
           {
-            "message": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"control\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"agent run finished\",\"agent\":\"demo_bounded_agent\",\"llm_calls\":<n>,\"tool_calls\":<n>,\"stop_reason\":\"answer\u2026",
+            "message": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"control\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"pipeline run finished\",\"agent\":\"demo_chained_pipeline\",\"llm_calls\":<n>,\"distinct_requests\":<n>}",
+            "message_sha256": "a36154cf36cad22eb48c09962d9c078b62b41338c72b63ee631ccd7b17f384dc",
+            "occurrences": 12,
+            "slots": 12,
+            "share": 0.1558,
+            "first_seen": "2026-10-10 02:55:57.003",
+            "last_seen": "2026-10-10 02:56:24.495"
+          },
+          {
+            "message": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"waste\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"pipeline run finished\",\"agent\":\"demo_redundant_pipeline\",\"llm_calls\":<n>,\"distinct_requests\":<n>}",
+            "message_sha256": "3116b87f487b518f1560e976e164256acbdf2fdd22a46e5a7853c8fd191fbdf3",
+            "occurrences": 12,
+            "slots": 12,
+            "share": 0.1558,
+            "first_seen": "2026-10-10 02:55:57.003",
+            "last_seen": "2026-10-10 02:56:24.495"
+          },
+          {
+            "message": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"control\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"agent run finished\",\"agent\":\"demo_bounded_agent\",\"llm_calls\":<n>,\"tool_calls\":<n>,\"stop_reason\":\"answer…",
             "message_sha256": "5bf94dfbbd3c60d4775d514858a17729b3eaad00dba4eab7c483c157cdbccbab",
             "occurrences": 11,
-            "share": 0.2075,
+            "slots": 11,
+            "share": 0.1429,
             "first_seen": "2026-10-09 23:03:27.086",
             "last_seen": "2026-10-09 23:03:45.767"
           },
           {
-            "message": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"waste\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"agent run finished\",\"agent\":\"demo_unbounded_agent\",\"llm_calls\":<n>,\"tool_calls\":<n>,\"stop_reason\":\"max_it\u2026",
+            "message": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"waste\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"agent run finished\",\"agent\":\"demo_unbounded_agent\",\"llm_calls\":<n>,\"tool_calls\":<n>,\"stop_reason\":\"max_it…",
             "message_sha256": "0f3d4ec9d069486a9f8a133450ab4f4e8728d0440c6e99fbc760aa2bebf3494b",
             "occurrences": 11,
-            "share": 0.2075,
+            "slots": 11,
+            "share": 0.1429,
             "first_seen": "2026-10-09 23:03:27.085",
             "last_seen": "2026-10-09 23:03:45.767"
           }

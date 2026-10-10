@@ -1,24 +1,102 @@
 {
- "description": "Real CloudWatch Logs Insights GetQueryResults response for owner_d.obs11.LOGS_INSIGHTS_QUERY over /aws/lambda/owner-d-telemetry-demo (ap-south-1), last 24 hours, recorded 2026-10-10. The account ID is replaced with 123456789012 and @ptr values are removed. The log lines are the demo's synthetic output (one 'all' invocation plus ten 'llm10' invocations).",
- "query": "fields regexReplace(regexReplace(regexReplace(regexReplace(regexReplace(regexReplace(substr(@message, 0, 400), \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\", \"<uuid>\"), \"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}([.,][0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?\", \"<ts>\"), \"[0-9a-fA-F]{8,}\", \"<hex>\"), \"[0-9]+\", \"<n>\"), \"[[:space:]]+\", \" \"), \"^ | $\", \"\") as normalized\n| stats count(*) as n, min(@timestamp) as first, max(@timestamp) as last by @log, normalized\n| fields if(n >= 10 or normalized like /^(START|END|REPORT) RequestId: |^(INIT_START|INIT_REPORT|INIT_RUNTIME_DONE|RESTORE_START|RESTORE_REPORT|RESTORE_RUNTIME_DONE|EXTENSION|TELEMETRY)\\s|\"type\" *: *\"platform[.]/, normalized, \"<other>\") as message\n| stats sum(n) as occurrences, min(first) as first_seen, max(last) as last_seen by @log, message\n| sort @log asc, occurrences desc",
+ "description": "Real CloudWatch Logs Insights GetQueryResults response for owner_d.obs11.LOGS_INSIGHTS_QUERY (detector 1.1.0, with per-message slots) over /aws/lambda/owner-d-telemetry-demo (ap-south-1), last 24 hours, recorded 2026-10-10 for issue #455. The account ID is replaced with 123456789012 and @ptr values are removed. The log lines are the demo's synthetic output: one 'all' invocation (whose OBS-11 waste path logged the retry line 20 times in the same millisecond), ten 'llm10' invocations and twelve 'llm05' invocations, so 23 START lines. Detector 1.0.0 exempted the 20-line burst because 20 <= 23 invocations.",
+ "query": "fields regexReplace(regexReplace(regexReplace(regexReplace(regexReplace(regexReplace(substr(@message, 0, 400), \"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\", \"<uuid>\"), \"[0-9]{4}-[0-9]{2}-[0-9]{2}[T ][0-9]{2}:[0-9]{2}:[0-9]{2}([.,][0-9]+)?(Z|[+-][0-9]{2}:?[0-9]{2})?\", \"<ts>\"), \"[0-9a-fA-F]{8,}\", \"<hex>\"), \"[0-9]+\", \"<n>\"), \"[[:space:]]+\", \" \"), \"^ | $\", \"\") as normalized, concat(@logStream, \" \", toMillis(datefloor(@timestamp, 1s))) as slot\n| stats count(*) as n, count_distinct(slot) as n_slots, min(@timestamp) as first, max(@timestamp) as last by @log, normalized\n| fields if(n >= 10 or normalized like /^(START|END|REPORT) RequestId: |^(INIT_START|INIT_REPORT|INIT_RUNTIME_DONE|RESTORE_START|RESTORE_REPORT|RESTORE_RUNTIME_DONE|EXTENSION|TELEMETRY)\\s|\"type\" *: *\"platform[.]/, normalized, \"<other>\") as message\n| stats sum(n) as occurrences, sum(n_slots) as slots, min(first) as first_seen, max(last) as last_seen by @log, message\n| sort @log asc, occurrences desc",
  "logGroupNames": [
   "/aws/lambda/owner-d-telemetry-demo"
  ],
- "startTime": 1791513557,
- "endTime": 1791599957,
+ "startTime": 1791515022,
+ "endTime": 1791601422,
  "limit": 1000,
  "response": {
   "status": "Complete",
   "statistics": {
-   "recordsMatched": 87.0,
-   "recordsScanned": 87.0,
+   "recordsMatched": 148.0,
+   "recordsScanned": 148.0,
    "estimatedRecordsSkipped": 0.0,
-   "bytesScanned": 22461.0,
+   "bytesScanned": 33400.0,
    "estimatedBytesSkipped": 0.0,
    "logGroupsScanned": 1.0,
-   "resultCount": 9.0
+   "resultCount": 12.0
   },
   "results": [
+   [
+    {
+     "field": "@log",
+     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+    },
+    {
+     "field": "message",
+     "value": "START RequestId: <uuid> Version: $LATEST"
+    },
+    {
+     "field": "occurrences",
+     "value": "23"
+    },
+    {
+     "field": "slots",
+     "value": "23"
+    },
+    {
+     "field": "first_seen",
+     "value": "2026-10-09 23:03:22.798"
+    },
+    {
+     "field": "last_seen",
+     "value": "2026-10-10 02:56:24.454"
+    }
+   ],
+   [
+    {
+     "field": "@log",
+     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+    },
+    {
+     "field": "message",
+     "value": "END RequestId: <uuid>"
+    },
+    {
+     "field": "occurrences",
+     "value": "23"
+    },
+    {
+     "field": "slots",
+     "value": "23"
+    },
+    {
+     "field": "first_seen",
+     "value": "2026-10-09 23:03:27.087"
+    },
+    {
+     "field": "last_seen",
+     "value": "2026-10-10 02:56:24.496"
+    }
+   ],
+   [
+    {
+     "field": "@log",
+     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+    },
+    {
+     "field": "message",
+     "value": "REPORT RequestId: <uuid> Duration: <n>.<n> ms Billed Duration: <n> ms Memory Size: <n> MB Max Memory Used: <n> MB XRAY TraceId: <n>-<hex>-<hex> SegmentId: <hex> Sampled: true"
+    },
+    {
+     "field": "occurrences",
+     "value": "20"
+    },
+    {
+     "field": "slots",
+     "value": "20"
+    },
+    {
+     "field": "first_seen",
+     "value": "2026-10-09 23:03:28.162"
+    },
+    {
+     "field": "last_seen",
+     "value": "2026-10-10 02:56:24.496"
+    }
+   ],
    [
     {
      "field": "@log",
@@ -31,6 +109,10 @@
     {
      "field": "occurrences",
      "value": "20"
+    },
+    {
+     "field": "slots",
+     "value": "1"
     },
     {
      "field": "first_seen",
@@ -48,10 +130,66 @@
     },
     {
      "field": "message",
+     "value": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"waste\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"pipeline run finished\",\"agent\":\"demo_redundant_pipeline\",\"llm_calls\":<n>,\"distinct_requests\":<n>}"
+    },
+    {
+     "field": "occurrences",
+     "value": "12"
+    },
+    {
+     "field": "slots",
+     "value": "12"
+    },
+    {
+     "field": "first_seen",
+     "value": "2026-10-10 02:55:57.003"
+    },
+    {
+     "field": "last_seen",
+     "value": "2026-10-10 02:56:24.495"
+    }
+   ],
+   [
+    {
+     "field": "@log",
+     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+    },
+    {
+     "field": "message",
+     "value": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"control\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"pipeline run finished\",\"agent\":\"demo_chained_pipeline\",\"llm_calls\":<n>,\"distinct_requests\":<n>}"
+    },
+    {
+     "field": "occurrences",
+     "value": "12"
+    },
+    {
+     "field": "slots",
+     "value": "12"
+    },
+    {
+     "field": "first_seen",
+     "value": "2026-10-10 02:55:57.003"
+    },
+    {
+     "field": "last_seen",
+     "value": "2026-10-10 02:56:24.495"
+    }
+   ],
+   [
+    {
+     "field": "@log",
+     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+    },
+    {
+     "field": "message",
      "value": "<other>"
     },
     {
      "field": "occurrences",
+     "value": "11"
+    },
+    {
+     "field": "slots",
      "value": "11"
     },
     {
@@ -70,54 +208,14 @@
     },
     {
      "field": "message",
-     "value": "START RequestId: <uuid> Version: $LATEST"
-    },
-    {
-     "field": "occurrences",
-     "value": "11"
-    },
-    {
-     "field": "first_seen",
-     "value": "2026-10-09 23:03:22.798"
-    },
-    {
-     "field": "last_seen",
-     "value": "2026-10-09 23:03:45.472"
-    }
-   ],
-   [
-    {
-     "field": "@log",
-     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
-    },
-    {
-     "field": "message",
-     "value": "END RequestId: <uuid>"
-    },
-    {
-     "field": "occurrences",
-     "value": "11"
-    },
-    {
-     "field": "first_seen",
-     "value": "2026-10-09 23:03:27.087"
-    },
-    {
-     "field": "last_seen",
-     "value": "2026-10-09 23:03:45.768"
-    }
-   ],
-   [
-    {
-     "field": "@log",
-     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
-    },
-    {
-     "field": "message",
      "value": "{\"synthetic\":true,\"check\":\"LLM-<n>\",\"path\":\"control\",\"run_id\":\"<hex>\",\"level\":\"INFO\",\"message\":\"agent run finished\",\"agent\":\"demo_bounded_agent\",\"llm_calls\":<n>,\"tool_calls\":<n>,\"stop_reason\":\"answer_ready\"}"
     },
     {
      "field": "occurrences",
+     "value": "11"
+    },
+    {
+     "field": "slots",
      "value": "11"
     },
     {
@@ -143,6 +241,10 @@
      "value": "11"
     },
     {
+     "field": "slots",
+     "value": "11"
+    },
+    {
      "field": "first_seen",
      "value": "2026-10-09 23:03:27.085"
     },
@@ -158,33 +260,15 @@
     },
     {
      "field": "message",
-     "value": "REPORT RequestId: <uuid> Duration: <n>.<n> ms Billed Duration: <n> ms Memory Size: <n> MB Max Memory Used: <n> MB XRAY TraceId: <n>-<hex>-<hex> SegmentId: <hex> Sampled: true"
-    },
-    {
-     "field": "occurrences",
-     "value": "10"
-    },
-    {
-     "field": "first_seen",
-     "value": "2026-10-09 23:03:28.162"
-    },
-    {
-     "field": "last_seen",
-     "value": "2026-10-09 23:03:45.768"
-    }
-   ],
-   [
-    {
-     "field": "@log",
-     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
-    },
-    {
-     "field": "message",
      "value": "INIT_START Runtime Version: python:<n>.<n>.mainlinev<n>.v<n> Runtime Version ARN: arn:aws:lambda:ap-south-<n>::runtime:<hex>"
     },
     {
      "field": "occurrences",
-     "value": "1"
+     "value": "2"
+    },
+    {
+     "field": "slots",
+     "value": "2"
     },
     {
      "field": "first_seen",
@@ -192,7 +276,7 @@
     },
     {
      "field": "last_seen",
-     "value": "2026-10-09 23:03:22.738"
+     "value": "2026-10-10 02:55:56.902"
     }
    ],
    [
@@ -206,7 +290,11 @@
     },
     {
      "field": "occurrences",
-     "value": "1"
+     "value": "2"
+    },
+    {
+     "field": "slots",
+     "value": "2"
     },
     {
      "field": "first_seen",
@@ -214,7 +302,33 @@
     },
     {
      "field": "last_seen",
-     "value": "2026-10-09 23:03:27.087"
+     "value": "2026-10-10 02:55:57.005"
+    }
+   ],
+   [
+    {
+     "field": "@log",
+     "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+    },
+    {
+     "field": "message",
+     "value": "REPORT RequestId: <uuid> Duration: <n>.<n> ms Billed Duration: <n> ms Memory Size: <n> MB Max Memory Used: <n> MB"
+    },
+    {
+     "field": "occurrences",
+     "value": "1"
+    },
+    {
+     "field": "slots",
+     "value": "1"
+    },
+    {
+     "field": "first_seen",
+     "value": "2026-10-10 02:56:02.365"
+    },
+    {
+     "field": "last_seen",
+     "value": "2026-10-10 02:56:02.365"
     }
    ]
   ]
