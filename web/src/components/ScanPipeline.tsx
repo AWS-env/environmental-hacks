@@ -3,7 +3,10 @@ import { useEffect, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { pipelineLayout, PIPELINE_EDGES, PIPELINE_STEPS } from "./pipelineModel";
 
-export default function ScanPipeline({ step, repository, onBack }: { step: number; repository: string; onBack: () => void }) {
+/** `status` is the real scan state; the moving stages above it are illustrative only. */
+export interface PipelineStatus { title: string; detail: string; meta: string }
+
+export default function ScanPipeline({ step, repository, status, onBack }: { step: number; repository: string; status: PipelineStatus; onBack: () => void }) {
   const [viewport, setViewport] = useState({ width: 1440, height: 1000 });
   useEffect(() => {
     const resize = () => setViewport({ width: window.innerWidth, height: window.innerHeight });
@@ -12,10 +15,9 @@ export default function ScanPipeline({ step, repository, onBack }: { step: numbe
   }, []);
   const { nodes, size, compact } = pipelineLayout(viewport.width, viewport.height);
   const stage = PIPELINE_STEPS[Math.max(step, 0) % PIPELINE_STEPS.length];
-  const active = nodes.find(node => node.id === stage.id)!;
   const source = ["Repository source", "Collector artifact", "AWS telemetry"][stage.routeIndex];
   return (
-    <section className="scan-pipeline" aria-label="Illustrative analysis pipeline">
+    <section className="scan-pipeline" aria-label="Scan in progress (the pipeline diagram is illustrative)">
       <div className="scan-heading">
         <div className="scan-eyebrow">PIPELINE PREVIEW <span>ILLUSTRATIVE</span></div>
         <h1>Commit → Scan → Measure → Optimize</h1>
@@ -39,9 +41,9 @@ export default function ScanPipeline({ step, repository, onBack }: { step: numbe
       ))}
       <div className="scan-status" role="status" aria-live="polite">
         <span className="scan-status-dot" />
-        <div><strong>{step < 0 ? "Forming the pipeline" : active.title}</strong>
-          <p>{step < 0 ? "Particles gathering into the architecture" : active.detail}</p></div>
-        <span className="scan-step-count">{step < 0 ? "—" : `${(Math.max(step, 0) % PIPELINE_STEPS.length) + 1} / ${PIPELINE_STEPS.length}`}</span>
+        <div><strong>{status.title}</strong>
+          <p>{status.detail}</p></div>
+        <span className="scan-step-count">{status.meta}</span>
       </div>
       <button className="scan-back" onClick={onBack}><ArrowLeft size={14} /> Back to repository</button>
       <p className="scan-caption">Read-only analysis · client code is never executed here</p>
