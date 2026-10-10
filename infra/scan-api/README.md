@@ -50,7 +50,8 @@ turns a finished scan into an error. The worker role can only call `events:PutEv
 | Request | Response |
 | --- | --- |
 | `POST /scans` `{"repo_url": "https://github.com/owner/repo"}` | `202 {"scan_id": "<uuid>", "status": "queued"}` |
-| | `400` not a `https://github.com/<owner>/<repo>` URL, `413` body over 4 KB, `503` worker could not be started, `429` throttled |
+| | `200 {"scan_id": "<existing>", "status": "queued" \| "running" \| "done", "reused": true}`: per-repo cooldown, poll that scan (see [Abuse guard](#abuse-guard)) |
+| | `400` not a `https://github.com/<owner>/<repo>` URL, `413` body over 4 KB, `503` worker could not be started, `429` throttled or `{"error": "daily scan limit reached; try again after 00:00 UTC"}` |
 | `GET /scans/{scan_id}` | `200 {"scan_id", "status", "repo_url", "created_at", "updated_at", ...}` |
 | | `status: "queued" \| "running"`: poll again |
 | | `status: "done"`: `"report"` is the full `report.json`. Reports over 5 MB (Lambda responses are capped at 6 MB) come as `"report": null` plus `"report_url"`, a presigned S3 URL valid for 15 minutes |
@@ -75,10 +76,42 @@ the frontend's origin, e.g. `AllowedOrigin=https://app.example.com`, before shar
   the worker's `/tmp` for the duration of the scan and is deleted afterwards. Only status and report
   objects are stored, and they expire after `RetentionDays` (7).
 - Cost caps: worker reserved concurrency 2, `POST /scans` throttled to 1 request/s (burst 2) and other
-  routes to 10/s (burst 20), no async retries, 900 s worker timeout.
+  routes to 10/s (burst 20), no async retries, 900 s worker timeout, plus the per-repo cooldown and the
+  daily scan cap below.
 - IAM: the api role can only read/write `scans/*`, list the bucket under `scans/` (so a missing key is a
-  404, not a 403) and invoke the worker. The worker role can only write `scans/*`. Each role writes
-  only to its own log group, and logs are kept 7 days.
+  404, not a 403), invoke the worker and get/put/update items in the `scan-api-guard` table. The worker
+  role can only write `scans/*`. Each role writes only to its own log group, and logs are kept 7 days.
+
+## Abuse guard
+
+`POST /scans` has no authentication, so two checks bound what an anonymous caller can make the worker do.
+They run in this order: validate the body, cooldown lookup, cap increment, create `status.json`, invoke the worker.
+
+- **Per-repo cooldown** (`ScanCooldownSeconds`, default 600). If the repo's latest scan is `queued` or
+  `running`, or finished `done` at most that many seconds ago, the API returns `200` with that scan's
+  `scan_id`, its current `status` and `"reused": true` instead of starting a new one. Repos match
+  case-insensitively (`Owner/Repo` is `owner/repo`). Scans that ended in `error`, or that `GET` would report
+  as stale (running over 960 s, queued over an hour), don't count. A reused scan doesn't use up the daily cap.
+- **Daily cap** (`MaxScansPerDay`, default 50). At most that many new scans start per UTC day, across all
+  repos. Above it the API returns `429 {"error": "daily scan limit reached; try again after 00:00 UTC"}`.
+  Only scans that actually start count: if writing `status.json` or invoking the worker fails, the API
+  gives the slot back (best effort) and returns `503`.
+
+Both use the on-demand DynamoDB table `scan-api-guard` (key `pk`, TTL attribute `expires_at`):
+
+| Item | Holds | Expires |
+| --- | --- | --- |
+| `repo#<owner>/<repo>` (lowercased) | latest `scan_id` and `created_at` for the repo | 1 day after the scan started |
+| `day#<YYYY-MM-DD>` (UTC) | `scans`: scans started that day | 2 days after the day starts |
+
+The counter is a single `UpdateItem` with `ADD scans :one` and the condition
+`attribute_not_exists(scans) OR scans < :cap`. DynamoDB applies it atomically, so concurrent requests can't
+go past the cap, and a failed condition (`ConditionalCheckFailedException`) becomes the `429`. The cooldown
+reads the repo item, then the scan's `status.json`, so it never trusts TTL deletion, which can lag by up to
+two days. The cooldown lookup and the repo-item write are not one transaction, so two requests for the same
+repo inside the POST burst (2) can both start a scan. Each still counts against the cap.
+A new scan costs 1 read and 2 writes (a reused scan costs 1 read), billed on demand at well under a cent a
+day at the default cap. The table holds at most a few KB.
 
 ## Deploy (ap-south-1, not yet run; needs approval)
 
@@ -119,6 +152,8 @@ curl -s "$API/scans/<scan_id>" | head -c 400
 ```
 
 To ship new code, rebuild, upload under the new key and rerun `cloudformation deploy` with that `CodeKey`.
+`ScanCooldownSeconds` (600) and `MaxScansPerDay` (50) tune the [abuse guard](#abuse-guard), for example
+`--parameter-overrides ... MaxScansPerDay=20`.
 
 ## Cost on the Free plan
 
@@ -159,6 +194,6 @@ aws s3 rb "s3://$CODE_BUCKET" --force --region ap-south-1   # the code bucket is
 - GitHub's unauthenticated API allows 60 requests per hour per IP, and Lambda shares its outbound IPs.
   When the API is rate-limited, the worker downloads `HEAD` and takes the commit SHA from the
   archive's `git archive` header (`commit_source: "tarball-header"`), or falls back to a content hash.
-- **The API has no authentication.** Anyone with the URL can start scans, within the throttling and
-  concurrency caps above. Add a JWT authorizer, or restrict `AllowedOrigin`, before sharing the URL
+- **The API has no authentication.** Anyone with the URL can start scans, within the throttling,
+  concurrency, cooldown and daily caps above. One caller can still use up the day's cap for everyone. Add a JWT authorizer, or restrict `AllowedOrigin`, before sharing the URL
   publicly. CORS only restricts browsers.
