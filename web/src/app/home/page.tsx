@@ -1,16 +1,20 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Bell, ChevronDown } from "lucide-react";
 import LiquidGlassInput from "@/components/LiquidGlassInput";
 import ParticleTerrain from "@/components/ParticleTerrain";
-import ScanPipeline from "@/components/ScanPipeline";
+import ScanPanel from "@/components/scan/ScanPanel";
+import ScanProgress from "@/components/scan/ScanProgress";
+import { ACTIVE_PHASES, startScan, useScanSession, type ScanSession } from "@/lib/scan-session";
 
 export default function HomePage() {
   const [repoUrl, setRepoUrl] = useState("");
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [scan, setScan] = useState<ScanSession | null>(null);
+  const scanState = useScanSession(scan);
+  const isAnalyzing = scanState !== null && ACTIVE_PHASES.includes(scanState.phase);
   const [scanStep, setScanStep] = useState(-1);
-  const [previewRepository, setPreviewRepository] = useState("");
+  useEffect(() => () => scan?.cancel(), [scan]);
 
   const sampleRepos = [
     { name: "vercel/next.js", url: "https://github.com/vercel/next.js" },
@@ -21,10 +25,14 @@ export default function HomePage() {
 
   const startAnalysis = (urlToAnalyze?: string) => {
     const target = (urlToAnalyze || repoUrl).trim();
-    if (!target || isAnalyzing) return;
-    setPreviewRepository(target);
+    if (!target || scan) return;
     setScanStep(-1);
-    setIsAnalyzing(true);
+    setScan(startScan(target));
+  };
+
+  const closeScan = () => {
+    scan?.cancel();
+    setScan(null);
   };
 
   return (
@@ -62,7 +70,7 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area strictly budgeted vertically */}
-      <main className={`home-hero flex-1 ${isAnalyzing ? "is-departing" : ""}`} aria-hidden={isAnalyzing} inert={isAnalyzing}>
+      <main className={`home-hero flex-1 ${scan ? "is-departing" : ""}`} aria-hidden={scan !== null} inert={scan !== null} hidden={scanState !== null && !isAnalyzing}>
         {/* Hero Title & Subtitle */}
         <div className="home-copy text-center">
           <h1 className="hero-title font-medium tracking-tight text-white">
@@ -89,7 +97,9 @@ export default function HomePage() {
 
         <div aria-hidden="true" />
       </main>
-      {isAnalyzing && <ScanPipeline step={scanStep} repository={previewRepository} onBack={() => setIsAnalyzing(false)} />}
+      {scanState && (isAnalyzing
+        ? <ScanProgress state={scanState} step={scanStep} onBack={closeScan} />
+        : <ScanPanel state={scanState} onClose={closeScan} />)}
     </div>
     </>
   );
