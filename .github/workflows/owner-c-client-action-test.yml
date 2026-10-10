@@ -39,6 +39,12 @@ jobs:
         with:
           node-version: '22'
 
+      # The parser leaves test paths out of scope, so profile a copy of the fixtures that is not under tests/.
+      - name: Build the demo workload
+        run: |
+          mkdir demo
+          cat detectors/owner-c/tests/fixtures/real/hot.py detectors/owner-c/tests/fixtures/real/mem.py > demo/app.py
+
       - name: Serve a tiny page for Lighthouse
         run: |
           mkdir -p /tmp/site
@@ -51,6 +57,6 @@ jobs:
         uses: ./.github/actions/owner-c-profile-upload
         with:
           artifacts: speedscope,memray_stats,lighthouse
-          python-args: detectors/owner-c/tests/fixtures/real/mem.py
+          python-args: demo/app.py
           lighthouse-url: http://localhost:8765/index.html
           repository-id: github:AWS-env/owner-c-action-test
