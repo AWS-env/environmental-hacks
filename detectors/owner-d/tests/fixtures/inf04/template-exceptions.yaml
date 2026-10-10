@@ -1,0 +1,38 @@
+# Synthetic fixture (INF04-03): suppressed, conservative and unresolved cases (no findings).
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  Env:
+    Type: String
+    Default: dev
+Conditions:
+  IsProd: !Equals [!Ref Env, prod]
+Resources:
+  # Attached by the blue/green deploy script.  # noqa: INF-04
+  ReservedEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  MaybeVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      Fn::If:
+        - IsProd
+        - {AvailabilityZone: ap-south-1a, Size: 10}
+        - !Ref AWS::NoValue
+  OrderedEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  Waiter:
+    Type: AWS::CloudFormation::WaitConditionHandle
+    DependsOn: OrderedEip
+  ConditionalNat:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: subnet-0123456789abcdef0
+  Route:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: rtb-0123456789abcdef0
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !If [IsProd, !Ref ConditionalNat, !Ref "AWS::NoValue"]

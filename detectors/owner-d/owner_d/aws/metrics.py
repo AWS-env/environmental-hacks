@@ -1,9 +1,11 @@
 """CloudWatch metrics collection (read-only) and the INF-01 normalizer.
 
 Collectors (owner-d-telemetry-analyzer):
-  collect_cpu_metrics   explicit resources and/or ListMetrics discovery, then GetMetricData Average and
-                        Maximum CPUUtilization series per resource over a bounded window (source cpu_metrics)
-  collect_list_metrics  bounded ListMetrics pages for metric-inventory checks such as OBS-06 (source metrics)
+  collect_cpu_metrics         explicit resources and/or ListMetrics discovery, then GetMetricData Average and
+                              Maximum CPUUtilization series per resource over a bounded window (source cpu_metrics)
+  collect_list_metrics        bounded ListMetrics pages for metric-inventory checks such as OBS-06 (source metrics)
+  collect_invocation_metrics  GetMetricData AWS/Lambda Invocations Sum series for the Lambda functions listed in
+                              `resources` over a bounded window (source invocation_metrics, INF-04)
 
 normalize_cpu_metrics turns the cpu_metrics raw dict into the normalized CloudWatch CPU summary INF-01
 expects (detectors/owner-d/README.md, INF-01 > Input). It is pure, so it is tested without AWS.
@@ -317,5 +319,88 @@ def collect_list_metrics(event, readers, *, module=None, deadline=None):
                        "metric_name": cfg.get("metric_name"), "recently_active": recently_active,
                        "max_pages": pages},
         "counts": {"metrics": len(metrics)},
+        "limitations": notes,
+    }
+
+
+# ---- Lambda invocations (INF-04) -------------------------------------------------------------------
+
+INVOCATION_LOOKBACK_DAYS = 30  # INF-04 judges a 14-day idle span; the rest shows the function was in use
+MAX_INVOCATION_LOOKBACK_DAYS = 60
+INVOCATION_QUERIES_PER_CALL = 500  # GetMetricData query limit; one Sum query per function
+LAMBDA_ARN = re.compile(r"arn:aws[a-z-]*:lambda:[a-z0-9-]+:\d{12}:function:([A-Za-z0-9_-]{1,64})(?::[^:]+)?")
+INVOCATIONS_NOTE = ("INF-04 reads only Lambda functions listed in resources (type lambda): ListMetrics returns "
+                    "only metrics with data in the past two weeks, so it cannot discover idle functions")
+
+
+def _lambda_spec(spec):
+    """A lambda resource spec whose name is a function name: a function ARN is reduced to its name (the
+    FunctionName dimension never holds an ARN), so no account ID is queried, stored or published."""
+    if isinstance(spec, dict) and spec.get("type") == "lambda" and isinstance(spec.get("name"), str):
+        match = LAMBDA_ARN.fullmatch(spec["name"].strip())
+        if match:
+            return {**spec, "name": match.group(1)}
+    return spec
+
+
+def fetch_invocation_series(cloudwatch, resources, start, end, period, max_pages=MAX_METRIC_DATA_PAGES):
+    """Sum of AWS/Lambda Invocations per function: {id: {"timestamps", "values", "complete", "messages"}}."""
+    series = {}
+    for offset in range(0, len(resources), INVOCATION_QUERIES_PER_CALL):
+        batch = resources[offset:offset + INVOCATION_QUERIES_PER_CALL]
+        ids, queries = {}, []
+        for i, resource in enumerate(batch):
+            ids[f"inv{i}"] = resource["id"]
+            queries.append(_query(f"inv{i}", resource, "Sum", period))
+            series[resource["id"]] = {"timestamps": [], "values": [], "complete": True, "messages": []}
+        pages, more = common.paginate(cloudwatch.get_metric_data, items_key="MetricDataResults",
+                                      max_pages=max_pages, MetricDataQueries=queries, StartTime=start,
+                                      EndTime=end, ScanBy="TimestampAscending")
+        final = {}
+        for item in pages:
+            target = series[ids[item["Id"]]]
+            target["timestamps"].extend(item.get("Timestamps") or [])
+            target["values"].extend(item.get("Values") or [])
+            final[item["Id"]] = item.get("StatusCode", "Complete")
+            target["messages"].extend(m.get("Value", "") for m in item.get("Messages") or [])
+        for qid, rid in ids.items():
+            if more or final.get(qid, "Complete") != "Complete":
+                series[rid]["complete"] = False
+    return series
+
+
+def collect_invocation_metrics(event, readers, *, module=None, deadline=None):
+    """Raw dict for INF-04. Reads only explicitly listed Lambda functions; without any, nothing is called."""
+    cfg = event.get("invocations") or {}
+    if not isinstance(cfg, dict):
+        raise ValueError("invocations must be an object")
+    period = common.bounded_int(cfg.get("period_seconds"), DEFAULT_PERIOD, 3600, 86400, "invocations.period_seconds")
+    if period % 3600:
+        raise ValueError("invocations.period_seconds must be a multiple of 3600")
+    start, end = common.time_window(cfg, lookback_key="lookback_days", default=INVOCATION_LOOKBACK_DAYS,
+                                    maximum=dt.timedelta(days=MAX_INVOCATION_LOOKBACK_DAYS), unit=dt.timedelta(days=1))
+    end = dt.datetime.fromtimestamp(int(end.timestamp()) // period * period, dt.timezone.utc)
+    start = dt.datetime.fromtimestamp(int(start.timestamp()) // period * period, dt.timezone.utc)
+    explicit = event.get("resources") or []
+    if not isinstance(explicit, list) or len(explicit) > MAX_RESOURCES:
+        raise ValueError(f"resources must be a list of at most {MAX_RESOURCES} items")
+    resources = {}
+    for spec in explicit:
+        resource = parse_resource(_lambda_spec(spec))
+        if resource["type"] == "lambda":
+            resources.setdefault(resource["id"], resource)
+    resources = list(resources.values())
+    notes = [] if resources else [INVOCATIONS_NOTE]
+    series = fetch_invocation_series(readers.client("cloudwatch"), resources, start, end, period) if resources else {}
+    return {
+        "window": {"start": common.iso(start), "end": common.iso(end)},
+        "period_seconds": period,
+        "region": common.region(),
+        "resources": resources,
+        "series": series,
+        "truncated": any(not item["complete"] for item in series.values()),
+        "collection": {"source": "cloudwatch-getmetricdata", "metric": "AWS/Lambda Invocations", "stat": "Sum",
+                       "period_seconds": period, "lookback_days": round((end - start).total_seconds() / 86400, 2)},
+        "counts": {"resources": len(resources), "with_invocation_series": len(series)},
         "limitations": notes,
     }

@@ -236,7 +236,7 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(wired, {"INF-01": ("cpu_metrics", None), "OBS-06": ("metrics", "list_metrics"),
                                  "OBS-07": ("log_groups", "describe_log_groups"), "OBS-11": ("logs_insights", None),
                                  "LLM-10": ("traces", "xray_traces"), "OBS-17": ("logs_insights", None),
-                                 "LLM-05": ("traces", "xray_traces")})
+                                 "LLM-05": ("traces", "xray_traces"), "INF-04": ("invocation_metrics", None)})
         for check in registry.CHECKS:
             module, normalize = registry.load(check)
             self.assertEqual(module.CHECK_ID, check.check_id)
@@ -331,10 +331,12 @@ class RealChecksThroughTheAnalyzersTests(AwsTestCase):
         self.assertEqual((entry["Source"], result["check_id"]), ("owner-d.telemetry-analyzer", "OBS-06"))
         self.assertEqual(result["findings"][0]["scope_id"], obs06.scope_id_for("OwnerD/Demo", "Latency"))
 
-    def test_telemetry_analyzer_runs_inf01_and_obs06_by_default(self):
+    def test_telemetry_analyzer_runs_inf01_obs06_and_inf04_by_default(self):
         self.fakes["cloudwatch"] = FakeCloudWatch(list_pages=[[]])
         out = telemetry_handler.lambda_handler(self.base_event(discover={}, dry_run=True))
-        self.assertEqual(sorted(s["check_id"] for s in out["skipped"]), ["INF-01", "OBS-06"])
+        self.assertEqual(sorted(s["check_id"] for s in out["skipped"]), ["INF-01", "INF-04", "OBS-06"])
+        # INF-04 reads only listed Lambda functions: with discovery alone it makes no GetMetricData call
+        self.assertFalse(any(name == "get_metric_data" for name, _ in self.fakes["cloudwatch"].calls))
 
     def test_obs07_never_expiring_large_log_group_is_published(self):
         big = {"logGroupName": "/aws/lambda/owner-d-big", "storedBytes": 5 * 1024 ** 3, "logGroupClass": "STANDARD",

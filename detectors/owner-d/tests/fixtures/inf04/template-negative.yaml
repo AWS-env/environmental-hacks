@@ -1,0 +1,97 @@
+# Synthetic fixture (INF04-02): every component is associated, referenced or exported in the template.
+AWSTemplateFormatVersion: "2010-09-09"
+Parameters:
+  HostId:
+    Type: AWS::EC2::Instance::Id
+Resources:
+  WebEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      InstanceId: !Ref HostId
+  NatEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  Nat:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: subnet-0123456789abcdef0
+      AllocationId: !GetAtt NatEip.AllocationId
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: rtb-0123456789abcdef0
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref Nat
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Subnets: [subnet-0123456789abcdef0, subnet-0fedcba9876543210]
+  HttpListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: fixed-response
+          FixedResponseConfig: {StatusCode: "200"}
+  ExportedNlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      Subnets: [subnet-0123456789abcdef0]
+  NlbEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  MappedNlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      SubnetMappings:
+        - SubnetId: subnet-0123456789abcdef0
+          AllocationId: !GetAtt [NlbEip, AllocationId]
+  MappedListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: {"Ref": "MappedNlb"}
+      Port: 443
+      Protocol: TCP
+      DefaultActions: []
+  DataVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: ap-south-1a
+      Size: 20
+  DataAttachment:
+    Type: AWS::EC2::VolumeAttachment
+    Properties:
+      InstanceId: !Ref HostId
+      VolumeId: !Ref DataVolume
+      Device: /dev/sdf
+  ScratchVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: ap-south-1a
+      Size: 10
+  Host:
+    Type: AWS::EC2::Instance
+    Properties:
+      ImageId: ami-0123456789abcdef0
+      UserData:
+        Fn::Base64: !Sub "aws ec2 attach-volume --volume-id ${ScratchVolume} --device /dev/sdg"
+  StaticEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  TransferredEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      TransferAddress: 203.0.113.10
+Outputs:
+  NlbArn:
+    Value: !Ref ExportedNlb
+    Export: {Name: shared-nlb-arn}
+  StaticIp:
+    Value: !GetAtt [StaticEip, PublicIp]

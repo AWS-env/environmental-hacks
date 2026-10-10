@@ -1,0 +1,48 @@
+{
+  "Resources": {
+    "VpcPublicSubnet1EIPD7E02669": {
+      "Type": "AWS::EC2::EIP",
+      "Properties": {
+        "Domain": "vpc"
+      },
+      "Metadata": {
+        "aws:cdk:path": "Stack/Vpc/PublicSubnet1/EIP"
+      }
+    },
+    "VpcPublicSubnet1NATGateway4D7517AA": {
+      "Type": "AWS::EC2::NatGateway",
+      "Properties": {
+        "AllocationId": {
+          "Fn::GetAtt": ["VpcPublicSubnet1EIPD7E02669", "AllocationId"]
+        },
+        "SubnetId": "subnet-0123456789abcdef0"
+      }
+    },
+    "VpcPrivateSubnet1DefaultRouteBE02A9ED": {
+      "Type": "AWS::EC2::Route",
+      "Properties": {
+        "DestinationCidrBlock": "0.0.0.0/0",
+        "NatGatewayId": {
+          "Ref": "VpcPublicSubnet1NATGateway4D7517AA"
+        },
+        "RouteTableId": "rtb-0123456789abcdef0"
+      }
+    },
+    "LogsVolume6E8A5F0C": {
+      "Type": "AWS::EC2::Volume",
+      "Properties": {
+        "AvailabilityZone": "ap-south-1a",
+        "Size": 50
+      },
+      "Metadata": {
+        "aws:cdk:path": "Stack/LogsVolume/Resource"
+      }
+    },
+    "CDKMetadata": {
+      "Type": "AWS::CDK::Metadata",
+      "Properties": {
+        "Analytics": "v2:deflate64:H4sIAAAAAAAA/zPSMzQz0DNQTCwv1k1OydbNyUzSqw4uSUzO1nFOy/MvLSkoLanVyctPSdXLKtYvMzLRMzTVM1DMKs7M1C0qzSvJzM3UCwbSAD2bNTVBAAAA"
+      }
+    }
+  }
+}

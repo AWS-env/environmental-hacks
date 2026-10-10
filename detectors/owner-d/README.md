@@ -91,7 +91,7 @@ A pair that fails is refused: it is not published and is listed under
 
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
-| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
+| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06, INF-04 |
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
 | `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12 (artifact mode) |
@@ -151,15 +151,21 @@ ID, `scope_per_payload` (1-200, default 50) and `dry_run`.
                {"type": "ecs", "cluster": "web", "service": "api"}, {"type": "lambda", "name": "orders"}],
  "discover": {"types": ["ec2", "ecs", "lambda"], "max_resources": 50, "recently_active": true, "max_pages": 5},
  "window": {"lookback_days": 15, "period_seconds": 3600},
+ "invocations": {"lookback_days": 30, "period_seconds": 3600},
  "settings": {"INF-01": {"min_window_days": 14, "min_sample_count": 100,
-                         "average_utilization_threshold": 0.1, "peak_utilization_threshold": 0.5}},
+                         "average_utilization_threshold": 0.1, "peak_utilization_threshold": 0.5},
+              "INF-04": {"min_idle_days": 14}},
  "dry_run": true}
 ```
 
 - Telemetry analyzer. INF-01 needs `resources`, `discover`, or both. `window`
   accepts `lookback_days` (default 15, at most 30) or `start`/`end`, plus
   `period_seconds` (default 3600). `list_metrics` (`namespace`,
-  `metric_name`, `max_pages` ≤ 20) feeds ListMetrics checks.
+  `metric_name`, `max_pages` ≤ 20) feeds ListMetrics checks. INF-04 reads
+  only the `lambda` entries of `resources` (a function ARN is reduced to its
+  name); `invocations` accepts `lookback_days` (default 30, at most 60) or
+  `start`/`end`, plus `period_seconds` (3600-86400, a multiple of 3600,
+  default 3600).
 - Log analyzer. `log_groups` takes `prefix`, `max_pages` (≤ 20) and
   `include_tags` (≤ 100 lookups). `logs` takes `log_groups` (exact names, at
   most 50, each must match the allowlist), `prefix`, `lookback_hours`
@@ -171,7 +177,7 @@ ID, `scope_per_payload` (1-200, default 50) and `dry_run`.
   `min_traces` of 10) and `max_pages`. Point `filter_expression` at the agent
   entrypoint, e.g. `service("agent-fn")`, so the traces read are the ones
   LLM-10 and LLM-05 can analyze. Both checks share one collection.
-- `{"probe": ["cpu_metrics" | "metrics" | "log_groups" | "logs_insights" | "traces"], "role_arn": ...}`
+- `{"probe": ["cpu_metrics" | "metrics" | "invocation_metrics" | "log_groups" | "logs_insights" | "traces"], "role_arn": ...}`
   only collects. It returns counts and publishes nothing, so you can check
   IAM and the role before running checks.
 
@@ -218,7 +224,7 @@ minimum.
 ### Registered checks (one line each)
 
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
-(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11 and
+(`cpu_metrics`), OBS-06 (`metrics`), INF-04 (`invocation_metrics`), OBS-07 (`log_groups`), OBS-11 and
 OBS-17 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
@@ -231,7 +237,9 @@ TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:n
                adapter="list_metrics", defaults=OBS06_DEFAULTS),
 ```
 
-Without `checks`, the telemetry analyzer runs INF-01 and OBS-06. OBS-06 needs
+Without `checks`, the telemetry analyzer runs INF-01, OBS-06 and INF-04.
+INF-04 reads nothing (and is listed under `skipped`) unless `resources` names
+at least one Lambda function. OBS-06 needs
 `list_metrics` (for example `{"namespace": "OwnerD/Demo"}`); without it,
 ListMetrics lists every namespace. Pass `"checks": ["INF-01"]` to run only
 one of them. The log analyzer runs OBS-07, OBS-11 and OBS-17 by default.
@@ -242,6 +250,8 @@ Raw shapes:
 
 - `metrics`: `{"pages": [ListMetrics responses]}`. The last page keeps
   `NextToken` when the listing was truncated.
+- `invocation_metrics`: `{"resources", "series": {id: {"timestamps",
+  "values", "complete"}}, "period_seconds"}` (AWS/Lambda `Invocations` Sum).
 - `log_groups`: `{"pages": [DescribeLogGroups responses], "logGroups": [...],
   "tags": {name: tags} | None}`.
 - `logs_insights`: `{"rows", "statistics", "log_groups", "query"}`. The check
@@ -3772,6 +3782,154 @@ successor is offered in the project's Region.
 ```bash
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/inf07/inf07-01-positive-input.json
+```
+
+## INF-04 — Unused/no-use components kept running
+
+Flags components that are deployed but not used. One module (`inf04.py`)
+has two modes, chosen by the payload's scope, following INF-07 and OBS-15
+(issue #171, OQ-7):
+
+- **Static IaC proxy** (`file:<path>` scope, repository scans). Proves
+  "declared and unreferenced": a template or Terraform module declares a
+  billable component that nothing in it uses. It does not prove runtime
+  idleness, because another stack, a script, a lookup by name or tag, or the
+  console may still use the component.
+- **Telemetry mode** (`resource:lambda/<function>` scope, the
+  `owner-d-telemetry-analyzer`). Proves "no invocations for at least
+  `min_idle_days`" from CloudWatch `AWS/Lambda` `Invocations`. It does not
+  prove that the function is unneeded (rare schedules, disaster recovery) or
+  that it still exists.
+
+### Input (static mode)
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item:
+
+- **CloudFormation/SAM** `.yaml`/`.yml`/`.json`/`.template`, including
+  CDK-synthesized `cdk.out/*.template.json`. The template reader and its
+  exclusions are INF-07's (`inf07.parse`, `owner_d/miniyaml.py`).
+- **Terraform** `.tf` (the minimal HCL reader from `obs10.py`). Every `.tf`
+  file is in scope, because references usually live in other files of the
+  module. The `.tf` files of one directory are judged together.
+- **Terraform JSON** `.tf.json` is read only for references to resources in
+  the `.tf` files of its directory. Its own resources are not judged, so it is
+  listed as not evaluated.
+
+No context settings are used in static mode.
+
+### Detection rule (static mode)
+
+| Component | CloudFormation type | Terraform type | Flagged when |
+| --- | --- | --- | --- |
+| Elastic IP | `AWS::EC2::EIP` | `aws_eip` | no `InstanceId` (`instance`/`network_interface`) and nothing references it |
+| NAT gateway | `AWS::EC2::NatGateway` | `aws_nat_gateway` | nothing references it, so no route sends traffic through it |
+| Load balancer | `AWS::ElasticLoadBalancingV2::LoadBalancer` | `aws_lb`, `aws_alb` | nothing references it, so no listener can serve traffic |
+| EBS volume | `AWS::EC2::Volume` | `aws_ebs_volume` | nothing references it, so no attachment uses it |
+
+All four bill by the hour or by provisioned size whether used or not. What
+counts as a reference is deliberately broad, so false positives stay low:
+
+- **CloudFormation**: any `Ref`, `Fn::GetAtt` (`X.Attr` or `[X, Attr]`),
+  `Fn::Sub` `${X}`/`${X.Attr}`, `DependsOn` or other value naming the logical
+  ID, in another resource or in any other section (`Outputs`, `Conditions`,
+  ...). An exported `Output` therefore counts as use by another stack.
+- **Terraform**: any `<type>.<name>` expression (e.g. `aws_nat_gateway.main.id`)
+  in any `.tf`/`.tf.json` file of the same directory outside the resource's own
+  block, including outputs and comments. `data.<type>.<name>` is not a
+  reference to the resource. A reference from another directory does not
+  count; resources are shared across modules through outputs.
+
+Identity: `<LogicalId>:unreferenced` or `<type>.<name>:unreferenced`.
+Evidence: the logical-ID..`Type` lines, or the Terraform `resource` line.
+
+| Confidence | When |
+| --- | --- |
+| medium | the component is declared unconditionally and nothing references it |
+| low | a CloudFormation `Condition` (it may not be created), a load balancer with an explicit `Name` (another stack can look it up by name), or Terraform `count`/`for_each` |
+
+Not flagged:
+
+- `# noqa` / `# noqa: INF-04` on the cited line or in the comment lines
+  directly above the resource (YAML and Terraform). Use it for components
+  attached by scripts or other tools.
+- An EIP with `InstanceId` or `TransferAddress` (`instance` or
+  `network_interface` in Terraform); Terraform `count = 0`.
+- `Properties` wrapped in `Fn::If` (not resolved).
+- References that exist but serve nothing, e.g. a load balancer referenced
+  only by a DNS record. The proxy does not judge whether a reference is a
+  real consumer.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- invalid JSON, YAML outside the miniyaml subset, Terraform outside the
+  minimal HCL reader. A `.tf` file that cannot be parsed makes every `.tf`
+  file of its directory not evaluated, because its references are unknown.
+- templates with a macro `Transform` other than
+  `AWS::Serverless-2016-10-31`/`AWS::LanguageExtensions`, or with
+  `Fn::Transform`/`AWS::Include` or `Fn::ForEach`
+- YAML/JSON without CloudFormation `Resources` (e.g. Kubernetes manifests),
+  CDK source code (synthesize it first), Pulumi and Serverless Framework files
+- other resource types: Auto Scaling groups and ECS services with a fixed
+  desired count, provisioned concurrency, target groups and VPC endpoints.
+  Nothing in a template shows whether they are used (workers pull from queues,
+  functions are invoked by name), so they would be false-positive prone.
+
+### Telemetry mode
+
+`metrics.collect_invocation_metrics` (source `invocation_metrics`) reads
+`GetMetricData` `AWS/Lambda` `Invocations` (`Sum`, hourly by default) over 30
+days for the Lambda functions listed in the event's `resources`. It uses only
+`cloudwatch:GetMetricData`, which the `owner-d-telemetry-readonly` role
+already has. The role has no `lambda:ListFunctions`, and `ListMetrics` returns
+only metrics with data in the past two weeks, so idle functions cannot be
+discovered. List them explicitly, for example from the IaC template. Without
+any listed function the collector makes no AWS call and the check is skipped.
+
+`inf04.normalize_invocation_metrics` is pure. It reduces a function ARN to the
+function name, so no account ID or ARN reaches a scope ID, locator or data
+field. Per function it emits `window_days` (requested window),
+`total_invocations`, `datapoint_count`, `last_invoked_period` (start of the
+last period with invocations, or `null`), `idle_days` (window end minus the
+end of that period; the whole window when every datapoint is zero) and
+`idle_period_datapoints` (zero-valued datapoints after the last invocation).
+
+| Outcome | When |
+| --- | --- |
+| finding | `idle_days >= min_idle_days` |
+| evaluated, clean | invoked within the last `min_idle_days` |
+| not evaluated | window shorter than `min_idle_days`; no datapoint at all (Lambda publishes `Invocations` only when a function runs, so the function was not invoked or does not exist under that name); GetMetricData data cut off or incomplete |
+
+Confidence is `medium` when zero-valued datapoints after the last invocation
+show the metric is still published (the function exists), and `low`
+otherwise, because a deleted function also stops publishing. Evidence cites
+`total_invocations`, `idle_days`, `window_days`, `datapoint_count` and
+`last_invoked_period`.
+
+### Context settings (telemetry mode; optional)
+
+| Key | Meaning | Reference |
+| --- | --- | --- |
+| `min_idle_days` | Minimum window and trailing span without invocations | `14` |
+
+The analyzer passes the reference from `owner_d/aws/registry.py`
+(`INF04_DEFAULTS`). A payload without it uses 14. An invalid value makes the
+result `unavailable`.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/inf04/inf04-01-positive-input.json
+```
+
+Telemetry mode through the analyzer (read only, publishes nothing):
+
+```json
+{"repository_id": "github:AWS-env/example", "commit_sha": "<40 hex>", "checks": ["INF-04"],
+ "role_arn": "<ReadOnlyRoleArn stack output>", "resources": [{"type": "lambda", "name": "orders"}],
+ "invocations": {"lookback_days": 30}, "dry_run": true}
 ```
 
 ## OBS-10 — Filtering after ingestion

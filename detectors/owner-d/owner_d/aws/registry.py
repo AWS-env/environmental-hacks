@@ -4,6 +4,8 @@ Each analyzer collects one or more raw *sources*:
 
     source         analyzer                     raw dict passed to the normalizer
     cpu_metrics    owner-d-telemetry-analyzer   resources + GetMetricData Average/Maximum series (INF-01)
+    invocation_metrics owner-d-telemetry-analyzer listed Lambda functions + GetMetricData Invocations Sum
+                                                series (INF-04)
     metrics        owner-d-telemetry-analyzer   {"pages": [raw ListMetrics responses], "Metrics": [...], ...}
     log_groups     owner-d-log-analyzer         {"pages": [raw DescribeLogGroups responses],
                                                  "logGroups": [entries, ARNs removed],
@@ -31,8 +33,8 @@ by scope or resource) are wired through an ``adapter`` (ADAPTERS below), which b
 sources with account-free locators: ``list_metrics`` (OBS-06), ``describe_log_groups`` (OBS-07) and
 ``xray_traces`` (LLM-10 and LLM-05: ``fn(Traces)`` plus the module's ``telemetry_sources``).
 
-Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07, OBS-11, LLM-10, OBS-17 and LLM-05 are
-registered below).
+Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07, OBS-11, LLM-10, OBS-17, LLM-05 and
+INF-04 are registered below).
 """
 from __future__ import annotations
 
@@ -42,7 +44,7 @@ from dataclasses import dataclass, field
 
 from owner_d.aws.common import accepts_settings
 
-SOURCES = ("cpu_metrics", "metrics", "log_groups", "logs_insights", "traces")
+SOURCES = ("cpu_metrics", "metrics", "log_groups", "logs_insights", "traces", "invocation_metrics")
 
 INF01_DEFAULTS = {  # reference values from the INF-01 section of detectors/owner-d/README.md
     "min_window_days": 14,
@@ -70,6 +72,8 @@ LLM05_DEFAULTS = {  # LLM-05 reference values (owner_d.llm05.REFERENCE_SETTINGS,
     "min_repeat_share": 0.5,
 }
 
+INF04_DEFAULTS = {"min_idle_days": 14}  # INF-04 telemetry-mode reference value (README "INF-04")
+
 
 @dataclass(frozen=True)
 class TelemetryCheck:
@@ -94,6 +98,7 @@ CHECKS = (
     TelemetryCheck("OBS-17", "owner_d.obs17", "logs_insights", defaults=OBS17_DEFAULTS),
     TelemetryCheck("LLM-05", "owner_d.llm05", "traces", normalizer="owner_d.llm05:normalize_xray_traces",
                    adapter="xray_traces", defaults=LLM05_DEFAULTS),
+    TelemetryCheck("INF-04", "owner_d.inf04", "invocation_metrics", defaults=INF04_DEFAULTS),
 )
 
 

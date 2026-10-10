@@ -1,0 +1,35 @@
+# Synthetic fixture (INF04-01): billable components declared but referenced by nothing in the template.
+AWSTemplateFormatVersion: "2010-09-09"
+Conditions:
+  CreateSpare: !Equals [!Ref "AWS::Region", ap-south-1]
+Resources:
+  OrphanEip:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  IdleNat:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: subnet-0123456789abcdef0
+      AllocationId: eipalloc-0123456789abcdef0
+  PublicAlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Subnets: [subnet-0123456789abcdef0, subnet-0fedcba9876543210]
+  NamedNlb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: shared-nlb
+      Type: network
+      Subnets: [subnet-0123456789abcdef0]
+  DataVolume:
+    Type: AWS::EC2::Volume
+    Properties:
+      AvailabilityZone: ap-south-1a
+      Size: 100
+  SpareEip:
+    Type: AWS::EC2::EIP
+    Condition: CreateSpare
+    Properties:
+      Domain: vpc
