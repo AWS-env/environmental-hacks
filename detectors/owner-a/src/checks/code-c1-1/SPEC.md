@@ -31,5 +31,5 @@
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809).
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809).
 - **Finding:** Removing unused heavy imports demonstrated significant measurable reductions in process energy and cold-start execution duration.

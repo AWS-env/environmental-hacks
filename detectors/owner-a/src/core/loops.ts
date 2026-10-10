@@ -64,7 +64,7 @@ export const VOLATILE_CALLS = new Set<string>([
   "get_random_bytes",
 ]);
 
-export type SetupSignal = "compile" | "connection" | "file-open";
+export type SetupSignal = "compile" | "cached-compile" | "connection" | "file-open";
 
 /**
  * Heavy (Tier A) setup callees owned by C3.3 (#62, per-iteration setup), keyed by

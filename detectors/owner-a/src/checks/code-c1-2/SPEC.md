@@ -55,6 +55,6 @@ since the taxonomy notes the waste matters mainly inside hot loops.
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809).
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809).
 - **Finding:** Redundant statements leave state unchanged yet still execute; each is negligible alone, but inside hot loops the wasted work scales with the trip count.
 - **Sanity scan:** run over the CPython 3.13 standard library (633 non-test modules) it yields one finding, a true positive (`unittest/mock.py`: `remove_magics = set()` overwritten on the next line); the module-level `TimeoutError = TimeoutError` re-exports it surfaced before the S1 scope rule are now excluded.

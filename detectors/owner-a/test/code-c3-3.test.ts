@@ -40,12 +40,31 @@ describe("CODE-C3.3 Inefficient per-iteration setup detector", () => {
       }
     });
 
-    it("S1 compile: Medium severity, High confidence, heavy tier", () => {
+    it("S1b re.compile: Low severity, Medium confidence, light tier (re caches compiled patterns)", () => {
       const compiles = byFactory("re.compile");
       expect(compiles).toHaveLength(2);
-      expect(compiles[0].severity).toBe("medium");
-      expect(compiles[0].confidence).toBe("high");
-      expect(compiles[0].evidence.costTier).toBe("heavy");
+      expect(compiles[0].severity).toBe("low");
+      expect(compiles[0].confidence).toBe("medium");
+      expect(compiles[0].evidence.costTier).toBe("light");
+      expect(compiles[0].why).toMatch(/caches recently compiled patterns/);
+      expect(compiles[0].evidence.symbol).toBe("rx");
+      expect(compiles[0].evidence.snippet).toBe("rx = re.compile(rule)");
+    });
+
+    it("S1 compile: other compilers keep Medium severity, High confidence, heavy tier", () => {
+      const src =
+        "import regex\nimport jinja2\nrule = 'x+'\nfor line in lines:\n    a = regex.compile(rule)\n    t = jinja2.Template(rule)\n    c = compile(rule, 'f', 'exec')\n";
+      const found = run(src);
+      expect(found.map((f) => f.evidence.factory).sort()).toEqual(["compile", "jinja2.Template", "regex.compile"]);
+      for (const f of found) {
+        expect(f.severity).toBe("medium");
+        expect(f.confidence).toBe("high");
+        expect(f.evidence.costTier).toBe("heavy");
+      }
+    });
+
+    it("S1 compile: heavy-tier details", () => {
+      const compiles = byFactory("re.compile");
       expect(compiles[0].evidence.symbol).toBe("rx");
       expect(compiles[0].evidence.snippet).toBe("rx = re.compile(rule)");
       // Aliased import resolves to the qualified template class.

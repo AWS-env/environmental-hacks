@@ -114,6 +114,49 @@ function isInAssignmentTargetPosition(node: Parser.SyntaxNode): boolean {
   return false;
 }
 
+/**
+ * The expression sits in a `return`, or in a `raise` that no `try` inside the loop body can catch:
+ * control leaves the loop there, so it is evaluated at most once per loop, not once per iteration.
+ */
+function isInLoopExitStatement(node: Parser.SyntaxNode, loopBody: Parser.SyntaxNode): boolean {
+  let exit: "return" | "raise" | null = null;
+  for (let curr: Parser.SyntaxNode | null = node; curr && curr.id !== loopBody.id; curr = curr.parent) {
+    if (curr.type === "return_statement") exit = "return";
+    else if (curr.type === "raise_statement") exit = "raise";
+    else if (exit === "raise" && curr.type === "try_statement") exit = null; // may be caught: loop can continue
+  }
+  return exit !== null;
+}
+
+/** Statement-level calls that cannot change program state the invariant expression could depend on. */
+const STATE_NEUTRAL_STATEMENT_CALLS = new Set(["print"]);
+
+/**
+ * The loop body makes a zero-argument bare-name statement-level call (`reset_mocks()`, `refresh()`).
+ * A function that takes nothing can only act through closure or global state, which is invisible
+ * here, so an expression that looks invariant may not be. Calls with arguments are not treated this
+ * way (nearly every loop has one, and the arguments show what they touch). Returns the callee name, or null.
+ */
+function opaqueStatementCall(loopBody: Parser.SyntaxNode): string | null {
+  let found: string | null = null;
+  const visit = (n: Parser.SyntaxNode) => {
+    if (found || n.type === "function_definition" || n.type === "class_definition" || n.type === "lambda") return;
+    if (n.type === "expression_statement") {
+      let expr: Parser.SyntaxNode | null = n.namedChildren[0] ?? null;
+      if (expr?.type === "await") expr = expr.namedChildren[0] ?? null;
+      const fn = expr?.type === "call" ? expr.childForFieldName("function") : null;
+      const noArgs = (expr?.childForFieldName("arguments")?.namedChildren.length ?? 0) === 0;
+      if (fn?.type === "identifier" && noArgs && !STATE_NEUTRAL_STATEMENT_CALLS.has(fn.text)) {
+        found = fn.text;
+        return;
+      }
+    }
+    for (const c of n.namedChildren) visit(c);
+  };
+  visit(loopBody);
+  return found;
+}
+
 /** Number of attribute/subscript hops from the root object (`a.b["c"]` → 2). */
 function chainDepth(node: Parser.SyntaxNode): number {
   let depth = 0;
@@ -137,6 +180,11 @@ function checkCandidateInvariance(
   aliases: ReadonlyMap<string, string>
 ): InvariantCandidate | null {
   if (isInCalleePosition(node)) {
+    return null;
+  }
+
+  // Evaluated at most once per loop (control leaves the loop there): not a per-iteration recomputation.
+  if (loop.bodyNode && isInLoopExitStatement(node, loop.bodyNode)) {
     return null;
   }
 
@@ -207,15 +255,26 @@ function checkCandidateInvariance(
 
     const expr = node.text.replace(/\s+/g, " ").trim();
 
+    const limitations = ["hoist only if side-effect free — verify callee purity"];
+    let confidence: Confidence = "medium";
+    const opaque = loop.bodyNode ? opaqueStatementCall(loop.bodyNode) : null;
+    if (opaque) {
+      // The loop also calls `opaque()`, which can change closure/global state this call depends on.
+      confidence = "low";
+      limitations.push(
+        `the loop also calls \`${opaque}()\`, whose effect on state this expression reads is not visible statically`
+      );
+    }
+
     return {
       node,
       signalType: "call",
       symbol,
       expr,
       severity: "medium",
-      confidence: "medium",
+      confidence,
       why: `Invariant call \`${expr}\` is recomputed on each iteration of the loop but its operands are defined outside the loop and never modified.`,
-      limitations: ["hoist only if side-effect free — verify callee purity"],
+      limitations,
     };
   }
 
@@ -441,7 +500,7 @@ export function detectLoopInvariants(
               {
                 id: "SRC-01",
                 title:
-                  "Watts This Smell: An Empirical Study on Energy Smells in Python Software",
+                  "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
                 url: "https://arxiv.org/abs/2604.04809",
               },
               {

@@ -145,6 +145,47 @@ describe("CODE-C3.2 Recomputing loop-invariant detector", () => {
     });
   });
 
+  describe("Real-repo regressions (2026-10-10, aiohttp)", () => {
+    const run = (src: string) => checkCodeC32(parsePythonSource("a.py", src));
+
+    it("does not flag expressions in a `raise` or `return` (evaluated at most once per loop)", () => {
+      expect(run("def f(items, limit):\n    for x in items:\n        if x:\n            raise make_error(limit)\n")).toEqual([]);
+      expect(run("def f(items, cfg):\n    for x in items:\n        if x:\n            return compute_rate(cfg)\n")).toEqual([]);
+    });
+
+    it("still flags a `raise` that a try inside the loop can catch (the loop continues)", () => {
+      const src =
+        "def f(items, limit):\n    for x in items:\n        try:\n            raise make_error(limit)\n        except ValueError:\n            continue\n";
+      expect(run(src).map((f) => f.evidence.expr)).toEqual(["make_error(limit)"]);
+    });
+
+    it("still flags the same call when it runs every iteration (twin of the raise case)", () => {
+      const src = "def f(items, limit):\n    for x in items:\n        y = make_error(limit)\n        use(x, y)\n";
+      expect(run(src).map((f) => f.evidence.expr)).toEqual(["make_error(limit)"]);
+    });
+
+    it("lowers confidence when the loop also calls a bare-name function that may change state", () => {
+      const src = "def f(items, mock):\n    for x in items:\n        reset_mocks()\n        y = to_urls(mock)\n        use(x, y)\n";
+      const found = run(src);
+      expect(found).toHaveLength(1);
+      expect(found[0].confidence).toBe("low");
+      expect(found[0].limitations.join(" ")).toMatch(/reset_mocks\(\)/);
+    });
+
+    it("keeps medium confidence when the statement-level calls are print() or take arguments", () => {
+      const src = "def f(items, cfg):\n    for x in items:\n        print(x)\n        y = to_urls(cfg)\n        use(x, y)\n";
+      const found = run(src);
+      expect(found).toHaveLength(1);
+      expect(found[0].confidence).toBe("medium");
+      expect(run("def f(items, cfg):\n    for x in items:\n        print()\n        y = to_urls(cfg)\n        use(x, y)\n")[0].confidence).toBe("medium");
+    });
+
+    it("lowers confidence for a zero-argument call even when awaited", () => {
+      const src = "async def f(items, cfg):\n    for x in items:\n        await refresh()\n        y = to_urls(cfg)\n        use(x, y)\n";
+      expect(checkCodeC32(parsePythonSource("a.py", src))[0].confidence).toBe("low");
+    });
+  });
+
   describe("Robustness against syntax errors and empty files", () => {
     it("gracefully returns zero findings on invalid Python syntax without throwing", () => {
       const findings = runCheckOnFixture("syntax_error.py");

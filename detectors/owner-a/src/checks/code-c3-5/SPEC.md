@@ -73,5 +73,5 @@ Line numbers stay out of the hash.
 
 ## Evidence & Citations
 
-- **Source:** SRC-01: *Watts This Smell: An Empirical Study on Energy Smells in Python Software* (arXiv:2604.04809) — C3.S5 "Failing to exit early after determining the required result".
+- **Source:** SRC-01: *Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells* (arXiv:2604.04809) — C3.S5 "Failing to exit early after determining the required result".
 - **Taxonomy caveat:** "Matters when match is common/early" — findings never quantify savings.

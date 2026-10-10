@@ -13,7 +13,7 @@ const DETECTOR_VERSION = "0.1.0";
 const SRC01_REFERENCE = {
   id: "SRC-01",
   title:
-    "Watts This Smell: An Empirical Study on Energy Smells in Python Software",
+    "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
   url: "https://arxiv.org/abs/2604.04809",
 };
 
