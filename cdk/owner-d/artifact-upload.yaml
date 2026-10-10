@@ -1,0 +1,246 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Owner D artifact upload endpoint: POST /artifacts/presign (API Gateway HTTP API) -> owner-d-artifact-presign
+  verifies the caller's GitHub Actions OIDC token and returns short-lived presigned S3 POSTs into the private
+  bucket owner-d-artifacts-<account>-<region>. S3 "Object Created" events go to EventBridge (default bus) for
+  any owner's parser. Never executes uploaded content. See hub/README.md.
+
+Metadata:
+  com.aws.cloudformation.Context:
+    arch: >-
+      client GitHub Actions job (OIDC token, audience OidcAudience) -> HTTP API POST /artifacts/presign ->
+      owner-d-artifact-presign (JWKS RS256 + iss/aud/exp + repository allowlist) -> presigned POST per artifact
+      (exact key, content-length-range, 15 min) -> client uploads to S3 uploads/<repo>/<sha>/<run>-<attempt>/ ->
+      S3 Object Created -> EventBridge default bus -> owner parsers (subscribe with their own rules)
+    must:
+      - "all resources prefixed owner-d- & tagged owner=D (docs/aws_service_mapping_v1.6.md guardrails)"
+      - "ap-south-1 only (project selected Region): the ProjectRegionOnly rule refuses any other Region"
+      - "presigned POSTs inherit the presign role: s3:PutObject on uploads/* only, nothing else"
+      - "the key prefix comes from verified token claims, never from the request body"
+      - "no reserved concurrency: the project's Lambda concurrency quota is 10, so Lambda refuses any reservation"
+      - "the bucket is retained when the stack is deleted (artifacts are kept); delete it by hand to clean up"
+    ref:
+      - docs/ARCHITECTURE_FLOWS.md
+      - hub/README.md
+    owner: Prakharrdev
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: S3 bucket (in this Region) holding the zip built by scripts/build-owner-d-artifact-upload.sh.
+  CodeKey:
+    Type: String
+    Description: S3 key of the zip; the content-hashed name makes every build redeploy.
+  OidcAudience:
+    Type: String
+    Default: owner-d-artifact-upload
+    AllowedPattern: "[A-Za-z0-9._:/-]{3,128}"
+    Description: The `aud` that callers request for their GitHub Actions OIDC token.
+  AllowedRepositories:
+    Type: String
+    Default: AWS-env/*
+    AllowedPattern: "[A-Za-z0-9._/*, -]{1,2000}"
+    Description: >-
+      Comma-separated GitHub repositories allowed to upload: `owner/repo`, or `owner/*` for all of an owner's
+      repositories. Matched case-insensitively against the token's `repository` claim.
+  MaxArtifactMiB:
+    Type: Number
+    Default: 25
+    MinValue: 1
+    MaxValue: 100
+    Description: Largest single upload (enforced by the presigned POST policy).
+  ArtifactRetentionDays:
+    Type: Number
+    Default: 90
+    MinValue: 1
+    MaxValue: 365
+    Description: Days before objects under uploads/ expire.
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14]
+
+Rules:
+  ProjectRegionOnly:
+    Assertions:
+      - Assert: !Equals [!Ref "AWS::Region", ap-south-1]
+        AssertDescription: Deploy in the project Region (ap-south-1) only.
+
+Resources:
+  # ---- storage -----------------------------------------------------------------------------------
+  ArtifactBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "landing zone for client-CI artifacts (profiles, test timings, coverage, bundle stats); parse-only"
+    Properties:
+      BucketName: !Sub "owner-d-artifacts-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-uploads
+            Status: Enabled
+            Prefix: uploads/
+            ExpirationInDays: !Ref ArtifactRetentionDays
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+      NotificationConfiguration:
+        EventBridgeConfiguration:
+          EventBridgeEnabled: true
+      Tags:
+        - { Key: owner, Value: D }
+
+  ArtifactBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt ArtifactBucket.Arn
+              - !Sub "${ArtifactBucket.Arn}/*"
+            Condition:
+              Bool:
+                "aws:SecureTransport": "false"
+
+  # ---- presign function --------------------------------------------------------------------------
+  PresignLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-d-artifact-presign
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: D }
+
+  PresignRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "signs 15-minute presigned POSTs; every presigned POST inherits exactly these permissions"
+    Properties:
+      RoleName: owner-d-artifact-presign-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-d-artifact-presign
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: [logs:CreateLogStream, logs:PutLogEvents]
+                Resource: !Sub "${PresignLogGroup.Arn}:*"
+              - Sid: UploadsOnly
+                Effect: Allow
+                Action: s3:PutObject
+                Resource: !Sub "arn:${AWS::Partition}:s3:::owner-d-artifacts-${AWS::AccountId}-${AWS::Region}/uploads/*"
+      Tags:
+        - { Key: owner, Value: D }
+
+  PresignFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: owner-d-artifact-presign
+      Description: GitHub Actions OIDC token -> presigned S3 POSTs into owner-d-artifacts uploads/ (15 min, size-capped).
+      Runtime: python3.12
+      Architectures: [arm64]
+      Handler: artifact_upload.api.handler
+      Role: !GetAtt PresignRole.Arn
+      MemorySize: 256
+      Timeout: 10
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      Environment:
+        Variables:
+          ALLOWED_REGION: ap-south-1
+          ARTIFACT_BUCKET: !Ref ArtifactBucket
+          OIDC_AUDIENCE: !Ref OidcAudience
+          ALLOWED_REPOSITORIES: !Ref AllowedRepositories
+          MAX_ARTIFACT_MIB: !Ref MaxArtifactMiB
+      LoggingConfig:
+        LogGroup: !Ref PresignLogGroup
+      Tags:
+        - { Key: owner, Value: D }
+
+  # ---- HTTP API ----------------------------------------------------------------------------------
+  HttpApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: owner-d-artifact-upload
+      Description: Presigned artifact uploads for client CI (GitHub Actions OIDC).
+      ProtocolType: HTTP
+      Tags:
+        owner: D
+
+  PresignIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt PresignFunction.Arn
+      PayloadFormatVersion: "2.0"
+      TimeoutInMillis: 10000
+
+  PresignRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: POST /artifacts/presign
+      Target: !Sub "integrations/${PresignIntegration}"
+
+  ApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    DependsOn: PresignRoute
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: $default
+      AutoDeploy: true
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 5
+        ThrottlingRateLimit: 2
+      Tags:
+        owner: D
+
+  ApiInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref PresignFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${HttpApi}/*/POST/artifacts/presign"
+
+Outputs:
+  ArtifactUploadUrl:
+    Description: "POST here with `Authorization: Bearer <GitHub Actions OIDC token>`."
+    Value: !Sub "https://${HttpApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/artifacts/presign"
+  OidcAudience:
+    Value: !Ref OidcAudience
+  ArtifactBucketName:
+    Value: !Ref ArtifactBucket
+  PresignFunctionName:
+    Value: !Ref PresignFunction

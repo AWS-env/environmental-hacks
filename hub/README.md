@@ -111,8 +111,59 @@ aws cloudformation deploy --stack-name owner-d-findings-hub \
 The `findings-hub` bus already exists outside this stack. The stack only
 references it by name.
 
+## Artifact upload endpoint
+
+Client CI uploads artifacts such as profiler output, test timings, coverage and bundle stats through
+`POST /artifacts/presign` (stack `owner-d-artifact-upload`, template
+[`cdk/owner-d/artifact-upload.yaml`](../cdk/owner-d/artifact-upload.yaml), code
+[`artifact_upload/api.py`](artifact_upload/api.py)).
+
+1. The GitHub Actions job requests an OIDC token with the audience `owner-d-artifact-upload` and sends it as
+   `Authorization: Bearer <token>`, with the body `{"artifacts": ["cpuprofile.json", "junit.xml"]}`.
+2. `owner-d-artifact-presign` checks the token:
+   - its signature against GitHub's JWKS, with RS256 only;
+   - its issuer, audience and expiry;
+   - its `repository`, which must match `AllowedRepositories` (default `AWS-env/*`).
+3. It returns one presigned POST per name. Each is valid for 15 minutes and is pinned to one exact key and
+   to the `MaxArtifactMiB` size limit (default 25). The keys come from the token's claims, never from the
+   body: `uploads/github%3A<owner>%2F<repo>/<sha>/<run_id>-<run_attempt>/<name>`.
+4. The job uploads each file directly to the private `owner-d-artifacts-<account>-ap-south-1` bucket. Uploads
+   are kept for `ArtifactRetentionDays` (default 90). S3 sends `Object Created` events to the default
+   EventBridge bus, so a parser subscribes with its own rule on `detail.bucket.name`.
+
+```yaml
+# client workflow
+permissions:
+  id-token: write
+  contents: read
+steps:
+  - run: |
+      token=$(curl -sfH "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+        "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=owner-d-artifact-upload" | jq -r .value)
+      curl -sf -X POST "$ARTIFACT_UPLOAD_URL" -H "Authorization: Bearer $token" \
+        -d '{"artifacts":["junit.xml"]}' > presign.json
+      args=$(jq -r '.uploads["junit.xml"].fields | to_entries[] | "-F \(.key)=\(.value)"' presign.json)
+      curl -sf $args -F file=@junit.xml "$(jq -r '.uploads["junit.xml"].url' presign.json)"
+```
+
+Responses: `401` for a missing, expired or invalid token; `403` for a repository not on the allowlist;
+`400` for a bad body; `503` when GitHub's keys can't be fetched. Tokens and presigned fields are never logged.
+
+```bash
+./scripts/build-owner-d-artifact-upload.sh  # prints cdk/owner-d/build/owner-d-artifact-upload-<sha>.zip
+aws s3 cp <zip> s3://owner-d-deploy-<account>-ap-south-1/
+aws cloudformation deploy --stack-name owner-d-artifact-upload \
+  --template-file cdk/owner-d/artifact-upload.yaml --capabilities CAPABILITY_NAMED_IAM \
+  --tags owner=D project=environmental-hacks \
+  --parameter-overrides CodeBucket=owner-d-deploy-<account>-ap-south-1 CodeKey=<zip name>
+```
+
+The bucket is retained when the stack is deleted. To clean up, empty and delete
+`owner-d-artifacts-<account>-ap-south-1` by hand after `aws cloudformation delete-stack`.
+
 ## Tests
 
 ```bash
+python -m pip install -r hub/artifact_upload/requirements.txt  # PyJWT[crypto] for the upload endpoint
 PYTHONPATH=hub python -m unittest discover -s hub/tests -t hub
 ```
