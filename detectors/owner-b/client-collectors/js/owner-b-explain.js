@@ -26,6 +26,7 @@ const RULE_VERSION = 'plan-1';
 const CHECK_CONTEXTS = { // thresholds are the auditor's configured choices
   'DB-43': {min_rows_examined: 10000, min_removed_ratio: 0.9},
   'DB-45': {min_sort_space_kb: 0},
+  'DB-46': {min_inner_loops: 100, min_rows_examined: 10000},
 };
 const READ_ONLY = /^\s*\(?\s*(select|with)\b/i;
 const WRITES = /\b(insert|update|delete|merge|alter|create|drop|truncate|grant|revoke|copy|call|do|vacuum|lock|set)\b|\bfor\s+(update|share|no\s+key\s+update|key\s+share)\b|\binto\b\s+\w/i;

@@ -35,7 +35,7 @@ ORM_CHECKS = {
 }
 ORM_SUFFIXES = (".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
 # Plan checks (DB-43/45/46) evaluate client-produced EXPLAIN artifacts, never repository source.
-PLAN_CHECKS = {"DB-43", "DB-45"}
+PLAN_CHECKS = {"DB-43", "DB-45", "DB-46"}
 # Checks that apply to fewer languages than the default (DB-41: JS/TS database drivers are Promise based).
 ORM_CHECK_SUFFIXES = {"DB-41": (".py",)}
 # JavaScript/TypeScript test code (shared is_test_path only knows Python and tests/ directories).

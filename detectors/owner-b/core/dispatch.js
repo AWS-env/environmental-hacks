@@ -31,6 +31,7 @@ const orm={
   'DB-39':require('../checks/db-39'),
   'DB-43':require('../checks/db-43'),
   'DB-45':require('../checks/db-45'),
+  'DB-46':require('../checks/db-46'),
 };
 // ORM checks parse with WASM tree-sitter and return a Promise; the other checks are synchronous.
 function evaluate(input){return orm[input.check_id]?orm[input.check_id].evaluate(input):network[input.check_id]?network[input.check_id].evaluate(input):jobs[input.check_id]?jobs[input.check_id].evaluate(input):database.evaluate(input);}
