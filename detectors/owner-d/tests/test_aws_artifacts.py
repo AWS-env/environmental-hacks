@@ -6,7 +6,7 @@ from pathlib import Path
 
 from tests.aws_fakes import NOW, SHA, AwsTestCase, ClientError, FakeTable, mock_env
 from findings_hub import writer
-from owner_d.aws import artifact_handler
+from owner_d.aws import artifact_handler, common
 from shared.contracts.validation import validate
 
 BUCKET = "owner-d-artifacts-123456789012-ap-south-1"
@@ -149,6 +149,79 @@ class ArtifactParserTests(AwsTestCase):
         out = self.run_key("tst-12.json", artifact(*tests))
         self.assertEqual(out["published"], 3)
         self.assertEqual([r["scope"] for r in out["results"]], [50, 50, 20])
+
+    # ---- oversized results (#499) --------------------------------------------------------------
+
+    def published_details(self):
+        return [entry["Detail"] for entry in self.fakes["events"].entries]
+
+    def test_long_flagged_test_ids_are_split_into_smaller_results_not_raised(self):
+        tests = [dict(HEAVY, test_id=f"tests/test_{i:03d}.py::".ljust(500, "x")) for i in range(50)]
+        self.assertTrue(all(len(t["test_id"]) == 500 for t in tests))
+        out = self.run_key("tst-12.json", artifact(*tests))
+        self.assertEqual((out["outcome"], out["refused"], out["errors"]), ("evaluated", [], []))
+        self.assertGreater(out["published"], 1)
+        self.assertEqual(sum(r["scope"] for r in out["results"]), 50)
+        self.assertEqual(sum(r["findings"] for r in out["results"]), 50)
+        details = self.published_details()
+        self.assertEqual(len(details), out["published"])
+        for detail in details:
+            self.assertLessEqual(len(detail.encode("utf-8")), common.MAX_DETAIL_BYTES)
+            validate(json.loads(detail))
+        scoped = [s for d in details for s in json.loads(d)["scope"]]
+        self.assertEqual(scoped, [f"test:{t['test_id']}" for t in tests])  # every test once, in upload order
+
+    def test_a_single_item_whose_result_is_still_too_large_is_refused_not_raised(self):
+        # One `artifact:llm-16.json` scope item cannot be split; many flagged long frames make it too large.
+        frames = [{"location": f"_parse:/runner/.venv/lib/python3.12/site-packages/anthropic/{'d' * 200}/m{i}.py:7",
+                   "size": 10 ** 8} for i in range(600)]
+        out = self.run_key("llm-16.json", json.dumps({"top_allocations_by_size": frames}).encode())
+        self.assertEqual((out["outcome"], out["published"], out["results"], out["errors"]), ("evaluated", 0, [], []))
+        self.assertEqual(len(out["refused"]), 1)
+        refused = out["refused"][0]
+        self.assertEqual((refused["check_id"], refused["scope"]), ("LLM-16", 1))
+        self.assertIn("too large for one event", refused["error"])
+        self.assertEqual(self.published_details(), [])
+
+    def test_good_items_are_published_next_to_one_that_is_too_large(self):
+        route = artifact_handler.ROUTES["tst-12.json"]
+
+        def padded(data, identity):  # one test whose result alone cannot fit an event
+            module, context, scope, sources, notes = route(data, identity)
+            sources[1]["data"] = dict(sources[1]["data"], framework="f" * common.MAX_DETAIL_BYTES)
+            return module, context, scope, sources, notes
+
+        self.addCleanup(artifact_handler.ROUTES.__setitem__, "tst-12.json", route)
+        artifact_handler.ROUTES["tst-12.json"] = padded
+        tests = [dict(HEAVY, test_id=f"t::case_{i}") for i in range(3)]
+        out = self.run_key("tst-12.json", artifact(*tests))
+        self.assertEqual((out["outcome"], out["errors"]), ("evaluated", []))
+        self.assertEqual([r["scope"] for r in out["results"]], [1, 1])
+        self.assertEqual([(r["scope"], r["check_id"]) for r in out["refused"]], [(1, "TST-12")])
+        self.assertEqual(out["published"], 2)
+        self.assertEqual([json.loads(d)["scope"] for d in self.published_details()], [["test:t::case_0"],
+                                                                                      ["test:t::case_2"]])
+
+    def test_many_long_artifact_notes_are_bounded_so_results_still_fit(self):
+        long_id = "tests/test_dup.py::" + "y" * 480
+        tests = [dict(HEAVY, test_id=long_id)] * 1000 + [dict(LIGHT, test_id=f"t::case_{i}") for i in range(60)]
+        out = self.run_key("tst-12.json", artifact(*tests), dry_run=True)
+        self.assertEqual((out["refused"], out["errors"]), ([], []))
+        self.assertEqual([r["scope"] for r in out["results"]], [50, 11])
+        for result in out["result_payloads"]:
+            detail = json.dumps(result, ensure_ascii=False)
+            self.assertLessEqual(len(detail.encode("utf-8")), common.MAX_DETAIL_BYTES)
+            limitations = result["coverage"]["limitations"]
+            self.assertTrue(any("duplicate test_id" in item for item in limitations))
+            self.assertIn("more artifact note(s) omitted to keep each result within the 240000-byte event limit",
+                          limitations[-1])
+
+    def test_results_that_already_fit_are_unchanged(self):
+        tests = [dict(HEAVY, test_id=f"tests/test_{i:03d}.py::" + "x" * 100) for i in range(50)]
+        out = self.run_key("tst-12.json", artifact(*tests))
+        self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
+        self.assertEqual(out["results"], [{"check_id": "TST-12", "status": "completed", "scope": 50, "evaluated": 50,
+                                           "findings": 50}])
 
     def test_direct_invoke_replay(self):
         self.fakes["s3"].objects[PREFIX + "tst-12.json"] = artifact(HEAVY)

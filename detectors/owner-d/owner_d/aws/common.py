@@ -281,10 +281,19 @@ def ensure_bus(bus_name):
     _verified_buses.add(bus_name)
 
 
+def event_detail(result):
+    """The PutEvents Detail string for one contract result."""
+    return json.dumps(result, ensure_ascii=False, allow_nan=False)
+
+
+def fits_one_event(result):
+    return len(event_detail(result).encode("utf-8")) <= MAX_DETAIL_BYTES
+
+
 def event_entries(results, *, bus_name, source):
     entries = []
     for result in results:
-        detail = json.dumps(result, ensure_ascii=False, allow_nan=False)
+        detail = event_detail(result)
         if len(detail.encode("utf-8")) > MAX_DETAIL_BYTES:
             raise RuntimeError(f"{result['check_id']} result is too large for one event; lower scope_per_payload")
         entries.append({"Source": source, "DetailType": DETAIL_TYPE, "EventBusName": bus_name, "Detail": detail})
