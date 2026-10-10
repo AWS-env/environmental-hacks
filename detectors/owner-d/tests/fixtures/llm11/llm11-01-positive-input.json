@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm11-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "LLM-11",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "\"\"\"Synthetic LLM-11 positives: whole corpora re-embedded on every run, identical requests per loop element.\"\"\"\n\nimport glob\nimport json\nimport os\n\nimport boto3\nfrom langchain_chroma import Chroma\nfrom langchain_community.document_loaders import DirectoryLoader\nfrom langchain_community.vectorstores import FAISS\nfrom langchain_openai import OpenAIEmbeddings\nfrom langchain_text_splitters import RecursiveCharacterTextSplitter\nfrom llama_index.core import SimpleDirectoryReader, VectorStoreIndex\nfrom openai import OpenAI\n\nclient = OpenAI()\nbedrock = boto3.client(\"bedrock-runtime\")\nembeddings = OpenAIEmbeddings()\n\n# LangChain: the app rebuilds its vector store from the docs folder at every start.\ndocs = DirectoryLoader(\"docs/\", glob=\"**/*.md\").load()\nchunks = RecursiveCharacterTextSplitter(chunk_size=1000).split_documents(docs)\nvectorstore = Chroma.from_documents(chunks, embeddings, persist_directory=\"db\")\nretriever = vectorstore.as_retriever()\n\n# LlamaIndex quick start.\ndocuments = SimpleDirectoryReader(\"data\").load_data()\nindex = VectorStoreIndex.from_documents(documents)\nquery_engine = index.as_query_engine()\n\n\ndef handler(event, context):\n    vectors = []\n    for path in glob.glob(\"/opt/corpus/*.txt\"):\n        with open(path) as handle:\n            text = handle.read()\n        response = client.embeddings.create(\n            model=\"text-embedding-3-small\",\n            input=text,\n        )\n        vectors.append(response.data[0].embedding)\n    return {\"count\": len(vectors)}\n\n\ndef sync_forever():\n    while True:\n        for name in os.listdir(\"corpus\"):\n            body = json.dumps({\"inputText\": open(os.path.join(\"corpus\", name)).read()})\n            bedrock.invoke_model(modelId=\"amazon.titan-embed-text-v2:0\", body=body)\n\n\ndef build_faq_index():\n    with open(\"faq.txt\") as handle:\n        texts = handle.read().split(\"\\n\\n\")\n    store = FAISS.from_texts(texts, embeddings)\n    return store.similarity_search(\"refund policy\")\n\n\ndef summarise_all(tickets):\n    summaries = []\n    for ticket in tickets:\n        reply = client.chat.completions.create(\n            model=\"gpt-4o-mini\",\n            messages=[{\"role\": \"user\", \"content\": \"Summarise our refund policy.\"}],\n        )\n        summaries.append(reply.choices[0].message.content)\n    return summaries\n\n\ndef draft_all(compat_client, items):\n    for item in items:\n        compat_client.chat.completions.create(model=\"m\", messages=[{\"role\": \"user\", \"content\": \"Hello\"}])\n"
+    }
+  ]
+}
