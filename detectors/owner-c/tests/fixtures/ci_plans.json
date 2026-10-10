@@ -58,5 +58,15 @@
     "context": "None.",
     "unsupported": "Matrices built at runtime; whether a combination is actually needed (wide matrices are not reported).",
     "challenge": "A deliberate duplicate axis value used as a retry slot would be reported."
+  },
+  "CI-14": {
+    "issue": 28,
+    "formats": "GitHub Actions workflow YAML.",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the `runs-on` entry.",
+    "rule": "`runs-on` is a larger-runner label (`...-N-cores`/`-Ncore` with N >= `min_oversized_cores`, or macOS `-large`/`-xlarge`) and the job is light: its id or name suggests lint/format/docs/typecheck/spell/label/stale/changelog, its name does not mention test/build/compile/clippy/bench/e2e/integration, and it runs no build or test commands (`cargo build|check|clippy|doc|nextest` count as builds). Exceptions: build/test jobs, expression `runs-on`. Confidence low: larger-runner label names are user-defined (UNVERIFIED: no official naming scheme). Real: a Go `lint` job running staticcheck and golangci-lint on 8 cores. GitHub names larger-runner labels after the runner (official examples `ubuntu-24.04-16core`, `macos-26-xlarge`); there is no official core-count scheme (verified).",
+    "identity": "`job:<job id>:runner:<label>`.",
+    "context": "`min_oversized_cores` (default 8, > 0).",
+    "unsupported": "CI-15 (runner utilization) is not implemented. Actual CPU use is not measured. Self-hosted runner sizing.",
+    "challenge": "A lint job on a 16-core runner may be the repo's only runner group with GPU/network access."
   }
 }

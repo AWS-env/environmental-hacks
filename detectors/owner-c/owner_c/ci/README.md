@@ -77,6 +77,8 @@ python -m shared.contracts.verify
   `${{ github.ref }}`). Not flagged: `workflow_call`, `pull_request_target`, `pull_request` types without
   `synchronize`, deployments, explicit `cancel-in-progress: false`, expressions.
 - **CI-13** duplicate matrix axis values and no-op `include` entries. Wide matrices are deliberately not reported.
+- **CI-14** larger runner (`-N-cores`, macOS `-large`/`-xlarge`) on a light job (lint/format/docs...; a job named with test/build/clippy is not light). Low confidence:
+  larger-runner labels are user-defined.
 
 ## History checks
 

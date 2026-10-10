@@ -1,0 +1,151 @@
+[
+  {
+    "id": "CI-14-01",
+    "title": "known positive: lint job on a 16-core larger runner",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ubuntu-latest-16-cores\n    steps:\n      - uses: actions/checkout@v4\n      - run: npx eslint .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:lint:runner:ubuntu-latest-16-cores",
+          "line": 6,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-14-02",
+    "title": "legitimate exception: build and test job may need the larger runner",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest-16-cores\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm run build\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-14-03",
+    "title": "similar negative: lint job on the standard runner",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npx eslint .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-14-04",
+    "title": "known positive: docs job on a macOS xlarge runner",
+    "files": {
+      ".github/workflows/docs.yml": "name: Docs\non:\n  pull_request:\njobs:\n  docs:\n    runs-on: macos-latest-xlarge\n    steps:\n      - run: npx markdownlint .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:docs:runner:macos-latest-xlarge",
+          "line": 6,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-14-05",
+    "title": "boundary: 4-core runner is below the default threshold of 8 cores",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ubuntu-latest-4-cores\n    steps:\n      - run: npx eslint .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-14-06",
+    "title": "boundary: 8-core runner meets the threshold exactly",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ubuntu-latest-8-cores\n    steps:\n      - run: npx eslint .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:lint:runner:ubuntu-latest-8-cores",
+          "line": 6,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-14-07",
+    "title": "legitimate exception: runs-on is an expression, runner not known statically",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ${{ matrix.os }}\n    strategy:\n      matrix:\n        os: [ubuntu-latest-16-cores]\n    steps:\n      - run: npx eslint .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-14-09",
+    "title": "legitimate exception: a job named 'Rust lints (fmt, check, clippy, tests, doc)' compiles and tests, so the large runner is justified (real: rerun-io/rerun)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  rs-lints:\n    name: Rust lints (fmt, check, clippy, tests, doc)\n    runs-on: ubuntu-latest-16-cores\n    steps:\n      - uses: actions/checkout@v4\n      - run: pixi run rs-check\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-14-10",
+    "title": "similar negative: cargo clippy is a compile, so a lint-named job running it is not light",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ubuntu-latest-16-cores\n    steps:\n      - uses: actions/checkout@v4\n      - run: cargo clippy --all-targets\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-14-11",
+    "title": "known positive: the official larger-runner label form ubuntu-24.04-16core on a lint job",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  lint:\n    runs-on: ubuntu-24.04-16core\n    steps:\n      - uses: actions/checkout@v4\n      - run: npx eslint .\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:lint:runner:ubuntu-24.04-16core",
+          "line": 6,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-14-08",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  }
+]
