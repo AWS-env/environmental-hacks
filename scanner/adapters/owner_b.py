@@ -25,6 +25,7 @@ LIMITATION = ("Translated by the scanner from owner B's pre-contract scanSource 
 # check_id -> extra context; every finding is a candidate (table size and runtime cost are unknown).
 ORM_DETECTOR_VERSION, ORM_RULE_VERSION = "1.0.0", "orm-1"
 ORM_CHECKS = {
+    "DB-09": {"max_literal_iterations": 5},
     "DB-13": {"max_literal_iterations": 5},
     "DB-14": {"select_star_allowed_tables": []},
     "DB-23": {"unique_key_fields": ["id", "pk"]},
