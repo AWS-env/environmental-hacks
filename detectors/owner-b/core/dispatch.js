@@ -8,6 +8,7 @@ const jobs={
   'JOB-06':require('../checks/job-06'),
 };
 const network={
+  "NET-02":require('../checks/net-02'),
   'NET-01':require('../checks/net-01'),
 };
 function evaluate(input){return network[input.check_id]?network[input.check_id].evaluate(input):jobs[input.check_id]?jobs[input.check_id].evaluate(input):database.evaluate(input);}
