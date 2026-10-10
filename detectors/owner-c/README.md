@@ -303,7 +303,9 @@ owner D's hub rules decide what is stored. Failed asynchronous invocations go to
 
 1. Invoke `owner-c-presign` with `{"repository_id", "commit_sha", "artifacts": ["<artifact type>", ...]}`; it returns
    short-lived PUT URLs under `uploads/<repository>/<sha>/`. The client never gets credentials.
-2. PUT `repo.zip`, then each artifact (`<artifact type>.json`).
+2. PUT `repo.zip` (one top-level folder, like a GitHub archive: the parser drops the first path component, so a zip made
+   from inside the repository directory would lose `.github/` and `src/`; both example scripts write `repo/...`), then each
+   artifact (`<artifact type>.json`).
 3. PUT `manifest.json` **last** (`{"repository_id", "commit_sha", "artifacts": [...]}`): the S3 event triggers
    `owner-c-profile-parser`, which reads the zip and artifacts and publishes the results. The manifest must match its prefix.
    Nothing the client uploads is ever executed.

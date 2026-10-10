@@ -1,0 +1,273 @@
+[
+  {
+    "id": "CI-11-01",
+    "title": "known positive: pull_request workflow with no concurrency",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "workflow:no-cancel-superseded",
+          "line": 2,
+          "confidence": "high"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-11-02",
+    "title": "similar negative: concurrency group with cancel-in-progress true",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\nconcurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-03",
+    "title": "known positive: push without filters plus pull_request runs twice per PR commit",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n  pull_request:\nconcurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "workflow:redundant-trigger:push+pull_request",
+          "line": 3,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-11-04",
+    "title": "legitimate exception: push limited to main plus pull_request",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\n  pull_request:\nconcurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-05",
+    "title": "legitimate exception: job with an environment is a deployment, never cancelled",
+    "files": {
+      ".github/workflows/preview.yml": "name: Preview\non:\n  pull_request:\njobs:\n  preview:\n    runs-on: ubuntu-latest\n    environment: preview\n    steps:\n      - run: ./deploy.sh\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-06",
+    "title": "known positive: concurrency group without cancel-in-progress only queues",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\nconcurrency:\n  group: ci-${{ github.ref }}\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "workflow:concurrency-without-cancel",
+          "line": 4,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-11-07",
+    "title": "boundary: cancel-in-progress is an expression, treated as configured",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\nconcurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-08",
+    "title": "known positive: list-form triggers on: [push, pull_request]",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non: [push, pull_request]\nconcurrency:\n  group: ci-${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "workflow:redundant-trigger:push+pull_request",
+          "line": 2,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-11-09",
+    "title": "legitimate exception: reusable workflow (workflow_call) leaves concurrency to callers",
+    "files": {
+      ".github/workflows/reusable.yml": "name: Reusable\non:\n  workflow_call:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-10",
+    "title": "similar negative: job-level concurrency with cancel-in-progress",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    concurrency:\n      group: t-${{ github.ref }}\n      cancel-in-progress: true\n    steps:\n      - run: npm test\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-11",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  },
+  {
+    "id": "CI-11-12",
+    "title": "legitimate exception: pull_request_target triage automation is not a build to cancel",
+    "files": {
+      ".github/workflows/triage.yml": "name: Triage\non:\n  pull_request_target:\n    types: [opened]\njobs:\n  label:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./label.sh\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-13",
+    "title": "legitimate exception: pull_request types exclude synchronize, so no run is ever superseded",
+    "files": {
+      ".github/workflows/cleanup.yml": "name: Cache cleanup\non:\n  pull_request:\n    types: [closed]\njobs:\n  cleanup:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./cleanup.sh\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-14",
+    "title": "legitimate exception: explicit cancel-in-progress false is a deliberate queue",
+    "files": {
+      ".github/workflows/review.yml": "name: Review\non:\n  pull_request:\nconcurrency:\n  group: review-${{ github.event.pull_request.number }}\n  cancel-in-progress: false\njobs:\n  review:\n    runs-on: ubuntu-latest\n    steps:\n      - run: ./review.sh\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-15",
+    "title": "known positive: cancelling group made only of github.ref can cancel other workflows",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\nconcurrency:\n  group: ${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "workflow:concurrency-group-shared",
+          "line": 5,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-11-16",
+    "title": "similar negative: group names the workflow",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\nconcurrency:\n  group: ${{ github.workflow }}-${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-17",
+    "title": "legitimate exception: literal text in the group is assumed unique",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\nconcurrency:\n  group: docs-${{ github.ref }}\n  cancel-in-progress: true\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-18",
+    "title": "known positive: job-level group made only of github.head_ref",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\n    branches: [main]\njobs:\n  t:\n    runs-on: ubuntu-latest\n    concurrency:\n      group: ${{ github.head_ref }}\n      cancel-in-progress: true\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:t:concurrency-group-shared",
+          "line": 8,
+          "confidence": "low"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-11-19",
+    "title": "legitimate exception: group built from a workflow input (release version), not a generic ref key (airflow)",
+    "files": {
+      ".github/workflows/ci.yml": "name: Release\non:\n  workflow_dispatch:\n    inputs:\n      v:\n        type: string\nconcurrency:\n  group: ${{ github.event.inputs.v }}\n  cancel-in-progress: true\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-20",
+    "title": "legitimate exception: pull_request limited by paths to the workflow file itself (vite copilot-setup-steps)",
+    "files": {
+      ".github/workflows/ci.yml": "name: Setup\non:\n  pull_request:\n    paths:\n      - .github/workflows/setup.yml\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - run: echo hi\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-11-21",
+    "title": "legitimate exception: the only step is a github-script that closes the pull request (react)",
+    "files": {
+      ".github/workflows/ci.yml": "name: Close\non:\n  pull_request:\n    branches: ['builds/x-**']\njobs:\n  t:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/github-script@v7\n        with:\n          script: console.log(1)\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  }
+]
