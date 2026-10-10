@@ -1,0 +1,46 @@
+# Synthetic fixture (INF06-02): each workload kind is sized for itself.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Globals:
+  Function:
+    Runtime: python3.12
+    Architectures: [arm64]
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: api.handler
+      CodeUri: src/
+      MemorySize: 512
+      Timeout: 10
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            Path: /items
+            Method: get
+  QueueConsumer:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: consumer.handler
+      CodeUri: src/
+      MemorySize: 512
+      Timeout: 120
+      Events:
+        Jobs:
+          Type: Kinesis
+          Properties:
+            Stream: arn:aws:kinesis:ap-south-1:111111111111:stream/events
+            StartingPosition: LATEST
+  NightlyReport:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: report.handler
+      CodeUri: src/
+      MemorySize: 3008
+      Timeout: 900
+      Events:
+        Nightly:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(1 day)

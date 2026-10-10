@@ -1,0 +1,49 @@
+# Synthetic fixture (INF06-01): SAM Globals give an API handler, a queue consumer and a nightly job one size.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Globals:
+  Function:
+    Runtime: python3.12
+    MemorySize: 1024
+    Timeout: 30
+    Architectures: [arm64]
+Resources:
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: api.handler
+      CodeUri: src/
+      Events:
+        Get:
+          Type: HttpApi
+          Properties:
+            Path: /items
+            Method: get
+  QueueConsumer:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: consumer.handler
+      CodeUri: src/
+      Events:
+        Jobs:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt JobsQueue.Arn
+  NightlyReport:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: report.handler
+      CodeUri: src/
+      Events:
+        Nightly:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 2 * * ? *)
+  SeedData:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: seed.handler
+      CodeUri: src/
+      MemorySize: 256
+  JobsQueue:
+    Type: AWS::SQS::Queue

@@ -4097,6 +4097,119 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/inf07/inf07-01-positive-input.json
 ```
 
+## INF-06 — One-size-fits-all design pattern across workloads
+
+Flags an IaC template that gives Lambda functions of clearly different
+workload kinds the same declared sizing, so one default is applied regardless
+of what each workload does (SUS02-BP02 anti-pattern "the same design pattern
+for all your workloads"). INF-06 is an OQ-8 judgement row. Following the OQ-8
+decision on issue #173, it is built like OBS-10: a static heuristic whose
+findings are **candidates for reviewer confirmation**.
+
+The check proves *uniform declared sizing across heterogeneous workload
+kinds*. It does not prove that any function is over- or under-sized: nothing
+is deployed, invoked or measured, and no measurements are emitted. Templates
+are read as text with `owner_d/miniyaml.py`; CloudFormation files go through
+the INF-07 parser (`inf07.parse`), so the same files are accepted and declined.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. Each file is judged on its own, and so is each document of a
+multi-document YAML file (`---`): functions are never compared across
+documents, and a second finding in the same file gets the identity
+`lambda-functions:uniform-sizing#2`. Supported files:
+
+- **CloudFormation/SAM** `.yaml`/`.yml`/`.json`/`.template`, including
+  CDK-synthesized `cdk.out/*.template.json` (as INF-07)
+- **Serverless Framework** `serverless.yml`/`serverless.yaml` (also
+  `serverless.<stage>.yml`) with `provider.name: aws` and inline `functions`.
+  A `serverless*.yml` file with no top-level `service` or `provider` key (for
+  example a SAM template named `serverless.yaml`) is read as a
+  CloudFormation/SAM template instead, as INF-07 does
+
+No context settings are required.
+
+### Detection rule
+
+A function's **workload kind** comes from its triggers:
+
+| Kind | SAM `Events` type / Serverless event | Plain CloudFormation trigger that names the function |
+| --- | --- | --- |
+| `api` (request/response) | `Api`, `HttpApi`, `FunctionUrlConfig`; `http`, `httpApi`, `alb`, `websocket`, `url` | `AWS::Lambda::Url`, `AWS::ApiGateway::Method` `Integration.Uri`, `AWS::ApiGatewayV2::Integration`, ALB target group (`TargetType: lambda`), `AWS::Lambda::Permission` for `apigateway`/`elasticloadbalancing` |
+| `event` (asynchronous queue/stream/event consumer) | `SQS`, `Kinesis`, `DynamoDB`, `MSK`, `MQ`, `SelfManagedKafka`, `DocumentDB`, `S3`, `SNS`, `EventBridgeRule`, `CloudWatchEvent`, `CloudWatchLogs`, `IoTRule`, `Cognito`; `sqs`, `stream`, `kafka`, `msk`, `activemq`, `rabbitmq`, `s3`, `sns`, `eventBridge` (pattern), `cloudwatchEvent`, `cloudwatchLog`, `iot`, `cognitoUserPool` | `AWS::Lambda::EventSourceMapping`, `AWS::Events::Rule` with an `EventPattern`, `AWS::SNS::Subscription`/`Topic`, S3 `LambdaConfigurations`, `AWS::Lambda::Permission` for `s3`/`sns`/`logs`/`iot` |
+| `schedule` (scheduled job) | `Schedule`, `ScheduleV2`; `schedule`, `eventBridge` with `schedule` | `AWS::Events::Rule` with a `ScheduleExpression`, `AWS::Scheduler::Schedule` |
+
+A function is named by `Ref`, `Fn::GetAtt`, `Fn::Sub` (`${Fn.Arn}`) or a
+`Fn::Join` part, directly or through an `AWS::Lambda::Alias`/`Version`.
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `lambda-functions:uniform-sizing` | The template has at least one function of **each** of the three kinds (so at least 3 workloads), and every function with exactly one kind has identical effective `MemorySize`, `Timeout` and `Architectures` (Serverless: `memorySize`, `timeout`, `architecture`). At least one counted function must get `MemorySize` or `Timeout` from its own properties or from the shared SAM `Globals.Function` / Serverless `provider` block. | low |
+
+Effective values are compared: a function value overrides the shared block,
+and an undeclared value takes the platform default (Lambda: 128 MB, 3 s,
+`x86_64`; Serverless Framework: 1024 MB, 6 s, `x86_64`), so an explicit
+`MemorySize: 128` or `Architectures: [x86_64]` matches an omitted one. The
+summary marks a value as the platform default when no counted function
+declares it. Numbers are normalised, a `Ref`/`!Ref` to a template parameter
+matches only the same parameter, and a Serverless `${...}` variable matches
+only the identical reference.
+
+Evidence quotes only keys that set the effective sizing, never a shared key
+that functions override: the first counted function's own sizing lines when
+any counted function declares its own, otherwise the shared-block lines the
+functions inherit. It is the first contiguous run of such key lines, with
+their value lines (a block list). The summary lists the effective values,
+where they come from and the functions of each kind.
+
+Not flagged:
+
+- templates missing one of the three kinds (for example an API plus queue
+  consumers only), or where any counted function differs in one dimension
+- templates where no counted function declares `MemorySize` or `Timeout`
+  (pure platform defaults, even with an explicit `x86_64`); that is "never
+  sized", not a shared default
+- functions with no recognised trigger (custom resources, seeders, functions
+  invoked by other code) or with triggers of two kinds (for example an API
+  handler with a warm-up schedule); they are not counted and do not block
+- `# noqa` / `# noqa: INF-06` on, or directly above, any line that sets the
+  cited function's effective sizing (its own keys and the shared keys it
+  inherits), or directly above the shared block (`Function:` under `Globals`,
+  `provider:`) or the cited function. A comment on an overridden shared key
+  does not suppress. A comment covers its own YAML document only
+
+Not judged (no finding, stated in the limitation): a counted function whose
+sizing or `Properties` use an intrinsic other than a parameter `Ref` (`!If`,
+`!FindInMap`, `!Sub` in SAM), or a Serverless function given by `${file(...)}`.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- invalid JSON, or YAML outside the miniyaml subset
+- YAML/JSON without CloudFormation `Resources`, and `serverless.yml` without
+  an AWS provider and inline functions
+- templates with a macro `Transform`, `Fn::Transform`/`AWS::Include` or
+  `Fn::ForEach` (as INF-07)
+
+### Limitations
+
+Only Lambda sizing is judged. EC2 instance types, ECS/EKS task and pod sizes,
+Multi-AZ and other service-level choices need a workload-kind signal that a
+template does not show reliably, so they are out of scope for v1. Functions
+split across templates, stacks or nested applications are not compared.
+Terraform/HCL, CDK source code (synthesize it first) and Pulumi are not read.
+No invocation, duration or memory telemetry is read, so a finding cannot say
+which function is mis-sized; Lambda Power Tuning or Compute Optimizer data is
+needed for that.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/inf06/inf06-01-positive-input.json
+```
+
 ## OBS-10 — Filtering after ingestion
 
 Flags telemetry that is shipped in full to a later stage which then drops part

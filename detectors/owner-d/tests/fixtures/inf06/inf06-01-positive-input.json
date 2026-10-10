@@ -1,0 +1,40 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf06-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "INF-06",
+  "detector_version": "1.0.1",
+  "context": {
+    "format": "iac"
+  },
+  "scope": [
+    "file:sam-globals.yaml",
+    "file:cdk-synth.template.json",
+    "file:serverless.yml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:sam-globals.yaml",
+      "scope_id": "file:sam-globals.yaml",
+      "kind": "static",
+      "locator": "sam-globals.yaml",
+      "content": "# Synthetic fixture (INF06-01): SAM Globals give an API handler, a queue consumer and a nightly job one size.\nAWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nGlobals:\n  Function:\n    Runtime: python3.12\n    MemorySize: 1024\n    Timeout: 30\n    Architectures: [arm64]\nResources:\n  ApiFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Handler: api.handler\n      CodeUri: src/\n      Events:\n        Get:\n          Type: HttpApi\n          Properties:\n            Path: /items\n            Method: get\n  QueueConsumer:\n    Type: AWS::Serverless::Function\n    Properties:\n      Handler: consumer.handler\n      CodeUri: src/\n      Events:\n        Jobs:\n          Type: SQS\n          Properties:\n            Queue: !GetAtt JobsQueue.Arn\n  NightlyReport:\n    Type: AWS::Serverless::Function\n    Properties:\n      Handler: report.handler\n      CodeUri: src/\n      Events:\n        Nightly:\n          Type: Schedule\n          Properties:\n            Schedule: cron(0 2 * * ? *)\n  SeedData:\n    Type: AWS::Serverless::Function\n    Properties:\n      Handler: seed.handler\n      CodeUri: src/\n      MemorySize: 256\n  JobsQueue:\n    Type: AWS::SQS::Queue\n"
+    },
+    {
+      "source_id": "src:cdk-synth.template.json",
+      "scope_id": "file:cdk-synth.template.json",
+      "kind": "static",
+      "locator": "cdk-synth.template.json",
+      "content": "{\n  \"Resources\": {\n    \"ApiHandler5E7490E8\": {\n      \"Type\": \"AWS::Lambda::Function\",\n      \"Properties\": {\n        \"Handler\": \"index.handler\",\n        \"Runtime\": \"nodejs20.x\",\n        \"MemorySize\": 512,\n        \"Timeout\": 60\n      }\n    },\n    \"ApiHandlerPermission\": {\n      \"Type\": \"AWS::Lambda::Permission\",\n      \"Properties\": {\n        \"Action\": \"lambda:InvokeFunction\",\n        \"FunctionName\": {\"Fn::GetAtt\": [\"ApiHandler5E7490E8\", \"Arn\"]},\n        \"Principal\": \"apigateway.amazonaws.com\"\n      }\n    },\n    \"ApiGetMethod\": {\n      \"Type\": \"AWS::ApiGateway::Method\",\n      \"Properties\": {\n        \"HttpMethod\": \"GET\",\n        \"Integration\": {\n          \"Type\": \"AWS_PROXY\",\n          \"Uri\": {\"Fn::Join\": [\"\", [\"arn:\", {\"Ref\": \"AWS::Partition\"}, \":apigateway:\", {\"Ref\": \"AWS::Region\"},\n            \":lambda:path/2015-03-31/functions/\", {\"Fn::GetAtt\": [\"ApiHandler5E7490E8\", \"Arn\"]}, \"/invocations\"]]}\n        }\n      }\n    },\n    \"StreamWorker1A2B3C4D\": {\n      \"Type\": \"AWS::Lambda::Function\",\n      \"Properties\": {\n        \"Handler\": \"index.handler\",\n        \"Runtime\": \"nodejs20.x\",\n        \"MemorySize\": 512,\n        \"Timeout\": 60\n      }\n    },\n    \"StreamWorkerLive\": {\n      \"Type\": \"AWS::Lambda::Alias\",\n      \"Properties\": {\"FunctionName\": {\"Ref\": \"StreamWorker1A2B3C4D\"}, \"Name\": \"live\"}\n    },\n    \"StreamWorkerSource\": {\n      \"Type\": \"AWS::Lambda::EventSourceMapping\",\n      \"Properties\": {\n        \"FunctionName\": {\"Ref\": \"StreamWorkerLive\"},\n        \"EventSourceArn\": \"arn:aws:kinesis:ap-south-1:111111111111:stream/events\"\n      }\n    },\n    \"CleanupJob9F8E7D6C\": {\n      \"Type\": \"AWS::Lambda::Function\",\n      \"Properties\": {\n        \"Handler\": \"index.handler\",\n        \"Runtime\": \"nodejs20.x\",\n        \"MemorySize\": 512,\n        \"Timeout\": 60\n      }\n    },\n    \"CleanupRule\": {\n      \"Type\": \"AWS::Events::Rule\",\n      \"Properties\": {\n        \"ScheduleExpression\": \"rate(1 day)\",\n        \"Targets\": [{\"Arn\": {\"Fn::GetAtt\": [\"CleanupJob9F8E7D6C\", \"Arn\"]}, \"Id\": \"Target0\"}]\n      }\n    }\n  }\n}\n"
+    },
+    {
+      "source_id": "src:serverless.yml",
+      "scope_id": "file:serverless.yml",
+      "kind": "static",
+      "locator": "serverless.yml",
+      "content": "# Synthetic fixture (INF06-01): Serverless provider defaults size every function the same way.\nservice: orders\nprovider:\n  name: aws\n  runtime: nodejs20.x\n  memorySize: 2048\n  timeout: 900\nfunctions:\n  createOrder:\n    handler: src/create.handler\n    events:\n      - httpApi:\n          path: /orders\n          method: post\n  fulfil:\n    handler: src/fulfil.handler\n    events:\n      - sqs:\n          arn: arn:aws:sqs:ap-south-1:111111111111:orders\n  purge:\n    handler: src/purge.handler\n    events:\n      - eventBridge:\n          schedule: rate(1 day)\n"
+    }
+  ]
+}
