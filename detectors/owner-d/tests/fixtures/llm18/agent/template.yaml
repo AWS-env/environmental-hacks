@@ -1,0 +1,17 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: Support agent (synthetic LLM-18 fixture)
+
+Resources:
+  AgentFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.answer
+      Environment:
+        Variables:
+          BEDROCK_REGION: us-east-1
+          KB_REGION: !Ref AWS::Region
+          # MODEL_URL: https://bedrock-runtime.eu-west-1.amazonaws.com
+          MODEL_URL: https://bedrock-runtime.us-east-1.amazonaws.com
+          VECTOR_URL: https://abc123xyz.ap-south-1.aoss.amazonaws.com

@@ -4833,3 +4833,114 @@ those yet, so no `LOGS_INSIGHTS_QUERY` or normalizer is exported.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm02/llm02-01-positive-input.json
 ```
+
+## LLM-18 — Deploying agent infra far from its dependencies (static topology heuristic)
+
+Flags an LLM, embedding or vector-store dependency that is pinned to a
+different Region from the Region declared for the workload that calls it.
+Each call then crosses Regions, which adds inter-Region data transfer and a
+longer round trip ([AGENTSUS02-BP03](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp03.html)).
+LLM-18 is an OQ-8 judgement row and is built like OBS-10. Findings are
+candidates for reviewer confirmation. The check proves "pinned to Region X,
+declared in Region Y" from literal values in the repository. It does not
+prove how often the dependency is called or how much latency or transfer the
+crossing adds, so no measurements are emitted.
+
+Nothing is executed, imported or resolved. Python is read with `ast` (client
+constructors through `llmcalls.resolve`/`call_keywords`), YAML and JSON with
+`owner_d/miniyaml.py`, TOML with `tomllib`, and Terraform with the OBS-10 HCL
+block reader.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. The payload is judged **as a whole**: deployment Region declarations are
+collected from every source first. Supported files are `.py`,
+`.yaml`/`.yml`, `.json`, `.toml` and `.tf` that pin a dependency Region or
+declare a deployment Region. Other files are out of scope (`Unsupported`), so
+the scan worker passes only these files to the check. No context settings are
+required.
+
+### Detection rule
+
+Both sides must be literal strings in the repository (a Python name bound once
+to a literal also counts). A value from a parameter, an environment lookup, a
+default, `${...}`, `!Ref AWS::Region`, SSM or a Terraform variable is not a
+Region.
+
+**Dependency Region** (one finding each):
+
+| Evidence | Identity |
+| --- | --- |
+| boto3/aioboto3 `client(...)` for `bedrock-runtime`, `bedrock-agent-runtime`, `bedrock-agentcore`, `sagemaker-runtime` or `s3vectors` with `region_name` (keyword, positional or a known `**dict`), else `config=Config(region_name=...)`, else the `Session(region_name=...)` it is created from | `<qualified scope>:<service>:client` |
+| `AnthropicBedrock(aws_region=)`; LangChain `ChatBedrock`, `ChatBedrockConverse`, `BedrockLLM`, `BedrockEmbeddings`, `AmazonKnowledgeBasesRetriever` and LlamaIndex `Bedrock`, `BedrockConverse`, `BedrockEmbedding` (`region_name=`); `AnthropicVertex(region=)`; `ChatVertexAI`, `VertexAI`, `VertexAIEmbeddings`, `vertexai.init`, `aiplatform.init`, `google.genai.Client` (`location=`) | `<qualified scope>:<class or call>(<keyword>)` |
+| An endpoint URL with a Region: `bedrock-runtime`, `bedrock-agent-runtime`, `bedrock-agentcore` (also FIPS and VPC endpoint DNS), `runtime.sagemaker`, `s3vectors.<region>.api.aws`, OpenSearch `*.<region>.es` and `*.<region>.aoss` (only in files that mention `vector`, `knn` or `embedding`), `<location>-aiplatform.googleapis.com`, `<region>.api.cognitive.microsoft.com`. In Python, string literals only (no comments, docstrings or bare strings); in other files, lines with comments cut. | `[<qualified scope>:]endpoint/<service>` |
+| A YAML/JSON setting `BEDROCK_REGION`, `BEDROCK_AWS_REGION`, `AWS_BEDROCK_REGION`, `VERTEX_LOCATION`, `VERTEX_AI_LOCATION`, `VERTEXAI_LOCATION`, `AZURE_OPENAI_LOCATION` or `AZURE_OPENAI_REGION` (`KEY: value`, `{name: KEY, value: v}` or `- KEY=value`) | `setting/<KEY>` |
+| Terraform `azurerm_cognitive_account` with `kind = "OpenAI"` or `"AIServices"` and a literal `location` | `azurerm_cognitive_account.<name>:location` |
+
+Management clients (`bedrock`, `bedrock-agent`) are not on the request path
+and are not read.
+
+**Workload Region** (context only, never a finding):
+
+- samconfig `region` in `<env>.<command>.parameters` (`samconfig.toml`,
+  `samconfig.yaml`/`.yml`);
+- `serverless.yml` `provider.region` when `provider.name` is `aws` or absent;
+- Terraform `provider "aws"` `region`, except aliased providers;
+- `cdk.json` top-level `context` keys `region`, `aws_region`, `deployRegion`,
+  `deploymentRegion` or `defaultRegion` (case, `-` and `_` ignored);
+- a CDK `Environment(region=...)` or `env={"region": ...}` in a Python file
+  that imports `aws_cdk`;
+- an `AWS_REGION` or `AWS_DEFAULT_REGION` value in YAML/JSON (CloudFormation,
+  ECS, Kubernetes, compose, workflow `env`);
+- a GitHub Actions `aws-region` under `.github/workflows/`.
+
+The declarations in the **nearest parent directory** of the dependency file
+decide its workload Region (workflows count for the repository root). With
+none there, the payload's declarations decide if they all name one Region. If
+the deciding declarations name several Regions (for example two samconfig
+environments), or there are none, the dependency file is **not evaluated**
+and the reason is listed. The workload Region is never guessed.
+
+| Dependency | Flagged when | Confidence |
+| --- | --- | --- |
+| AWS | its Region differs from the workload Region | medium |
+| Google Cloud, Azure | its geographic area differs from the workload Region's area (North America, South America, Europe, Middle East, Africa, India, Asia, Oceania) | low |
+
+The summary names both Regions and up to two declarations by file and line.
+Evidence is the dependency's line(s). The pinned Region is not part of the
+identity, so changing one wrong Region to another keeps the fingerprint.
+Repeated identities in a file get `#2`, `#3`, ...
+
+Not flagged:
+
+- dependencies in the workload Region, unpinned clients (they use the
+  runtime's `AWS_REGION`) and Regions that are not literal;
+- cross-cloud dependencies in the same geographic area as the workload;
+- `# noqa` / `# noqa: LLM-18` on the dependency line or directly above it.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- dependency files with no deployment Region, or with ambiguous declarations;
+- invalid Python, YAML, JSON, TOML or HCL. A limitation also notes that
+  Region declarations in such files were not considered;
+- development/test files (the OBS-09 path tokens and test module names).
+
+### Limitations
+
+Not visible: Regions set in Dockerfiles, `.env` files, other modules, CI
+variables or at deploy time; Bedrock cross-Region inference profile routing
+(`us.`/`eu.`/`apac.`/`global.` model IDs route inside a geography by design);
+aliased Terraform providers and resources in modules; whether the model or
+feature is offered in the workload's Region
+([model support by Region](https://docs.aws.amazon.com/bedrock/latest/userguide/models-regions.html));
+and whether data residency or quota requires the remote Region. That is why
+every finding asks for reviewer confirmation.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm18/llm18-01-positive-input.json
+```

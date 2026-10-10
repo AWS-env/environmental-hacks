@@ -1,0 +1,56 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm18-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "LLM-18",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "python+iac"
+  },
+  "scope": [
+    "file:agent/samconfig.toml",
+    "file:agent/app.py",
+    "file:agent/template.yaml",
+    "file:rag/main.tf",
+    "file:rag/retriever.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:agent/samconfig.toml",
+      "scope_id": "file:agent/samconfig.toml",
+      "kind": "static",
+      "locator": "agent/samconfig.toml",
+      "content": "# Synthetic LLM-18 fixture: the support agent deploys to ap-south-1.\nversion = 0.1\n\n[default.deploy.parameters]\nstack_name = \"support-agent\"\nregion = \"ap-south-1\"\ncapabilities = \"CAPABILITY_IAM\"\n"
+    },
+    {
+      "source_id": "src:agent/app.py",
+      "scope_id": "file:agent/app.py",
+      "kind": "static",
+      "locator": "agent/app.py",
+      "content": "\"\"\"Support agent that answers tickets with Bedrock (synthetic LLM-18 fixture).\n\nDocs: https://bedrock-runtime.us-west-2.amazonaws.com is only mentioned here.\n\"\"\"\n\nimport os\n\nimport boto3\nfrom anthropic import AnthropicBedrock\nfrom botocore.config import Config\n\nMODEL_REGION = \"us-east-1\"\n\nruntime = boto3.client(\"bedrock-runtime\", region_name=MODEL_REGION)\nlocal = boto3.client(\"bedrock-runtime\", region_name=\"ap-south-1\")\nfrom_env = boto3.client(\"bedrock-runtime\", region_name=os.environ[\"AWS_REGION\"])\ncontrol = boto3.client(\"bedrock\", region_name=\"us-east-1\")\nclaude = AnthropicBedrock(aws_region=\"us-west-2\")\nretry = boto3.client(\n    \"bedrock-runtime\",\n    config=Config(region_name=\"eu-west-1\", retries={\"max_attempts\": 3}),\n)\n\n\ndef knowledge_base():\n    session = boto3.Session(region_name=\"us-east-1\")\n    return session.client(\"bedrock-agent-runtime\")\n\n\ndef answer(question):\n    # https://bedrock-runtime.us-west-2.amazonaws.com in a comment is not a dependency\n    response = runtime.converse(\n        modelId=\"anthropic.claude-3-haiku-20240307-v1:0\",\n        messages=[{\"role\": \"user\", \"content\": [{\"text\": question}]}],\n    )\n    return response[\"output\"][\"message\"][\"content\"][0][\"text\"]\n\n\ndeliberate = boto3.client(\"bedrock-runtime\", region_name=\"us-east-2\")  # noqa: LLM-18\n"
+    },
+    {
+      "source_id": "src:agent/template.yaml",
+      "scope_id": "file:agent/template.yaml",
+      "kind": "static",
+      "locator": "agent/template.yaml",
+      "content": "AWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nDescription: Support agent (synthetic LLM-18 fixture)\n\nResources:\n  AgentFunction:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.answer\n      Environment:\n        Variables:\n          BEDROCK_REGION: us-east-1\n          KB_REGION: !Ref AWS::Region\n          # MODEL_URL: https://bedrock-runtime.eu-west-1.amazonaws.com\n          MODEL_URL: https://bedrock-runtime.us-east-1.amazonaws.com\n          VECTOR_URL: https://abc123xyz.ap-south-1.aoss.amazonaws.com\n"
+    },
+    {
+      "source_id": "src:rag/main.tf",
+      "scope_id": "file:rag/main.tf",
+      "kind": "static",
+      "locator": "rag/main.tf",
+      "content": "# Retrieval service (synthetic LLM-18 fixture)\nprovider \"aws\" {\n  region = \"eu-central-1\"\n}\n\nprovider \"aws\" {\n  alias  = \"edge\"\n  region = \"us-east-1\"\n}\n\nresource \"azurerm_cognitive_account\" \"openai\" {\n  name                = \"rag-openai\"\n  location            = \"eastus\"\n  resource_group_name = \"rag\"\n  kind                = \"OpenAI\"\n  sku_name            = \"S0\"\n}\n\nresource \"aws_ssm_parameter\" \"model_endpoint\" {\n  name  = \"/rag/model-endpoint\"\n  type  = \"String\"\n  value = \"https://bedrock-runtime.eu-central-1.amazonaws.com\"\n}\n"
+    },
+    {
+      "source_id": "src:rag/retriever.py",
+      "scope_id": "file:rag/retriever.py",
+      "kind": "static",
+      "locator": "rag/retriever.py",
+      "content": "\"\"\"Retriever for the RAG service (synthetic LLM-18 fixture).\"\"\"\n\nimport vertexai\nfrom langchain_aws import ChatBedrockConverse\n\nvertexai.init(project=\"rag-prod\", location=\"us-central1\")\nchat = ChatBedrockConverse(model=\"anthropic.claude-3-haiku-20240307-v1:0\", region_name=\"eu-central-1\")\n"
+    }
+  ]
+}

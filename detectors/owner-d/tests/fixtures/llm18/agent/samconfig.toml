@@ -1,0 +1,7 @@
+# Synthetic LLM-18 fixture: the support agent deploys to ap-south-1.
+version = 0.1
+
+[default.deploy.parameters]
+stack_name = "support-agent"
+region = "ap-south-1"
+capabilities = "CAPABILITY_IAM"
