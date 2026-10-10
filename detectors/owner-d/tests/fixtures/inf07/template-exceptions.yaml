@@ -1,0 +1,62 @@
+# Synthetic fixture (INF07-03): legitimate exceptions and suppressions.
+AWSTemplateFormatVersion: "2010-09-09"
+Resources:
+  # Vendor AMI is only certified on m4 (licensing); reviewed 2026-10.
+  # noqa: INF-07
+  LicensedAppliance:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: m4.xlarge
+  LegacyAgent:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: c4.large  # noqa: INF-07 (x86-only monitoring agent)
+  # noqa: E501
+  OtherCode:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: r4.large
+  GoFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: go1.x
+      Handler: main
+      Role: arn:aws:iam::123456789012:role/fn
+      Code: {S3Bucket: artifacts, S3Key: go.zip}
+  OldPythonFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.7
+      Handler: app.handler
+      Role: arn:aws:iam::123456789012:role/fn
+      Code: {S3Bucket: artifacts, S3Key: py.zip}
+  OracleDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: oracle-ee
+      LicenseModel: bring-your-own-license
+      DBInstanceClass: db.m5.large
+  RestoredDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBSnapshotIdentifier: snap-1
+      DBInstanceClass: db.r5.large
+  LegacySearch:
+    Type: AWS::Elasticsearch::Domain
+    Properties:
+      ElasticsearchVersion: "6.8"
+      ElasticsearchClusterConfig:
+        InstanceType: m5.large.elasticsearch
+  OldEngineSearch:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      EngineVersion: Elasticsearch_7.1
+      ClusterConfig:
+        InstanceType: r5.large.search
+  LogRetentionaae0aa3c5b4d4f87b02d85b201efdd8aFD4BFC8A:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: arn:aws:iam::123456789012:role/fn
+      Code: {S3Bucket: artifacts, S3Key: cdk.zip}

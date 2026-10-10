@@ -1,0 +1,1 @@
+{"Resources": {"Web": {"Type": "AWS::EC2::Instance", "Properties": {"InstanceType": "m4.large"}}

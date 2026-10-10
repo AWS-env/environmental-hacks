@@ -1,0 +1,81 @@
+# Synthetic fixture (INF07-01): compute declared on older or x86 families with a more efficient equivalent.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  BastionType:
+    Type: String
+    Default: t2.micro
+    AllowedValues: [t2.micro, t3.micro, t4g.micro]
+Resources:
+  WebServer:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: m4.large
+      ImageId: ami-0123456789abcdef0
+  Bastion:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: !Ref BastionType
+  WorkerTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        InstanceType: c4.xlarge
+  WorkerGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      MinSize: "1"
+      MaxSize: "4"
+      MixedInstancesPolicy:
+        LaunchTemplate:
+          LaunchTemplateSpecification:
+            LaunchTemplateId: !Ref WorkerTemplate
+            Version: !GetAtt WorkerTemplate.LatestVersionNumber
+          Overrides:
+            - InstanceType: m7g.large
+            - InstanceType: m5.large
+  Nodes:
+    Type: AWS::EKS::Nodegroup
+    Properties:
+      ClusterName: app
+      NodeRole: arn:aws:iam::123456789012:role/node
+      Subnets: [subnet-1]
+      InstanceTypes: [t3.medium]
+  OrdersDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: postgres
+      DBInstanceClass: db.r4.large
+  ReportsDb:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      Engine: mysql
+      DBInstanceClass: db.m5.large
+  SessionCache:
+    Type: AWS::ElastiCache::CacheCluster
+    Properties:
+      Engine: redis
+      NumCacheNodes: 1
+      CacheNodeType: cache.t2.micro
+  SearchDomain:
+    Type: AWS::OpenSearchService::Domain
+    Properties:
+      ClusterConfig:
+        InstanceType: m4.large.search
+        InstanceCount: 2
+  ResizeFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: arn:aws:iam::123456789012:role/fn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs20.x
+      Handler: index.handler
+      CodeUri: src/
+      Architectures:
+        - x86_64
