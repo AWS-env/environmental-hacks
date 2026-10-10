@@ -94,7 +94,7 @@ A pair that fails is refused: it is not published and is listed under
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py`, `activity.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06, LLM-17, INF-04 (telemetry mode) |
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-12 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
-| `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12 (artifact mode) |
+| `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12, LLM-19 (artifact mode) |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
 (plain CloudFormation). Build: `scripts/build-owner-d-telemetry.sh`. The zip
@@ -120,6 +120,7 @@ as JSON. It never executes it. The file name picks the check:
 | --- | --- | --- |
 | `tst-12.json` | TST-12 artifact mode | `{"framework": "pytest", "settings": {...optional TST-12 maxima}, "tests": [{"test_id", "duration_seconds", "sleep_seconds", "network_call_count", "fixture_bytes", "setup_seconds"}]}` |
 | `llm-16.json` | LLM-16 artifact mode | unmodified `memray stats --json` output, optional `"settings": {"max_buffered_response_bytes"}`; one `artifact:llm-16.json` scope ([LLM-16](#runtime-confirmation-artifact-mode)) |
+| `llm-19.json` | LLM-19 artifact mode | `{"settings": {...optional LLM-19 thresholds}, "servers": [{"server_id", "engine", "window_seconds", "requests", "preemptions", "kv_cache_usage_max", ...}]}`, see [LLM-19 artifact](#llm-19-artifact-llm-19json) |
 
 Each test becomes one `test:<test_id>` scope item. The reference settings apply unless `settings` overrides
 them. Results go through `validate_pair` and are published to `findings-hub` with source
@@ -5709,4 +5710,156 @@ checks (NET-*, owner B), which judge call patterns rather than placement.
 ```bash
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm18/llm18-01-positive-input.json
+```
+## LLM-19 — Inference-engine inefficiencies (KV-cache growth, attention, quantization)
+
+Only relevant when you host models (the taxonomy's own exception), so LLM-19
+looks at self-hosted [vLLM](https://docs.vllm.ai/) and Hugging Face
+[TGI](https://huggingface.co/docs/text-generation-inference/) servers only.
+The taxonomy detects this by GPU profiling. Following the OQ-10 decision on
+#212, v1 has two modes in one module, dispatched on source kind like TST-12:
+
+- a **static proxy** over serving configs, which repository scans run;
+- an **artifact mode** over a normalized inference-metrics summary that client
+  CI uploads as `llm-19.json` through the [artifact route](#artifact-route).
+
+Without an artifact, every result says that runtime evidence is
+`unavailable`. It is never reported clean. No measurements are emitted.
+
+### Input
+
+| Scope | Sources | Mode |
+| --- | --- | --- |
+| `file:<path>` | exactly one `static` source (`content` = file text) | static |
+| `inference:<server_id>` | exactly one `artifact` source (`data` below) | artifact |
+
+A payload may mix both kinds of scope. A scope that has both a static and an
+artifact source, or two artifacts, is left out of `evaluated_scope` with a
+limitation.
+
+Static mode reads Dockerfiles, `*.sh`/`*.bash`, `*.yaml`/`*.yml`, `*.json`,
+`*.tf`/`*.hcl`, `*.toml`, `.env`, Procfile, Makefile and systemd `*.service`
+files. It reads only those that launch a server: `vllm serve`,
+`python -m vllm.entrypoints...`, the `vllm/vllm-openai` image,
+`text-generation-launcher` or the
+`ghcr.io/huggingface/text-generation-inference` image, outside comments. It
+also reads Python files that import `vllm`. Every other file is `Unsupported`
+and out of scope, so a repository that hosts no model gets `not_applicable`
+from the scanner. Files under development, test, example, demo, benchmark or
+CI paths (`dev/`, `tests/`, `examples/`, `.github/workflows/`,
+`docker-compose.dev.yml`, ...) raise `NotEvaluated`: they are listed in the
+scan notes and never reported clean. Text is read only. Nothing is executed,
+built or pulled.
+
+### Context settings (artifact mode)
+
+Static mode needs no settings. Artifact mode requires all five. A missing or
+invalid setting leaves the artifact scopes out with the reason. The
+artifact's `settings` object can override them per upload.
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_requests` | Fewest completed requests in the window to judge a server | `100` |
+| `max_preemption_ratio` | Largest acceptable preemptions per completed request | `0.01` |
+| `max_kv_cache_usage` | Largest acceptable peak KV-cache usage (fraction) | `0.95` |
+| `min_prefix_cache_hit_rate` | Lowest acceptable prefix-cache hit rate (fraction) | `0.05` |
+| `max_context_headroom_ratio` | Largest acceptable `max_model_len` / largest observed request | `4` |
+
+Neither vendor publishes thresholds for these, so the values are team
+judgment. They are deliberately loose, so only clear waste is flagged.
+
+### Static detection rule
+
+Only explicit settings are flagged. Each flag is attributed to the nearest
+vLLM/TGI launch marker in the same file (a preceding marker wins a tie). Flags
+nearest to another engine (SGLang, llama.cpp, LMDeploy, TensorRT-LLM, Triton,
+Ollama) are ignored.
+
+| Identity | Engine | Explicit setting | Confidence | Documentation |
+| --- | --- | --- | --- | --- |
+| `vllm:prefix-caching-disabled` | vLLM | `--no-enable-prefix-caching`, `enable_prefix_caching=False` | high | [Automatic prefix caching](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching.html) ("APC in general does not reduce the performance of vLLM") |
+| `vllm:fp32-dtype` | vLLM | `--dtype float32`/`float`, `dtype="float32"`, `dtype=torch.float32` | medium | [Engine arguments](https://docs.vllm.ai/en/latest/configuration/engine_args.html) `--dtype` |
+| `vllm:eager-mode` | vLLM | `--enforce-eager` (not `=false`), `enforce_eager=True` | high | [Optimization](https://docs.vllm.ai/en/latest/configuration/optimization.html): eager mode trades "steady-state decode performance" for startup |
+| `tgi:eager-mode` | TGI | `--cuda-graphs 0`, `CUDA_GRAPHS=0` (shell, `ENV`, compose, `.env`, Kubernetes `name`/`value`) | high | [Launcher](https://huggingface.co/docs/text-generation-inference/reference/launcher) `--cuda-graphs`: `Use "0" to disable` |
+
+Python: the constructors `LLM`, `EngineArgs` and `AsyncEngineArgs` are
+checked when they are imported from `vllm` (aliases and `vllm.LLM` too) and
+called with constant keyword arguments. Not flagged:
+
+- defaults and values set at runtime (`$DTYPE`, templating, `**kwargs`);
+- TGI `--dtype`, which accepts only `float16` and `bfloat16`;
+- missing quantization, model size and attention kernels. These are not
+  explicit inefficiencies that a config alone can prove.
+
+`# noqa` or `# noqa: LLM-19` on the line, or directly above the block,
+suppresses a hit. Evidence is the exact flag line(s), including the value
+line of a YAML list. Identities are `<engine>:<rule>`; repeats in one file
+become `#2`, ...
+
+### LLM-19 artifact (`llm-19.json`)
+
+Each server becomes one `inference:<server_id>` scope with one `artifact`
+source. Fields can come from a vLLM `/metrics` scrape (`vllm:num_preemptions`,
+`vllm:request_success`, `vllm:kv_cache_usage_perc`,
+`vllm:prefix_cache_hits` / `vllm:prefix_cache_queries`, the
+`vllm:request_prompt_tokens` + `vllm:request_generation_tokens` histograms,
+see [metrics](https://docs.vllm.ai/en/latest/usage/metrics.html)) or from
+TGI's Prometheus endpoint. Validation is strict: unknown fields, wrong types
+and inconsistent values make that scope `unavailable` with the reason.
+
+```json
+{"settings": {"max_preemption_ratio": 0.02},
+ "servers": [{"server_id": "llama-8b-prod", "engine": "vllm", "model": "meta-llama/Llama-3.1-8B-Instruct",
+              "window_seconds": 3600, "requests": 12000, "preemptions": 840, "kv_cache_usage_max": 0.99,
+              "prefix_cache_hit_rate": 0.02, "max_model_len": 131072, "max_request_tokens": 6000}]}
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `server_id` | yes | Stable server/deployment name, at most 200 characters; the scope is `inference:<server_id>` |
+| `engine` | yes | Engine family, e.g. `vllm`, `tgi` |
+| `window_seconds` | yes | Length of the observation window (> 0) |
+| `requests` | yes | Completed requests in the window (integer ≥ 0) |
+| `preemptions` | yes | Preemptions in the window (integer ≥ 0) |
+| `kv_cache_usage_max` | yes | Peak KV-cache usage, fraction 0-1 |
+| `prefix_cache_hit_rate` | no | Prefix-cache hits / queries (tokens), fraction 0-1; omit or `null` when prefix caching is off |
+| `max_model_len` | no | Configured maximum sequence length (vLLM `max_model_len`, TGI `max_total_tokens`) |
+| `max_request_tokens` | no | Largest observed prompt + generated tokens of one request; required with `max_model_len` and not above it |
+| `model` | no | Model name, for the reader only |
+
+A finding is emitted when an observed value is strictly beyond its threshold.
+Equality is never flagged.
+
+| Identity | Rule | Evidence fields | Confidence |
+| --- | --- | --- | --- |
+| `preemptions` | `preemptions / requests > max_preemption_ratio`: preempted requests are recomputed ([optimization](https://docs.vllm.ai/en/latest/configuration/optimization.html)) | `preemptions`, `requests` | high |
+| `kv-cache-saturation` | `kv_cache_usage_max > max_kv_cache_usage` | `kv_cache_usage_max` | medium |
+| `low-prefix-cache-hit-rate` | `prefix_cache_hit_rate < min_prefix_cache_hit_rate` | `prefix_cache_hit_rate` | low |
+| `oversized-context` | `max_model_len > max_context_headroom_ratio × max_request_tokens`. TGI: a larger value makes "the less effective batching can be" | `max_model_len`, `max_request_tokens` | medium |
+
+A server with fewer than `min_requests` completed requests is not evaluated.
+The parser handles an upload like this:
+
+- it evaluates the first 200 servers;
+- it lists skipped entries (no usable `server_id`, duplicates) as
+  limitations;
+- it refuses the whole file, publishing nothing, when the file has a wrong
+  top-level shape, unknown top-level fields or invalid `settings`, or when no
+  server is usable.
+
+### Limitations
+
+LLM-19 static mode proves a setting, not its runtime cost. Artifact mode
+trusts the client's numbers and does not re-measure them. Neither mode
+estimates energy or cost. A low prefix-cache hit rate is not waste for a
+workload whose prompts share nothing, so that rule has `low` confidence.
+
+### Run
+
+`llm19-01-static-and-artifact-input.json` is a synthetic payload with one
+static scope and one artifact scope:
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm19/llm19-01-static-and-artifact-input.json
 ```

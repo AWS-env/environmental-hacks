@@ -154,6 +154,20 @@ def llm16_inputs(data, identity):
 ROUTES["llm-16.json"] = llm16_inputs
 
 
+def llm19_inputs(data, identity):
+    """LLM-19 artifact mode: {"settings": {...}, "servers": [...]}, shape and validation in owner_d/llm19.py."""
+    from owner_d import llm19
+
+    try:
+        context, scope, sources, notes = llm19.artifact_inputs(data, identity["name"], identity["run"])
+    except llm19.ArtifactRejected as exc:
+        raise Refused(str(exc)) from None
+    return llm19, context, scope, sources, notes
+
+
+ROUTES["llm-19.json"] = llm19_inputs
+
+
 # ---- handler -----------------------------------------------------------------------------------
 
 def evaluate(identity, data, *, chunk=common.DEFAULT_SCOPE_PER_PAYLOAD):
