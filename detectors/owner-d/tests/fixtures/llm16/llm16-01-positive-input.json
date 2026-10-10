@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm16-001",
+  "commit_sha": "ffffffffffffffffffffffffffffffffffffffff",
+  "check_id": "LLM-16",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python",
+    "max_buffered_output_tokens": 256
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic LLM-16 fixture: request handlers that buffer whole LLM replies. Never executed.\nimport json\n\nimport anthropic\nimport boto3\nfrom bedrock_agentcore import BedrockAgentCoreApp\nfrom fastapi import APIRouter, FastAPI\nfrom flask import Blueprint\nfrom litestar import post\nfrom openai import OpenAI\n\nclaude = anthropic.AsyncAnthropic()\nclient = OpenAI()\nbedrock = boto3.client(\"bedrock-runtime\")\napp = FastAPI()\nrouter = APIRouter()\nbp = Blueprint(\"support\", __name__)\nagent = BedrockAgentCoreApp()\nMODEL = \"us.anthropic.claude-sonnet-4-5-20250929-v1:0\"\n\n\n@app.post(\"/chat\")\nasync def chat(request: dict):\n    reply = await claude.messages.create(model=\"claude-sonnet-4-5\", max_tokens=4096, messages=request[\"messages\"])\n    return {\"text\": reply.content[0].text}\n\n\n@router.post(\"/answer\")\ndef answer(request: dict):\n    return client.chat.completions.create(model=\"gpt-5.5\", messages=request[\"messages\"])\n\n\n@app.get(\"/respond\")\ndef respond(question: str):\n    return client.responses.create(model=\"gpt-5.5\", input=question, max_output_tokens=2000, stream=False)\n\n\n@bp.route(\"/summary\", methods=[\"POST\"])\ndef summary():\n    response = bedrock.converse(\n        modelId=MODEL,\n        messages=[{\"role\": \"user\", \"content\": [{\"text\": \"Summarise the ticket.\"}]}],\n        inferenceConfig={\"maxTokens\": 2048},\n    )\n    return response[\"output\"][\"message\"]\n\n\n@agent.entrypoint\ndef invoke(payload):\n    body = {\"anthropic_version\": \"bedrock-2023-05-31\", \"max_tokens\": 8192, \"messages\": payload[\"messages\"]}\n    return json.loads(bedrock.invoke_model(modelId=MODEL, body=json.dumps(body))[\"body\"].read())\n\n\nasync def draft_reply(messages):\n    return await claude.messages.create(model=\"claude-sonnet-4-5\", max_tokens=2048, messages=messages)\n\n\n@app.post(\"/reply\")\nasync def reply(request: dict):\n    return await draft_reply(request[\"messages\"])\n\n\n@post(\"/compare\")\ndef compare(llm, data: dict) -> dict:\n    return llm.chat.completions.create(model=\"gpt-5.5\", messages=data[\"messages\"], max_completion_tokens=1024)\n"
+    }
+  ]
+}
