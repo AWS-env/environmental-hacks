@@ -27,6 +27,12 @@ CHECK_ID = "OBS-18"
 DETECTOR_VERSION = "1.0.0"
 NOQA = ("OBS-18", "OBS18")
 SETTING_KEYS = ("max_field_spellings", "max_fields_per_event")
+# Reference values from "OBS-18 > Context settings" in detectors/owner-d/README.md; repository
+# scans pass them unless a setting is supplied explicitly.
+REFERENCE_SETTINGS = {
+    "max_field_spellings": 1,  # README OBS-18: one spelling per field concept
+    "max_fields_per_event": 20,  # README OBS-18: most literal fields one call may write
+}
 
 # Calls that attach fields to every later record of a logger (Powertools, structlog, loguru).
 BIND_METHODS = {"append_keys", "thread_safe_append_keys", "append_context_keys", "bind", "new"}

@@ -10,18 +10,57 @@ Checks are discovered from `owner_d.cli.DETECTORS` (or, failing that, any `owner
   `NotEvaluated` are out of scope and listed as notes; parse failures stay in scope so the
   detector reports them as limitations;
 - otherwise a `run(ctx)` static check over Python (`static.py`): every `.py` file is in scope.
+
+Settings: a module's `REFERENCE_SETTINGS` (the reference values documented in
+detectors/owner-d/README.md) go into its contract `context`, plus the few settings whose reference
+is repository-specific (REPO_DERIVED). Settings the scanner already passes win. The values used are
+listed in the check's notes, so a report shows when a result rests on reference settings.
 """
 from __future__ import annotations
 
 import importlib
+import json
 import pkgutil
 from collections import Counter
 
-from scanner.core import REPO_ROOT, CheckRun, evaluate_each, import_path, static_source
+from scanner.core import REPO_ROOT, CheckRun, evaluate_each, import_path, is_test_path, static_source
 
 OWNER, NAME = "D", "owner-d-python"
 RUNTIME_KINDS = {"telemetry": "existing deployment telemetry (e.g. CloudWatch metrics)",
                  "artifact": "a client-produced artifact (e.g. CI test reports or profiles)"}
+NOT_PACKAGES = {"setup", "conftest", "noxfile"}  # top-level scripts, not code under test
+
+
+def repository_packages(files):
+    """Top-level Python packages and modules of the scanned repository (`src/` layout too), tests excluded."""
+    names = set()
+    for path, _ in files:
+        if not path.endswith(".py") or is_test_path(path):
+            continue
+        parts = path.split("/")
+        if parts[0] == "src" and len(parts) > 1:
+            parts = parts[1:]
+        name = parts[0][:-3] if len(parts) == 1 else parts[0]
+        if name.isidentifier() and not name.startswith("__") and name not in NOT_PACKAGES:
+            names.add(name)
+    return sorted(names)
+
+
+# Required settings whose README reference is "the repo's own packages" rather than a fixed value.
+REPO_DERIVED = {"TST-03": {"production_packages": repository_packages}}
+
+
+def scan_settings(check_id, module, files, explicit):
+    """Contract context for one check (references < repository-derived < explicit) and a note on what was applied."""
+    reference = dict(getattr(module, "REFERENCE_SETTINGS", None) or {})
+    derived = {key: value for key, derive in REPO_DERIVED.get(check_id, {}).items() if (value := derive(files))}
+    notes = []
+    for label, values in (("reference settings applied (detectors/owner-d/README.md)", reference),
+                          ("settings derived from the repository", derived)):
+        shown = [f"{key}={json.dumps(value)}" for key, value in values.items() if key not in explicit]
+        if shown:
+            notes.append(f"{label}: {', '.join(shown)}"[:300])
+    return {**reference, **derived, **explicit}, notes
 
 
 def discover():
@@ -88,9 +127,9 @@ class OwnerD:
                 runs.append(CheckRun(check_id, OWNER, NAME, notes=notes, not_applicable=(
                     f"no collected files in scope for this check ({selection})")))
                 continue
-            payload = ctx.input(check_id, module.DETECTOR_VERSION, ctx.context(file_selection=selection),
-                                [static_source(p, c) for p, c in files])
-            payloads.append((payload, notes))
+            context, applied = scan_settings(check_id, module, ctx.files, ctx.context(file_selection=selection))
+            payload = ctx.input(check_id, module.DETECTOR_VERSION, context, [static_source(p, c) for p, c in files])
+            payloads.append((payload, applied + notes))
         for (payload, notes), run in zip(payloads, evaluate_each(
                 OWNER, NAME, [p for p, _ in payloads], lambda p: detectors[p["check_id"]].evaluate(p))):
             run.notes = notes

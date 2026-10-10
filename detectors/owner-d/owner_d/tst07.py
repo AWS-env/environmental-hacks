@@ -22,6 +22,11 @@ CHECK_ID = "TST-07"
 DETECTOR_VERSION = "1.0.0"
 NOQA = ("TST-07", "TST07")
 SETTING_KEY = "max_test_statements"
+# Reference values from "TST-07 > Context settings" in detectors/owner-d/README.md; repository
+# scans pass them unless a setting is supplied explicitly.
+REFERENCE_SETTINGS = {
+    "max_test_statements": 30,  # README TST-07: JNose's default MAX_STATEMENTS
+}
 MEDIUM_FACTOR = 2  # more than twice the limit is medium confidence
 
 REFERENCES = (

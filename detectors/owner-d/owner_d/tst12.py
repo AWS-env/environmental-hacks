@@ -44,6 +44,15 @@ SETTING_KEYS = (
     "max_setup_seconds",
 )
 ARTIFACT_SETTING_KEYS = SETTING_KEYS
+# Reference values from "TST-12 > Context settings" in detectors/owner-d/README.md; repository
+# scans pass them unless a setting is supplied explicitly.
+REFERENCE_SETTINGS = {
+    "max_sleep_seconds": 0.1,  # README TST-12: explicit sleep allowance per test
+    "max_network_calls": 0,  # README TST-12: real network-call allowance per test
+    "max_fixture_bytes": 10485760,  # README TST-12: largest fixture materialization allowance
+    "max_duration_seconds": 10,  # README TST-12: longest unit-test duration (artifact only)
+    "max_setup_seconds": 2,  # README TST-12: longest setup/fixture duration (artifact only)
+}
 
 REQUIRED_DATA_FIELDS = (
     "test_id",
