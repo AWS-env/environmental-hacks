@@ -7,9 +7,17 @@ import {
 } from "../../core/finding.js";
 import { PythonModuleScope } from "../../core/python-scope.js";
 import importCostData from "./import-cost.json" with { type: "json" };
+import { C11_REFERENCES } from "./references.js";
 
 const heavySet = new Set(importCostData.heavyModules);
 const lightSet = new Set(importCostData.lightModules);
+
+/** `compat.py`, `_compat.py`, `compat_py3.py`, `py_compat.py`. */
+const COMPAT_MODULE = /^(_?compat.*|.*_compat)\.py$/;
+
+function basename(path: string): string {
+  return path.split(/[\\/]/).pop() ?? path;
+}
 
 export function detectUnusedImports(scope: PythonModuleScope): Finding[] {
   // Never flag intentional re-exports in __init__.py or test fixtures in conftest.py
@@ -27,6 +35,12 @@ export function detectUnusedImports(scope: PythonModuleScope): Finding[] {
 
     // False positive guard: symbol exported in __all__
     if (scope.allExportedSymbols.has(sym.boundName)) {
+      continue;
+    }
+
+    // False positive guard: `import X as X` / `from m import X as X` is the explicit re-export form
+    // (PEP 484 typing spec); the module is deliberately republishing the name.
+    if (sym.alias !== undefined && sym.alias === (sym.importedName ?? sym.moduleName)) {
       continue;
     }
 
@@ -63,6 +77,15 @@ export function detectUnusedImports(scope: PythonModuleScope): Finding[] {
       confidence = "medium";
       limitations.push(
         "File contains wildcard import ('from ... import *'); namespace may have overlapping references."
+      );
+    }
+
+    // Compatibility shims republish names without `as`; callers import them from here, so the
+    // module's own code never uses them.
+    if (COMPAT_MODULE.test(basename(scope.filePath))) {
+      confidence = "low";
+      limitations.push(
+        "This is a compat module, which usually republishes imports for other modules to use; the symbol may be a re-export."
       );
     }
 
@@ -106,13 +129,7 @@ export function detectUnusedImports(scope: PythonModuleScope): Finding[] {
         reason:
           "Static analysis identifies unnecessary module initialization on load; exact energy savings depend on execution frequency and module size.",
       },
-      references: [
-        {
-          id: "SRC-01",
-          title: "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
-          url: "https://arxiv.org/abs/2604.04809",
-        },
-      ],
+      references: C11_REFERENCES.map((r) => ({ ...r })),
       agentPrompt,
       detector: {
         id: "owner-a-static-scan",
