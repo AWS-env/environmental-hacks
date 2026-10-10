@@ -4274,3 +4274,96 @@ never reported clean.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm16/llm16-01-positive-input.json
 ```
+## LLM-03 — Bloated system prompts / redundant instructions (static proxy)
+
+Flags LLM API calls in Python source whose statically resolvable system
+prompt is larger than the configured token budget, or repeats the same
+instruction. This v1 is a static proxy: it proves the size or the repetition
+of the literal prompt text, not that a shorter prompt would behave the same
+or what the prompt costs. It emits no token counts as measurements.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only) and the context settings below.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_system_prompt_tokens` | Largest estimated size of the literal system prompt | `4000` |
+| `min_repeated_instruction_chars` | Shortest normalised sentence that counts as a repeated instruction | `40` |
+
+The thresholds are judgment calls, so they are required; missing or invalid
+settings make the result `unavailable`. `llm03.REFERENCE_SETTINGS` holds the
+reference values. No provider documents a size above which a system prompt is
+bloated: 4,000 tokens (about 16,000 characters) favours precision and sits at
+the largest minimum cacheable prompt documented by Anthropic. 40 characters
+is about 7–8 words; shorter repeats ("Be concise.") are often deliberate
+emphasis. AWS [AGENTCOST02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentcost02-bp02.html)
+names "verbose system prompts with lengthy persona descriptions and redundant
+explanations" as an anti-pattern, and
+[GENCOST03-BP01](https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost03-bp01.html)
+asks for prompts "as short as possible while meeting performance
+requirements".
+
+### Detection rule
+
+| Call | System prompt |
+| --- | --- |
+| Anthropic SDK `messages.create/stream/parse` (also `beta.`) | `system` (string or text blocks) |
+| OpenAI `chat.completions.*` | `messages` entries with role `system` or `developer` |
+| OpenAI `responses.*` | `instructions`, and `input` entries with role `system` or `developer` |
+| Bedrock `converse` / `converse_stream` | `system` text blocks |
+| Bedrock `invoke_model` with `body=json.dumps(<static dict>)` | `system` |
+
+Text is resolved from literals, single-assignment names, `+`, f-strings,
+`.format`/`%` templates, `str.join`, `.strip()`, `textwrap.dedent` and
+`inspect.cleandoc`. Each dynamic part (f-string or format field, Jinja
+`{{ }}`/`{% %}`, unknown name or call) becomes a placeholder, so the literal
+parts of templates are still read. A finding is emitted when:
+
+- **Size:** the literal characters, estimated at 4 characters per token, are
+  strictly greater than `max_system_prompt_tokens`. Placeholders are not
+  counted, so the estimate is a lower bound. Files that configure prompt
+  caching (`cache_control`, `cachePoint`, `cache_point`, `prompt_cache_key`)
+  are exempt from this rule.
+- **Redundancy:** a sentence occurs more than once within one stretch of the
+  prompt that has no placeholder, and its normalised form (no bullets,
+  numbering, Markdown emphasis or lead-ins such as `IMPORTANT:`, `Note:`,
+  `Remember,`, `Again,`; all-caps words and the first letter in lower case,
+  other capitals kept, so a Title Case module list does not match a topic
+  list) has at least
+  `min_repeated_instruction_chars` characters. Prompt caching does not exempt
+  this rule.
+
+Not counted as repeats: few-shot examples in tags whose names contain
+`example`, `sample`, `shot` or `demo`, and everything after an `Examples` /
+`Few-shot` / `Sample` heading up to the next Markdown heading; lines starting
+with `Example`, `For example` or `e.g.` and the lines indented under them;
+labelled lines (`Input:`, `Output:`, `Q:`, `User:`, `Assistant:`,
+`Thought:`, ...); fenced code blocks, `"key":` lines and sentences with `{`,
+`}` or `|`; sentences that contain a
+placeholder; and copies separated by a placeholder (OpenAI recommends placing
+instructions before and after long context). Not flagged: prompts that are
+parameters, attributes, read from files or built by calls; `**kwargs` and
+`extra_body`; other SDK clients. `# noqa` or `# noqa: LLM-03` suppresses a
+call.
+
+One finding per call, with both reasons when both apply; the summary quotes
+the first repeated sentence. Confidence is `medium` for a repeat on a known
+client and `low` for size-only findings (trimming can change behaviour) and
+for clients known only from the `chat.completions` chain. The identity is
+`<qualified function>:<provider>.<api>` with `#2` for repeats. Missing,
+non-Python or unparseable files are left out of `evaluated_scope`, never
+reported clean.
+
+### Run
+
+The committed input uses a smaller fixture budget (`200` tokens):
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm03/llm03-01-positive-input.json
+```
+
