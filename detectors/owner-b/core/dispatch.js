@@ -22,6 +22,7 @@ const network={
   'NET-01':require('../checks/net-01'),
 };
 const orm={
+  'DB-13':require('../checks/db-13'),
   'DB-39':require('../checks/db-39'),
 };
 // ORM checks parse with WASM tree-sitter and return a Promise; the other checks are synchronous.
