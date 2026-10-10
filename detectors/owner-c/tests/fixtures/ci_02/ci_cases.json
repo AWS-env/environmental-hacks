@@ -1,0 +1,64 @@
+[
+  {
+    "id": "CI-02-01",
+    "title": "known positive: 3 commits re-run after a failure and failed again with the same jobs",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "repeat_failed_reruns": 3}}},
+    "expect": {
+      "status": "completed",
+      "evaluated": [".github/workflows/ci.yml"],
+      "findings": [{"identity": "workflow:blind-reruns", "field": "repeat_failed_reruns", "value": 3, "confidence": "low"}]
+    }
+  },
+  {
+    "id": "CI-02-02",
+    "title": "similar negative: a single repeated failure is below the threshold",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "repeat_failed_reruns": 1}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/ci.yml"], "findings": []}
+  },
+  {
+    "id": "CI-02-03",
+    "title": "boundary: exactly min_repeat_failures (2) is reported",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "repeat_failed_reruns": 2}}},
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "workflow:blind-reruns", "field": "repeat_failed_reruns", "value": 2, "confidence": "low"}]
+    }
+  },
+  {
+    "id": "CI-02-04",
+    "title": "missing evidence: only 4 runs recorded, below min_runs (5), nothing evaluated",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 4, "repeat_failed_reruns": 3}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["too few runs"]}
+  },
+  {
+    "id": "CI-02-05",
+    "title": "unsupported input: invalid threshold setting makes the check unavailable",
+    "files": {},
+    "context": {"min_repeat_failures": -1},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "repeat_failed_reruns": 3}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["context.min_repeat_failures"]}
+  },
+  {
+    "id": "CI-02-06",
+    "title": "malformed input: repeat_failed_reruns is negative, not evaluated",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "repeat_failed_reruns": -2}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["malformed"]}
+  }
+]
