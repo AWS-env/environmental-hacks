@@ -33,6 +33,19 @@ Parameters:
     Description: >-
       Concurrent scans at most (caps cost). 0 = no reservation, for projects whose account concurrency
       quota is 10, where Lambda refuses any reservation (it must keep 10 unreserved).
+  ScanCooldownSeconds:
+    Type: Number
+    Default: 600
+    MinValue: 0
+    MaxValue: 86400
+    Description: >-
+      POST /scans for a repo with a queued or running scan, or one that finished done within this many seconds,
+      returns that scan (200, "reused": true) instead of starting a new one.
+  MaxScansPerDay:
+    Type: Number
+    Default: 50
+    MinValue: 1
+    Description: New scans allowed per UTC day across all repos; above it POST /scans returns 429.
 
 Rules:
   ProjectRegionOnly:
@@ -95,6 +108,25 @@ Resources:
             Condition:
               Bool:
                 "aws:SecureTransport": "false"
+
+  # Abuse guard for POST /scans: repo#<owner>/<repo> -> latest scan id (cooldown) and day#<YYYY-MM-DD> -> scans
+  # started that UTC day (atomic conditional ADD). Both expire via TTL; nothing here is needed long term.
+  ScanGuardTable:
+    Type: AWS::DynamoDB::Table
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      TableName: scan-api-guard
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - { AttributeName: pk, AttributeType: S }
+      KeySchema:
+        - { AttributeName: pk, KeyType: HASH }
+      TimeToLiveSpecification:
+        AttributeName: expires_at
+        Enabled: true
+      Tags:
+        - { Key: component, Value: scan-api }
 
   # ---- worker: downloads, extracts and scans one repository per invocation ----------------
   WorkerLogGroup:
@@ -208,6 +240,10 @@ Resources:
               - Effect: Allow
                 Action: lambda:InvokeFunction
                 Resource: !GetAtt WorkerFunction.Arn
+              - Sid: ScanGuardTable
+                Effect: Allow
+                Action: [dynamodb:GetItem, dynamodb:PutItem, dynamodb:UpdateItem]
+                Resource: !GetAtt ScanGuardTable.Arn
       Tags:
         - { Key: component, Value: scan-api }
 
@@ -231,6 +267,9 @@ Resources:
           WORKER_FUNCTION_NAME: !Ref WorkerFunction
           WORKER_TIMEOUT_SECONDS: "900"
           WORKER_MAX_EVENT_AGE_SECONDS: "3600"
+          SCAN_GUARD_TABLE: !Ref ScanGuardTable
+          SCAN_COOLDOWN_SECONDS: !Ref ScanCooldownSeconds
+          MAX_SCANS_PER_DAY: !Ref MaxScansPerDay
       LoggingConfig:
         LogGroup: !Ref ApiLogGroup
       Tags:
@@ -305,3 +344,5 @@ Outputs:
     Value: !Ref ScanBucket
   WorkerFunctionName:
     Value: !Ref WorkerFunction
+  ScanGuardTableName:
+    Value: !Ref ScanGuardTable

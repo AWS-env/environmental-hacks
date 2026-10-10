@@ -5,6 +5,7 @@ import os
 import shutil
 import tarfile
 import tempfile
+import threading
 import unittest
 import uuid
 from pathlib import Path
@@ -38,6 +39,45 @@ class FakeS3:
         return json.loads(self.objects[store.key(scan_id, name)])
 
 
+class ConditionalCheckFailed(Exception):
+    response = {"Error": {"Code": "ConditionalCheckFailedException"}}
+
+
+class FakeDynamo:
+    """The abuse-guard table: get/put items and the two conditional `ADD scans` updates, atomic under a lock."""
+
+    def __init__(self):
+        self.items, self.lock, self.fail_with = {}, threading.Lock(), None
+
+    def get_item(self, TableName, Key, ConsistentRead):
+        item = self.items.get(Key["pk"]["S"])
+        return {"Item": dict(item)} if item else {}
+
+    def put_item(self, TableName, Item):
+        self.items[Item["pk"]["S"]] = dict(Item)
+
+    def update_item(self, TableName, Key, UpdateExpression, ConditionExpression, ExpressionAttributeValues):
+        with self.lock:
+            if self.fail_with:
+                raise self.fail_with
+            pk, values = Key["pk"]["S"], ExpressionAttributeValues
+            item = self.items.get(pk, {"pk": Key["pk"]})
+            count = int(item["scans"]["N"]) if "scans" in item else None
+            if ":cap" in values:  # reserve: ADD scans :one, only while under the cap
+                ok, delta = count is None or count < int(values[":cap"]["N"]), 1
+            else:  # release: ADD scans :minus_one, never below zero
+                ok, delta = count is not None and count > 0, -1
+            if not ok:
+                raise ConditionalCheckFailed(pk)
+            item = {**item, "scans": {"N": str((count or 0) + delta)}}
+            if ":expires" in values:
+                item["expires_at"] = values[":expires"]
+            self.items[pk] = item
+
+    def count(self, day):
+        return int(self.items.get(f"day#{day}", {}).get("scans", {"N": "0"})["N"])
+
+
 def make_tarball(path: Path, entries, comment=SHA):
     """entries: [(name, bytes | None for a dir | ("symlink", target))]."""
     with tarfile.open(path, "w:gz", format=tarfile.PAX_FORMAT, pax_headers={"comment": comment}) as tar:
@@ -56,9 +96,11 @@ def make_tarball(path: Path, entries, comment=SHA):
 
 class ScanApiTest(unittest.TestCase):
     def setUp(self):
-        self.s3, self.lam = FakeS3(), mock.Mock()
-        patches = [mock.patch.object(store, "client", lambda name: {"s3": self.s3, "lambda": self.lam}[name]),
-                   mock.patch.dict(os.environ, {"SCAN_BUCKET": "b", "WORKER_FUNCTION_NAME": "worker"})]
+        self.s3, self.lam, self.ddb = FakeS3(), mock.Mock(), FakeDynamo()
+        clients = {"s3": self.s3, "lambda": self.lam, "dynamodb": self.ddb}
+        patches = [mock.patch.object(store, "client", lambda name: clients[name]),
+                   mock.patch.dict(os.environ, {"SCAN_BUCKET": "b", "WORKER_FUNCTION_NAME": "worker",
+                                                "SCAN_GUARD_TABLE": "scan-api-guard"})]
         for patch in patches:
             patch.start()
             self.addCleanup(patch.stop)
