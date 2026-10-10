@@ -16,6 +16,7 @@ import { checkCodeC35 } from "./checks/code-c3-5/index.js";
 import { checkCodeC36 } from "./checks/code-c3-6/index.js";
 import { checkCodeC13 } from "./checks/code-c1-3/index.js";
 import { checkCodeC51 } from "./checks/code-c5-1/index.js";
+import { checkCodeC104 } from "./checks/code-c10-4/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -132,6 +133,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC51(parsed),
       limitations: [
         "Collection binding is resolved only inside the file; a list-typed name that arrives from another module is not seen, and list size and trip count are not measured.",
+      ],
+    },
+  ],
+  [
+    "CODE-C10.4",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC104(parsed),
+      limitations: [
+        "Trip count is not measured, and CPython can sometimes resize a local string in place, so the quadratic cost is not guaranteed.",
       ],
     },
   ],
