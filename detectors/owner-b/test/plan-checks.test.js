@@ -11,6 +11,7 @@ const DIR = path.join(__dirname, 'fixtures', 'explain');
 const fixture = name => JSON.parse(fs.readFileSync(path.join(DIR, `pg16-${name}.json`), 'utf8'));
 const CONTEXTS = {
   'DB-43': {min_rows_examined: 10000, min_removed_ratio: 0.9},
+  'DB-45': {min_sort_space_kb: 0},
 };
 /** Contract-v1 input with one artifact source per query. */
 function build(check, queries, ctx = {}) {
@@ -40,6 +41,14 @@ const CASES = [
   {check: 'DB-43', name: 'malformed: unsupported dialect', q: [{id: 1, data: artifact('seqscan-filter', {dialect: 'mysql-8.0'})}], identities: [], status: 'unavailable'},
   {check: 'DB-43', name: 'missing: acquisition incomplete', q: [{id: 1, data: artifact('seqscan-filter', {acquisition: {status: 'unavailable', reason: 'timeout'}})}], identities: [], status: 'unavailable'},
   {check: 'DB-43', name: 'partial: one good and one malformed query', q: [{id: 1, data: artifact('seqscan-filter')}, {id: 2, data: artifact('seqscan-filter', {format: 'other'})}], identities: ['seq-scan:orders'], status: 'partial'},
+  // DB-45
+  {check: 'DB-45', name: 'positive: serial external merge sort on disk (8,280 kB)', q: [{id: 1, data: artifact('sort-spill-serial')}], identities: ['sort-disk:total']},
+  {check: 'DB-45', name: 'positive: parallel Gather Merge with a Disk sort', q: [{id: 1, data: artifact('sort-spill')}], identities: ['sort-disk:total']},
+  {check: 'DB-45', name: 'negative: in-memory sort', q: [{id: 1, data: artifact('sort-memory')}], identities: []},
+  {check: 'DB-45', name: 'boundary: floor equal to the spill size is flagged', q: [{id: 1, data: artifact('sort-spill-serial')}], ctx: {min_sort_space_kb: 8280}, identities: ['sort-disk:total']},
+  {check: 'DB-45', name: 'boundary: floor one kB above is exempt', q: [{id: 1, data: artifact('sort-spill-serial')}], ctx: {min_sort_space_kb: 8281}, identities: []},
+  {check: 'DB-45', name: 'missing: plain EXPLAIN has no Sort Method', q: [{id: 1, data: artifact('plain-seqscan')}], identities: [], status: 'unavailable'},
+  {check: 'DB-45', name: 'malformed: empty plan array', q: [{id: 1, data: artifact('sort-spill-serial', {plan: []})}], identities: [], status: 'unavailable'},
 ];
 CASES.forEach((c, i) => {
   test(`${c.check}-${String(i + 1).padStart(2, '0')} ${c.name}`, async () => {
