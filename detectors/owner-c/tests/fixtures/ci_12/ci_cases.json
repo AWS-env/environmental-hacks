@@ -1,0 +1,102 @@
+[
+  {
+    "id": "CI-12-01",
+    "title": "known positive: nightly schedule, 12 of 20 scheduled runs reused the previous commit",
+    "files": {
+      ".github/workflows/nightly.yml": "name: Nightly\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/nightly.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/nightly.yml",
+      "scheduled_runs_total": 20, "scheduled_runs_same_sha": 12}}},
+    "expect": {
+      "status": "completed",
+      "evaluated": [".github/workflows/nightly.yml"],
+      "findings": [{"identity": "workflow:schedule:unchanged-commit", "line": 3, "field": "scheduled_runs_same_sha", "value": 12, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-12-02",
+    "title": "similar negative: only 1 scheduled run reused a commit, below the threshold",
+    "files": {
+      ".github/workflows/nightly.yml": "name: Nightly\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/nightly.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/nightly.yml",
+      "scheduled_runs_total": 20, "scheduled_runs_same_sha": 1}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/nightly.yml"], "findings": []}
+  },
+  {
+    "id": "CI-12-03",
+    "title": "boundary: exactly min_repeat_runs (3) is reported, low confidence below half the runs",
+    "files": {
+      ".github/workflows/nightly.yml": "name: Nightly\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/nightly.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/nightly.yml",
+      "scheduled_runs_total": 20, "scheduled_runs_same_sha": 3}}},
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "workflow:schedule:unchanged-commit", "line": 3, "field": "scheduled_runs_same_sha", "value": 3, "confidence": "low"}]
+    }
+  },
+  {
+    "id": "CI-12-04",
+    "title": "similar negative: workflow has no schedule trigger, so history is not a candidate",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  push:\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "scheduled_runs_total": 20, "scheduled_runs_same_sha": 12}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/ci.yml"], "findings": []}
+  },
+  {
+    "id": "CI-12-05",
+    "title": "missing evidence: schedule workflow with no history artifact is not evaluated",
+    "files": {
+      ".github/workflows/nightly.yml": "name: Nightly\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "evaluated": [],
+      "findings": [],
+      "limitations_contain": ["no github-actions artifact"]
+    }
+  },
+  {
+    "id": "CI-12-06",
+    "title": "missing evidence: only 3 scheduled runs recorded, below min_runs (5)",
+    "files": {
+      ".github/workflows/nightly.yml": "name: Nightly\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "artifacts": {"github-actions": {".github/workflows/nightly.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/nightly.yml",
+      "scheduled_runs_total": 3, "scheduled_runs_same_sha": 3}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["too few runs"]}
+  },
+  {
+    "id": "CI-12-07",
+    "title": "unsupported input: invalid threshold setting makes the check unavailable",
+    "files": {
+      ".github/workflows/nightly.yml": "name: Nightly\non:\n  schedule:\n    - cron: '0 3 * * *'\njobs:\n  test:\n    runs-on: ubuntu-latest\n    steps:\n      - run: pytest\n"
+    },
+    "context": {"min_repeat_runs": 0},
+    "artifacts": {"github-actions": {".github/workflows/nightly.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/nightly.yml",
+      "scheduled_runs_total": 20, "scheduled_runs_same_sha": 12}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["context.min_repeat_runs"]}
+  },
+  {
+    "id": "CI-12-08",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": ["could not be parsed"]
+    }
+  }
+]

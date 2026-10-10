@@ -97,6 +97,7 @@ first-time-contributor approval gate and `cancelled` is a cancellation (neither 
 - **CI-02** `repeat_failed_reruns >= min_repeat_failures` (2): a re-run after a failure in which a failed job was re-executed and failed again (a failure only carried over does not count).
 - **CI-03** per job, `fail_then_pass:<job> >= min_flaky_occurrences` (2): failed then passed on the same commit.
 - **CI-05** `fail_then_pass_runs >= min_brown_runs` (3): an attempt of a run failed and a later attempt of the same run succeeded.
+- **CI-12** (with workflow) `scheduled_runs_same_sha >= min_repeat_runs` (3): scheduled runs repeating the same commit.
 
 CI-01, CI-02 and CI-05 follow the repeated-build ("recheck") study SRC-14 (arXiv 2308.10078).
 
