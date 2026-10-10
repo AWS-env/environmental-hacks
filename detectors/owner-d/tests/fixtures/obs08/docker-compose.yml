@@ -1,0 +1,8 @@
+# Synthetic fixture (OBS-08): Compose services.
+services:
+  compactor:
+    image: thanosio/thanos:v0.39.2
+    command: compact --wait --downsampling.disable --retention.resolution-raw=1y --objstore.config-file=/b.yml
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    command: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=7d"]

@@ -1,0 +1,59 @@
+# Synthetic fixture (OBS-08): exceptions and suppressions.
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: suppressed
+spec:
+  # noqa: OBS-08 (sub-minute SLO burn alerts need 5s data)
+  scrapeInterval: 5s
+  retention: 30d
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: other-rule
+spec:
+  scrapeInterval: 5s  # noqa: E501
+  retention: 30d
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: size-only
+spec:
+  scrapeInterval: 5s
+  retentionSize: 100GB
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: unresolved
+spec:
+  scrapeInterval: ${SCRAPE_INTERVAL}
+  retention: 30d
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: agent-config
+data:
+  prometheus.yml: |
+    scrape_configs:
+      - job_name: app
+        scrape_interval: 1s
+        static_configs:
+          - targets: ["app:8080"]
+    remote_write:
+      - url: http://mimir.monitoring:9009/api/v1/push
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus-agent
+spec:
+  template:
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v3.5.0
+          args: ["--agent", "--config.file=/etc/prometheus/prometheus.yml"]

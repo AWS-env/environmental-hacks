@@ -1,0 +1,40 @@
+# Synthetic fixture (OBS-08): threshold boundaries.
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: at-threshold
+spec:
+  scrapeInterval: 15s
+  retention: 30d
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: below-threshold
+spec:
+  scrapeInterval: 14s
+  retention: 16d
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: retention-at-threshold
+spec:
+  scrapeInterval: 500ms
+  retention: 2w1d
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: below-threshold
+spec:
+  scrapeInterval: 14s
+  retention: 1y
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: compound
+spec:
+  scrapeInterval: 1m30s
+  retention: 360h

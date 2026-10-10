@@ -1,0 +1,45 @@
+# Synthetic fixture (OBS-08): similar configs that are not flagged.
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: standard
+spec:
+  scrapeInterval: 30s
+  retention: 30d
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: overridden
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 5s
+    scrape_configs:
+      - job_name: app
+        scrape_interval: 15s
+        static_configs:
+          - targets: ["app:8080"]
+      - job_name: node
+        scrape_interval: 1m
+        static_configs:
+          - targets: ["node:9100"]
+  alerts.yml: |
+    groups:
+      - name: example
+        rules:
+          - alert: Down
+            expr: up == 0
+            for: 1m
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prometheus
+spec:
+  template:
+    spec:
+      containers:
+        - name: prometheus
+          image: prom/prometheus:v3.5.0
+          args: ["--config.file=/etc/prometheus/prometheus.yml", "--storage.tsdb.retention.time=1y"]

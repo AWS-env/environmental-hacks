@@ -1,0 +1,15 @@
+# Synthetic fixture (OBS-08): a plain Prometheus config that remote-writes to AMP.
+global:
+  scrape_interval: 30s
+scrape_configs:
+  - job_name: api
+    scrape_interval: 5s
+    static_configs:
+      - targets: ["api:8080"]
+  - job_name: worker
+    static_configs:
+      - targets: ["worker:8080"]
+remote_write:
+  - url: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-1234abcd/api/v1/remote_write
+    sigv4:
+      region: ap-south-1

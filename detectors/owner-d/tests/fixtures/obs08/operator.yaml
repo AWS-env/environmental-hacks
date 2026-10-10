@@ -1,0 +1,44 @@
+# Synthetic fixture (OBS-08): Prometheus Operator resources.
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: k8s
+  namespace: monitoring
+spec:
+  replicas: 2
+  scrapeInterval: 5s
+  retention: 30d
+  serviceMonitorSelector: {}
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: default-interval
+spec:
+  retention: 90d
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: default-retention
+spec:
+  scrapeInterval: 5s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: Prometheus
+metadata:
+  name: short-retention
+spec:
+  scrapeInterval: 1s
+  retention: 7d
+---
+apiVersion: monitoring.coreos.com/v1alpha1
+kind: PrometheusAgent
+metadata:
+  name: agent
+spec:
+  scrapeInterval: 10s
+  remoteWrite:
+    - url: https://aps-workspaces.ap-south-1.amazonaws.com/workspaces/ws-1234abcd/api/v1/remote_write
+      sigv4:
+        region: ap-south-1

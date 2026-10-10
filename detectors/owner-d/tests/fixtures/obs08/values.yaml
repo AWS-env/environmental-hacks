@@ -1,0 +1,8 @@
+# Synthetic fixture (OBS-08): kube-prometheus-stack values.
+grafana:
+  enabled: true
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 10s
+    retention: 60d
+    retentionSize: 50GiB
