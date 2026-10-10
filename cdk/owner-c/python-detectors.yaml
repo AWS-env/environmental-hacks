@@ -36,6 +36,21 @@ Parameters:
   DemoCodeKey:
     Type: String
     Description: S3 key of owner-c-xray-demo.zip (traced demo Lambda).
+  CreateGitHubOidcProvider:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >-
+      Create the account's GitHub OIDC provider (token.actions.githubusercontent.com). An account allows one per URL,
+      so set "false" when another stack or a hand-made provider already exists.
+  ClientRepoSubs:
+    Type: CommaDelimitedList
+    Default: "repo:AWS-env@340005856/environmental-hacks@1409417988:*"
+    Description: >-
+      GitHub OIDC `sub` patterns allowed to assume the client upload role. GitHub identifies repositories by an
+      immutable subject: read it with `gh api repos/<owner>/<repo>/actions/oidc/customization/sub` and add
+      `<sub_claim_prefix>:*`. Onboarding a client is a reviewed stack update that appends one entry here.
+
   FindingsBusName:
     Type: String
     Default: findings-hub
@@ -49,6 +64,9 @@ Parameters:
     Type: Number
     Default: 7
     AllowedValues: [1, 3, 5, 7, 14, 30]
+
+Conditions:
+  CreateOidcProvider: !Equals [!Ref CreateGitHubOidcProvider, "true"]
 
 Resources:
   ArtifactBucket:
@@ -361,6 +379,57 @@ Resources:
       Tags:
         - { Key: owner, Value: C }
 
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: CreateOidcProvider
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "lets a client's GitHub Actions job prove its identity to AWS with no stored secrets"
+        must:
+          - "audience sts.amazonaws.com only"
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+      Tags:
+        - { Key: owner, Value: C }
+
+  ClientUploadRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        why: "assumed by an allowlisted client repository through GitHub OIDC to ask owner-c-presign for upload URLs"
+        must:
+          - "trust only the sub patterns in ClientRepoSubs and audience sts.amazonaws.com"
+          - "permission is lambda:InvokeFunction on owner-c-presign and nothing else"
+    Properties:
+      RoleName: owner-c-client-upload
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !If
+                - CreateOidcProvider
+                - !Ref GitHubOidcProvider
+                - !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+              StringLike:
+                "token.actions.githubusercontent.com:sub": !Ref ClientRepoSubs
+      Policies:
+        - PolicyName: invoke-owner-c-presign
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt PresignFunction.Arn
+      Tags:
+        - { Key: owner, Value: C }
+
   # ---- X-Ray telemetry reader (read-only) ----------------------------------------------------
   XrayParserLogGroup:
     Type: AWS::Logs::LogGroup
@@ -506,6 +575,8 @@ Outputs:
     Value: !GetAtt XrayParserFunction.Arn
   XrayDemoFunctionArn:
     Value: !GetAtt XrayDemoFunction.Arn
+  ClientUploadRoleArn:
+    Value: !GetAtt ClientUploadRole.Arn
   ArtifactBucketName:
     Value: !Ref ArtifactBucket
   ParseDlqUrl:
