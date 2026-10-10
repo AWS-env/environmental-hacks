@@ -234,8 +234,8 @@ class RegistryTests(unittest.TestCase):
     def test_every_registered_check_loads_with_a_known_source_and_adapter(self):
         wired = {c.check_id: (c.source, c.adapter) for c in registry.CHECKS}
         self.assertEqual(wired, {"INF-01": ("cpu_metrics", None), "OBS-06": ("metrics", "list_metrics"),
-                                 "OBS-07": ("log_groups", "describe_log_groups"), "LLM-10": ("traces", "xray_traces"),
-                                 "OBS-17": ("logs_insights", None)})
+                                 "OBS-07": ("log_groups", "describe_log_groups"), "OBS-11": ("logs_insights", None),
+                                 "LLM-10": ("traces", "xray_traces"), "OBS-17": ("logs_insights", None)})
         for check in registry.CHECKS:
             module, normalize = registry.load(check)
             self.assertEqual(module.CHECK_ID, check.check_id)

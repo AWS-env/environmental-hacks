@@ -92,7 +92,7 @@ A pair that fails is refused: it is not published and is listed under
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
-| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-17 |
+| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10 |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
@@ -187,8 +187,8 @@ minimum.
 ### Registered checks (one line each)
 
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
-(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), LLM-10
-(`traces`) and OBS-17 (`logs_insights`). A detector module plugs in through a normalizer, by default
+(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11
+(`logs_insights`), LLM-10 (`traces`) and OBS-17 (`logs_insights`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
 API pages use an adapter. The adapter builds the sources with account-free
@@ -203,9 +203,9 @@ TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:n
 Without `checks`, the telemetry analyzer runs INF-01 and OBS-06. OBS-06 needs
 `list_metrics` (for example `{"namespace": "OwnerD/Demo"}`); without it,
 ListMetrics lists every namespace. Pass `"checks": ["INF-01"]` to run only
-one of them. The log analyzer runs OBS-07 and OBS-17 by default. OBS-17 runs
-one Logs Insights query over the allowlisted groups (billed per GB scanned);
-pass `"checks": ["OBS-07"]` to skip it.
+one of them. The log analyzer runs OBS-07, OBS-11 and OBS-17 by default.
+OBS-11 and OBS-17 each run one Logs Insights query over the allowlisted groups
+(billed per GB scanned); pass `"checks": ["OBS-07"]` to skip both.
 
 Raw shapes:
 
@@ -305,6 +305,11 @@ repository at no cost.
   (`MaximumRetryAttempts: 0`), so a failure never re-runs a query. Failed
   events go to `owner-d-telemetry-dlq`, and the
   `owner-d-telemetry-dlq-not-empty` alarm goes off.
+- A log-analyzer run without `checks` runs 3 checks: OBS-07 reads
+  DescribeLogGroups, and OBS-11 and OBS-17 each run their own Logs Insights
+  query over the same window and log groups. A default run therefore scans
+  that log data twice. Pass `checks` to run fewer queries. On the demo log
+  group, one query over 24 hours scanned about 22 KB.
 - GetMetricData bills per metric requested. INF-01 requests 2 metrics per
   EC2/ECS resource, at most 200 resources, at most 10 pages per 250 resources.
   ListMetrics, DescribeLogGroups and X-Ray reads are bounded by page and trace
@@ -1500,6 +1505,137 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
 `tests/fixtures/obs07/recorded-describe-log-groups.json` is a real response
 from the project's selected Region (account ID replaced with `123456789012`).
 The `synthetic-*.json` fixtures are synthetic.
+
+## OBS-11 — Duplicate/repeated log lines (retry loops, flapping checks)
+
+Flags CloudWatch Logs log groups where one log message, once timestamps, IDs and
+numbers are replaced, makes up a large share of the application events in the
+query window and is logged more than once per invocation. Typical causes are a
+retry loop that logs every attempt or a flapping health check that logs every
+poll. CloudWatch Logs bills ingestion and storage per GB
+([pricing](https://aws.amazon.com/cloudwatch/pricing/)), and Logs Insights
+[pattern analysis](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_AnalyzeLogData_Patterns.html)
+is the console way to find such "frequently occurring or high-cost log lines".
+The check runs on the `owner-d-log-analyzer` route (source `logs_insights`).
+Without `checks`, the log analyzer runs OBS-07, OBS-11 and OBS-17.
+
+### Input
+
+`owner_d.obs11.LOGS_INSIGHTS_QUERY` runs over the allowlisted log groups and
+the bounded window:
+
+```
+fields regexReplace(... substr(@message, 0, 400) ...) as normalized   # UUID, ISO timestamp, 8+ hex chars,
+| stats count(*) as n, min(@timestamp) as first, max(@timestamp) as last   #   digit runs -> <uuid> <ts> <hex> <n>,
+    by @log, normalized                                                    #   whitespace collapsed
+| fields if(n >= 10 or normalized like /<Lambda platform line>/, normalized, "<other>") as message
+| stats sum(n) as occurrences, min(first) as first_seen, max(last) as last_seen by @log, message
+| sort @log asc, occurrences desc
+```
+
+`regexReplace` uses RE2 syntax. Messages seen fewer than 10 times fold into
+one `<other>` row per log group, so the row count stays small while the totals
+stay exact. Lambda platform lines keep their own rows. Bytes scanned depend on
+the window and the log groups, not on the query.
+
+`normalize_logs_insights(raw, *, settings)` turns the rows into one `telemetry`
+source per `resource:log-group/<log group name>` scope item. The locator is
+`logs-insights://<region>/log-group/<name>`, and the account ID prefix of
+`@log` is dropped.
+
+| Field | Meaning |
+| --- | --- |
+| `log_group`, `window` | Log group name; query window `{start, end}` |
+| `events` | Every event the query counted |
+| `platform_events` | Lambda platform lines: `START`/`END`/`REPORT RequestId:`, `INIT_START`, `INIT_REPORT`, `INIT_RUNTIME_DONE`, `RESTORE_*`, `EXTENSION`, `TELEMETRY`, JSON `"type":"platform.*"` |
+| `application_events` | `events - platform_events` |
+| `invocations` | Number of `START RequestId:` lines, or `null` when none were seen (not a Lambda log group) |
+| `folded_events` | Events in the `<other>` row |
+| `messages` | Up to 20 application messages, most frequent first: `message` (redacted, at most 200 characters), `message_sha256`, `occurrences`, `share`, `first_seen`, `last_seen` |
+| `omitted_messages` | Messages beyond those 20 (still counted in `application_events`) |
+
+Reported text is redacted: emails, IPv4/IPv6 addresses, long tokens, and the
+values of `password=`, `token:`, `api_key=`, `Authorization`, `Bearer` and
+similar keys. Numbers, UUIDs and hex IDs are already placeholders.
+
+Groups get no source, and stay out of `evaluated_scope` with a limitation,
+when:
+
+- the Logs Insights row limit was reached: the last group in the rows and any
+  group not seen have incomplete counts;
+- a row has a missing message or a non-integer count (that group only);
+- a row has no `@log` (every group, since totals are unknown).
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_events` | Application events a group needs in the window before it is evaluated | `100` |
+| `min_repeats` | A message is flagged only when it occurs more often than this (at least 9, because the query folds messages seen fewer than 10 times) | `50` |
+| `min_share` | ... and when it is more than this fraction of the group's application events | `0.2` |
+| `exempt_message_markers` | Case-insensitive substrings that mark heartbeat lines; may be empty | `["heartbeat"]` |
+
+`owner_d.obs11.REFERENCE_SETTINGS` and the registry defaults hold these
+values. For scale: the AWS SDKs'
+[standard retry mode](https://docs.aws.amazon.com/sdkref/latest/guide/feature-retry-behavior.html)
+makes at most 3 attempts per call, so a message seen more than 50 times that
+is also more than 20% of a group's lines is far beyond normal per-call retries.
+All four values are judgment calls. Missing or invalid settings make the
+result `unavailable`.
+
+### Detection rule
+
+For each group with `application_events >= min_events`, a message is flagged
+when `occurrences > min_repeats` **and** `occurrences / application_events >
+min_share`. Messages that pass both thresholds but are not flagged (a
+limitation names them):
+
+- Lambda platform lines;
+- heartbeat lines (`exempt_message_markers`);
+- per-request lines: when `invocations` is known and `occurrences <=
+  invocations`, the message is logged at most once per invocation on average.
+  This covers request summaries, and the demo's control path.
+
+There is one finding per flagged message, with the identity
+`repeated-log-line:<first 16 hex characters of message_sha256>`. It cites
+`messages`, `application_events`, `invocations` and `window`, and quotes
+the redacted text. Confidence:
+
+- `high` when the text has no `<n>` placeholder (identical apart from
+  timestamps and IDs) and `invocations` is known;
+- `medium` otherwise, because lines that differ only in numbers were grouped,
+  or the per-invocation rate is unknown.
+
+Measurements stay absent: the bytes of the repeated lines are not measured.
+
+### Limitations
+
+- Messages are compared on their first 400 characters after normalisation.
+- A retry loop that fires on only a few invocations (fewer repeated lines than
+  invocations) is not flagged. Bursts are not timed.
+- Non-Lambda log groups have no invocation count, so the per-request exception
+  cannot apply to them.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs11/obs11-01-positive-input.json
+```
+
+`tests/fixtures/obs11/recorded-logs-insights.json` is a real response to
+`LOGS_INSIGHTS_QUERY` for `/aws/lambda/owner-d-telemetry-demo`, last 24 hours,
+with the account ID replaced by `123456789012`. The log lines are the demo's
+synthetic output: one `all` invocation and ten `llm10` invocations, so 53
+application events. `obs11-01-positive-input.json` is built from it with
+`min_events: 50` and `min_repeats: 10`. The waste line `upstream inventory-svc
+unavailable, retrying` (20 lines, 1.8 per invocation) is flagged. The control
+line is logged once and folds into `<other>`. The two LLM-10 summary lines
+(11 lines over 11 invocations) are per-request lines. With the reference
+settings the group is not evaluated yet (53 < 100 application events). Within
+one fresh 24-hour window, four `{"scenario": "all"}` invocations (132
+application events, 80 retry lines) or two with `"repeat": 50` (126 events,
+100 retry lines) are enough for the reference settings.
 
 ## OBS-17 — Verbose fields retained (full stack traces, request bodies)
 

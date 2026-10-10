@@ -56,6 +56,9 @@ OBS07_DEFAULTS = {  # OBS-07 README reference values
     "compliance_tag_keys": ["compliance", "data-retention", "legal-hold"],
     "exempt_log_group_prefixes": ["aws-controltower/"],
 }
+OBS11_DEFAULTS = {  # OBS-11 reference values (obs11.REFERENCE_SETTINGS)
+    "min_events": 100, "min_repeats": 50, "min_share": 0.2, "exempt_message_markers": ["heartbeat"],
+}
 LLM10_DEFAULTS = {"max_identical_tool_calls": 3, "max_llm_iterations": 10, "min_traces": 10}  # LLM-10 reference values
 OBS17_DEFAULTS = {"max_event_bytes": 4096, "min_bytes_share": 0.25, "max_trace_repeats": 1,  # obs17.REFERENCE_SETTINGS
                   "max_error_trace_repeats": 10, "min_events": 20}
@@ -78,6 +81,7 @@ CHECKS = (
                    adapter="list_metrics", defaults=OBS06_DEFAULTS),
     TelemetryCheck("OBS-07", "owner_d.obs07", "log_groups", normalizer="owner_d.obs07:normalize_describe_log_groups",
                    adapter="describe_log_groups", defaults=OBS07_DEFAULTS),
+    TelemetryCheck("OBS-11", "owner_d.obs11", "logs_insights", defaults=OBS11_DEFAULTS),
     TelemetryCheck("LLM-10", "owner_d.llm10", "traces", normalizer="owner_d.llm10:normalize_xray_traces",
                    adapter="xray_traces", defaults=LLM10_DEFAULTS),
     TelemetryCheck("OBS-17", "owner_d.obs17", "logs_insights", defaults=OBS17_DEFAULTS),
