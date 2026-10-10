@@ -19,6 +19,7 @@ from urllib.request import Request, urlopen
 
 from scan_api import hub, store
 from scanner import source
+from scanner.adapters import node
 from scanner.core import AdapterUnavailable
 from scanner.report import build_report, default_adapters
 
@@ -29,9 +30,10 @@ MAX_TARBALL_BYTES = 50_000_000
 MAX_EXTRACTED_BYTES = 1_000_000_000  # stays well inside the 2 GB ephemeral storage set in the template
 MAX_MEMBERS = 100_000
 DOWNLOAD_SECONDS = 120
-# Owners A and B run on Node.js, which the python3.12 Lambda runtime does not include.
-LAMBDA_OWNERS = {"C", "D"}
-NODE_REASON = "needs Node.js, which the scan API's Python Lambda runtime does not include; run the CLI locally"
+# Owners A and B run on Node.js, which the python3.12 runtime does not include: the worker gets it from
+# the stack's node-runtime layer (/opt/bin/node, on Lambda's PATH). Without the layer they stay unavailable.
+LAMBDA_OWNERS = {"A", "B", "C", "D"} if node.find_node() else {"C", "D"}
+NODE_REASON = "needs Node.js, which this scan API worker does not have (no node-runtime layer); run the CLI locally"
 
 
 class ScanError(Exception):

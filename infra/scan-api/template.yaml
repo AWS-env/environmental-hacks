@@ -12,6 +12,11 @@ Parameters:
   CodeKey:
     Type: String
     Description: S3 key of the zip; use a content-addressed key so a new build updates both functions.
+  NodeLayerKey:
+    Type: String
+    Description: >-
+      S3 key (in CodeBucket) of node-runtime-layer.zip from the same build script: the Node.js binary the
+      worker uses for the Owner A and B detectors. Content-addressed, like CodeKey.
   AllowedOrigin:
     Type: String
     Default: "*"
@@ -191,6 +196,7 @@ Resources:
       Timeout: 900
       EphemeralStorage:
         Size: 2048
+      Layers: [!Ref NodeRuntimeLayer]
       ReservedConcurrentExecutions: !If [ReserveWorker, !Ref WorkerReservedConcurrency, !Ref "AWS::NoValue"]
       Code:
         S3Bucket: !Ref CodeBucket
@@ -213,6 +219,20 @@ Resources:
       Qualifier: $LATEST
       MaximumRetryAttempts: 0
       MaximumEventAgeInSeconds: 3600
+
+  # Node.js for the Owner A and B detectors: Lambda extracts it to /opt/bin/node, which is on PATH.
+  # Only the worker uses it, so the api Lambda's package stays small.
+  NodeRuntimeLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: scan-api-node-runtime
+      Description: Official Node.js 22 linux-arm64 binary (sha256-pinned in scripts/build-scan-api-lambda.sh).
+      CompatibleArchitectures: [arm64]
+      CompatibleRuntimes: [python3.12]
+      LicenseInfo: MIT (Node.js; bundled third-party licenses are in share/doc/node/LICENSE)
+      Content:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref NodeLayerKey
 
   # ---- api: validates, queues, invokes the worker and serves status/report ------------------
   ApiLogGroup:
