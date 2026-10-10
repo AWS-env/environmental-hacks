@@ -136,6 +136,7 @@ jobs:
           cfn-lint cdk/owner-d/artifact-upload.yaml
           cfn-lint cdk/owner-d/hub-api.yaml
           cfn-lint cdk/owner-d/telemetry.yaml
+          cfn-lint cdk/owner-d/artifact-parser.yaml
 
       - name: Detect project manifest
         id: detect

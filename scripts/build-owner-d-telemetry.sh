@@ -6,7 +6,8 @@
 # wheels for the Lambda runtime (python3.12, arm64), installed like scripts/build-owner-d-hub.sh does.
 # jsonschema's dependencies are pure Python except rpds-py (pulled in through referencing), which is a
 # compiled manylinux aarch64 wheel. boto3 comes from the runtime. Handlers:
-#   owner_d.aws.telemetry_handler / log_handler / trace_handler .lambda_handler
+#   owner_d.aws.telemetry_handler / log_handler / trace_handler / artifact_handler .lambda_handler
+# (artifact_handler is deployed by cdk/owner-d/artifact-parser.yaml from this same zip)
 # The zip is reproducible (fixed timestamps, sorted entries) and named by its content hash so each change
 # redeploys. Only this zip is replaced; the findings-hub build in the same folder is left alone.
 set -euo pipefail
