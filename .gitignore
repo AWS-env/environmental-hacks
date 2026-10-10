@@ -51,15 +51,18 @@ venv/
 
 # Local agent runtime files (not part of the project)
 .agents/
+.codex/
+.aws/
 .opencode/
 .mcp.json
 opencode.json
 GEMINI.md
 cdk/owner-c/build/
-infra/scan-api/build/
 # Local G01 verification and reproducible deployment outputs
 .venv-g01/
+.venv-*/
 .build/
+.vercel/
 
 # Personal IDE settings and issue-planning scratch files
 .cursor/
@@ -69,3 +72,4 @@ pr_body.md
 scratch_issues.json
 process_issues.py
 issue_*.md
+docs/plans/owner-b/

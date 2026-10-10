@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import "./glass.css";
+import Sidebar from "../components/Sidebar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,18 +15,30 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EcoAudit • Software Sustainability Auditor | AWS Environmental Hacks",
+  title: "Kimi • Turn any repository into insights",
   description:
-    "Audit compute waste, quantify software carbon footprint, and eliminate code and cloud resource inefficiencies with real-time detector analysis.",
+    "Understand, analyze, and work with your codebase using AI.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-screen overflow-hidden antialiased dark`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="h-screen w-screen overflow-hidden flex bg-[#0a0d0e] text-zinc-100 selection:bg-white selection:text-black relative font-sans">
+        {/* Global Sleek Floating Capsule Sidebar */}
+        <Sidebar />
+
+        {/* Main Content Area Offset for Sidebar */}
+        <div className="flex-1 h-screen overflow-hidden pl-[72px] relative z-10">
+          {children}
+        </div>
+      </body>
     </html>
   );
 }
