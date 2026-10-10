@@ -92,7 +92,7 @@ A pair that fails is refused: it is not published and is listed under
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
-| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07 |
+| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-17 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10 |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
@@ -187,8 +187,8 @@ minimum.
 ### Registered checks (one line each)
 
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
-(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`) and LLM-10
-(`traces`). A detector module plugs in through a normalizer, by default
+(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), LLM-10
+(`traces`) and OBS-17 (`logs_insights`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
 API pages use an adapter. The adapter builds the sources with account-free
@@ -203,7 +203,9 @@ TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:n
 Without `checks`, the telemetry analyzer runs INF-01 and OBS-06. OBS-06 needs
 `list_metrics` (for example `{"namespace": "OwnerD/Demo"}`); without it,
 ListMetrics lists every namespace. Pass `"checks": ["INF-01"]` to run only
-one of them.
+one of them. The log analyzer runs OBS-07 and OBS-17 by default. OBS-17 runs
+one Logs Insights query over the allowlisted groups (billed per GB scanned);
+pass `"checks": ["OBS-07"]` to skip it.
 
 Raw shapes:
 
@@ -1498,6 +1500,128 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
 `tests/fixtures/obs07/recorded-describe-log-groups.json` is a real response
 from the project's selected Region (account ID replaced with `123456789012`).
 The `synthetic-*.json` fixtures are synthetic.
+
+## OBS-17 — Verbose fields retained (full stack traces, request bodies)
+
+Flags CloudWatch Logs log groups that ingest oversized events, such as echoed
+request bodies, or that repeat full stack traces. CloudWatch Logs bills
+ingestion per GB ingested and storage per GB
+([pricing](https://aws.amazon.com/cloudwatch/pricing/)), so a payload copied
+into every line is paid for on every line. The OWASP
+[Logging Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Logging_Cheat_Sheet.html)
+suggests "separate files/tables for extended event information such as error
+stack traces or a record of HTTP request and response headers and bodies". It
+also lists sensitive personal data among the data to exclude from logs. The
+check reads existing logs through the log analyzer (`logs_insights` source)
+and reports sizes and counts only. Message text, bodies and stack frames never
+leave CloudWatch Logs.
+
+### Input
+
+`owner_d.obs17.LOGS_INSIGHTS_QUERY` runs over the allowlisted groups and the
+analyzer's window (24 hours by default):
+
+```text
+filter @message not like /^(START|END|REPORT) RequestId: |^(INIT_START|INIT_REPORT|INIT_RUNTIME_FAILURE|RESTORE_START|RESTORE_REPORT|EXTENSION|TELEMETRY) /
+| filter @message not like /"type"\s*:\s*"platform\./
+| parse @message /^\[(?<o17_text_level>[A-Za-z]+)\]/
+| parse @message /(?<o17_trace>Traceback \(most recent call last\)|(\n|\r|\\n|\\r)(\t|\\t| {2,})at [^\s(]+[ (]|goroutine \d+ \[)/
+| parse @message /"(?<o17_body>[\w.-]{0,60}([Bb]ody|[Pp]ayload))"\s*:/
+| fields strlen(@message) as o17_chars, least(ceil(strlen(@message) / 512), 65) as o17_bucket,
+    substr(toupper(coalesce(level, levelname, severity, o17_text_level, "")), 0, 16) as o17_level
+| stats count(*) as events, sum(o17_chars) as chars, max(o17_chars) as max_chars,
+    count(o17_trace) as trace_events, count(o17_body) as body_events by @log, o17_level, o17_bucket
+```
+
+- Lambda platform lines (text `START`/`END`/`REPORT`/`INIT_*` and JSON
+  `platform.*` records) are excluded.
+- Size is `strlen(@message)` ([string functions](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-operations-functions.html)),
+  in Unicode code points. Events are grouped into 512-character buckets: bucket
+  `k` holds `(512(k-1), 512k]` and bucket 65 everything above 32,768. Each
+  bucket's sum is exact, so any `max_event_bytes` that is a multiple of 512 is
+  evaluated exactly.
+- Stack-trace markers: Python `Traceback (most recent call last)`, a frame
+  line after a line break (`\tat x.y(` Java, `    at fn (` Node.js and .NET),
+  Go `goroutine N [`. They are matched raw or JSON-escaped (`\n\tat`).
+- Echoed-body markers: a JSON key that ends in `body` or `payload`
+  (`"body":`, `"request_body":`, `"requestBody":`, `"payload":`).
+- Level: JSON `level`/`levelname`/`severity`, or the Lambda text prefix
+  `[ERROR]`. ERROR/FATAL/CRITICAL (and pino 50/60) are error levels.
+  TRACE/DEBUG/INFO/NOTICE/WARN (and pino 10-40) are below ERROR. Anything else
+  is unknown.
+
+`normalize_logs_insights(raw, *, settings)` builds one `telemetry` source per
+queried log group, with scope `resource:log-group/<name>` and the account ID
+removed from `@log`. Every queried group gets a source, with zero counts when
+it had no application events. Data fields: `events`, `event_chars`,
+`max_event_chars`, `size_histogram` (per bucket: `events`, `chars`,
+`trace_events`, `body_events`), `events_by_level`, `trace_events_by_level`
+(`error`, `below_error`, `unknown`), `body_field_events`, `bucket_chars`,
+`window` and `problems`. The following go into `problems`, which leaves the
+group unevaluated:
+
+- the query hit its row limit;
+- a row without a queried `@log`;
+- a non-numeric count;
+- a size outside its bucket's bounds.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_event_bytes` | Events larger than this many characters count as oversized. Must be a multiple of 512, from 512 to 32,768 | `4096` |
+| `min_bytes_share` | Oversized events must carry more than this share of the group's application log characters | `0.25` |
+| `max_trace_repeats` | Most stack-trace events allowed below ERROR level in the window | `1` |
+| `max_error_trace_repeats` | Most ERROR-level stack-trace events allowed in the window | `10` |
+| `min_events` | Groups with fewer application events are not evaluated | `20` |
+
+`obs17.REFERENCE_SETTINGS` holds these values, and the registry's
+`OBS17_DEFAULTS` copies them; a test keeps the two equal. All five are team
+choices. No authoritative per-event size limit exists, and 4 KiB is well above
+a structured line. Missing or invalid settings make the result `unavailable`.
+
+### Detection rule
+
+- `oversized-log-events`: the characters in buckets above
+  `max_event_bytes / 512` are strictly more than `min_bytes_share` of the
+  group's characters. The summary counts the large events that carry a stack
+  trace or a body/payload key. Confidence is `medium` when such a marker is
+  present, `low` otherwise. Evidence: `size_histogram`, `event_chars`,
+  `events`.
+- `repeated-stack-traces`: either stack-trace events below ERROR level exceed
+  `max_trace_repeats`, or ERROR-level trace events exceed
+  `max_error_trace_repeats`. Confidence `medium`. Evidence:
+  `trace_events_by_level`, `events`.
+
+Exceptions: Lambda platform lines are excluded by the query. ERROR-level traces
+up to `max_error_trace_repeats` are not flagged; their bytes still count for
+the size rule. Traces without a recognized level are noted but never flagged.
+Large events under the share are noted. Fingerprints use the identity per
+scope, so changing sizes keep the finding. Measurements stay absent.
+
+### Limitations
+
+- `strlen` counts code points. It is a lower bound for bytes of non-ASCII text
+  and leaves out CloudWatch's per-event overhead.
+- Logs Insights sees whole events, so per-field sizes cannot be measured.
+- A trace split into one event per line is not recognized as a trace.
+- Bodies logged under other key names are missed.
+- The rule cannot tell whether the detail is needed, for example in an audit
+  log. The recommendation asks the team to confirm that first.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs17/obs17-01-demo-input.json
+```
+
+`tests/fixtures/obs17/demo.insights.json` holds real Logs Insights responses
+from the synthetic `owner-d-telemetry-demo` log group in ap-south-1. The
+account ID is replaced with `123456789012`, and `@ptr` values are removed. It
+has three responses: the whole group, the OBS-17 waste path only and the
+control path only. The CLI input is normalized from the whole-group response.
+The other test inputs are synthetic.
 
 ## OBS-06 — High-cardinality metric labels (CloudWatch custom metric dimensions)
 
