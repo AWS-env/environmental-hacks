@@ -3741,3 +3741,100 @@ handling) and OBS-14 (non-production ingestion).
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/obs10/obs10-01-positive-input.json
 ```
+
+## LLM-08 — Over-sized model for simple tasks (static proxy: fixed top-tier model, no routing)
+
+Flags LLM API calls in Python source that hard-code a top-tier model ID for
+every request, with no model selection visible in the file, where the call
+looks like a simple task. This v1 is a static proxy: it proves "a fixed large
+model at this call site", not that a smaller model would give acceptable
+quality (the taxonomy's "quality trade-off" exception), and not any cost. It
+emits no measurements. Confidence is `low` or `medium`, never `high`.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only) and the context settings below.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `max_simple_output_tokens` | Largest output cap that counts as a short answer | `256` |
+| `max_simple_prompt_tokens` | Largest estimated static prompt that can count as a simple instruction | `500` |
+
+A label, a yes/no or one extracted field fits well under 256 output tokens.
+Anthropic recommends its smallest models for classification and extraction
+([choosing a model](https://platform.claude.com/docs/en/about-claude/models/choosing-a-model)),
+and AWS recommends matching the model to the task
+([GENCOST01-BP01](https://docs.aws.amazon.com/wellarchitected/latest/generative-ai-lens/gencost01-bp01.html)).
+Longer static instructions are treated as a real task even with
+classification wording. Both values are judgment calls, so they are required
+and exported as `REFERENCE_SETTINGS`. Missing or invalid settings make the
+result `unavailable`.
+
+### Detection rule
+
+A call is flagged when all of these hold:
+
+1. **Fixed top-tier model.** The model argument (`model`, Bedrock `modelId`)
+   resolves to one string literal, inline or through a name bound once, that
+   matches this table:
+
+   | Family | Pattern | Smaller tiers named in the summary | Source |
+   | --- | --- | --- | --- |
+   | Claude Opus / Fable / Mythos | `claude-opus-*`, `claude-fable-*`, `claude-mythos-*`, `claude-3-opus*`, with any `anthropic.`/`us.`/`global.` prefix or Vertex `@` | Haiku, Sonnet | [models overview](https://platform.claude.com/docs/en/about-claude/models/overview) |
+   | Amazon Nova Premier | `amazon.nova-premier*` | Nova Micro, Lite, Pro | [Nova user guide](https://docs.aws.amazon.com/nova/latest/userguide/what-is-nova.html) |
+   | OpenAI pro | `gpt-5-pro`, `gpt-5.x-pro`, `o1-pro`, `o3-pro` (optionally dated) | base or mini/nano model | [OpenAI models](https://developers.openai.com/api/docs/models) |
+
+   Sonnet, Haiku, Nova Pro/Lite/Micro, plain `gpt-*`, `o*` and `*-mini`/`*-nano`
+   models are never flagged.
+2. **Looks like a simple task**, at least one of:
+   - an output cap (`max_tokens`, `max_completion_tokens`,
+     `max_output_tokens`, `inferenceConfig.maxTokens`, invoke body
+     `max_tokens`/`max_new_tokens`/`max_gen_len`/...) of at most
+     `max_simple_output_tokens`;
+   - classification / extraction / yes-no wording (`classify`, `categorize`,
+     `sentiment`, `yes or no`, `true or false`, `extract the`, `one word`,
+     `which category`, ...) in the static prompt text (`system`,
+     `instructions`, `messages`, `input`, `prompt`), whose static part is at
+     most `max_simple_prompt_tokens` (4 characters per token).
+
+   `medium` when both signals hold, `low` with one or for an OpenAI-compatible
+   chain call on an unknown client.
+3. **No sign of routing or tuning.** Not flagged:
+   - a model from a parameter (also with a default), the environment, a
+     settings object, a function call, a conditional or a name bound more than
+     once;
+   - files that contain a smaller model ID of a known family (for example
+     `claude-haiku-4-5`, `amazon.nova-lite-v1:0`, `gpt-5-mini`) or mention a
+     router (`prompt-router`, `ModelRouter`, `litellm.Router`, `RouteLLM`,
+     `route_model`, `select_model`, ...) anywhere: the file already picks
+     models per task;
+   - calls with tools (`tools`, `functions`, `toolConfig`) or with explicit
+     reasoning/effort settings (`thinking`, `reasoning`, `reasoning_effort`,
+     `output_config`, reasoning fields in `additionalModelRequestFields`):
+     agentic work, or cost already tuned on the large model;
+   - unresolvable `**kwargs`, `extra_body`, Bedrock `promptVariables` and
+     `invoke_model` bodies that are not `json.dumps(<static dict>)`;
+   - other SDK clients (`Groq()`, ...).
+
+`# noqa` or `# noqa: LLM-08` records a deliberate choice. The identity is
+`<qualified function>:<provider>.<api>` with `#2` for repeats; the model ID is
+not part of it. Missing, non-Python or unparseable files are left out of
+`evaluated_scope`, never reported clean.
+
+The taxonomy maps LLM-08 to Logs Insights on client logs (usage by task and
+model). That route is not implemented in v1. It needs client logs that carry
+a task label next to the model ID and token counts; Bedrock model invocation
+logs have the model and tokens but no task, and the log analyzer may only
+query `/aws/lambda/owner-d-*` groups. It is a follow-up
+(`LOGS_INSIGHTS_QUERY` and `normalize_logs_insights` in this module), not
+part of the static check.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm08/llm08-01-positive-input.json
+```

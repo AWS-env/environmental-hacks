@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm08-001",
+  "commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "check_id": "LLM-08",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python",
+    "max_simple_output_tokens": 256,
+    "max_simple_prompt_tokens": 500
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic LLM-08 fixture: top-tier models hard-coded for simple tasks. Never executed.\nimport json\n\nimport anthropic\nimport boto3\nfrom openai import OpenAI\n\nclaude = anthropic.Anthropic()\nclient = OpenAI()\nbedrock = boto3.client(\"bedrock-runtime\")\nTRIAGE_MODEL = \"us.anthropic.claude-opus-4-1-20250805-v1:0\"\nSENTIMENT_PROMPT = \"Classify the sentiment of the review as positive, negative or neutral.\"\n\n\ndef sentiment(review):\n    return claude.messages.create(model=\"claude-opus-5-5\", max_tokens=10, system=SENTIMENT_PROMPT, messages=[{\"role\": \"user\", \"content\": review}])\n\n\ndef is_spam(email):\n    messages = [{\"role\": \"user\", \"content\": f\"Is this email spam? Answer yes or no.\\n\\n{email}\"}]\n    return client.chat.completions.create(model=\"gpt-5-pro\", messages=messages, max_completion_tokens=5)\n\n\ndef ticket_category(ticket):\n    return client.responses.create(model=\"o3-pro\", instructions=\"Categorize the support ticket into billing, bug or feature.\", input=ticket)\n\n\ndef triage(ticket):\n    return bedrock.converse(\n        modelId=TRIAGE_MODEL,\n        messages=[{\"role\": \"user\", \"content\": [{\"text\": ticket}]}],\n        inferenceConfig={\"maxTokens\": 64, \"temperature\": 0},\n    )\n\n\ndef order_number(email):\n    body = {\"schemaVersion\": \"messages-v1\", \"messages\": [{\"role\": \"user\", \"content\": [{\"text\": \"Extract the order number from this email: \" + email}]}], \"inferenceConfig\": {\"max_new_tokens\": 20}}\n    return bedrock.invoke_model(modelId=\"amazon.nova-premier-v1:0\", body=json.dumps(body))\n\n\ndef language(llm, text):\n    return llm.chat.completions.create(model=\"gpt-5.5-pro\", messages=[{\"role\": \"user\", \"content\": text}], max_tokens=8)\n"
+    }
+  ]
+}
