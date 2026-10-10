@@ -3838,3 +3838,121 @@ part of the static check.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm08/llm08-01-positive-input.json
 ```
+
+## LLM-06 — Parallel calls defeating the prompt cache (static proxy)
+
+Flags Python code that launches several LLM calls at the same time over the
+same large, static prompt prefix that carries a cache breakpoint, with no
+call sending that prefix first. A cache entry becomes readable only after the
+first response begins
+([Anthropic prompt caching](https://platform.claude.com/docs/en/build-with-claude/prompt-caching)).
+So N concurrent requests over a cold prefix each pay a cache write and none
+reads the cache. The taxonomy's fix is "warm cache with one call, then fan
+out".
+
+This is the complement of LLM-01, which flags a large prefix with *no* cache
+marker. The taxonomy detects this check from cache hit analysis in client
+logs. This v1 is a static proxy: it proves "concurrent fan-out over a shared
+cached prefix, with no warm-up in this function", not measured cache misses.
+It emits no token counts.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per scope item
+(`file:<path>`, `.py` only). No context settings are required.
+
+### Detection rule
+
+A finding needs all four conditions below.
+
+1. **Fan-out.** One of these launches 2 or more concurrent units, or an
+   unknown number (a comprehension or loop over a non-literal iterable). A
+   literal list or `range(n)` with fewer than 2 items is not a fan-out.
+
+   | Fan-out | Units |
+   | --- | --- |
+   | `asyncio.gather(...)` | explicit arguments, `*[comprehension]`, or `*tasks` where `tasks` is a comprehension or is built with `.append` |
+   | `asyncio.wait(...)`, `asyncio.as_completed(...)` | the same sequences |
+   | `asyncio.TaskGroup` / `anyio.create_task_group()` / `trio.open_nursery()` | `create_task` / `start_soon` in a loop, or repeated |
+   | `ThreadPoolExecutor` / `ProcessPoolExecutor` | `.map(fn, items)`, `.submit(fn, ...)` in a loop or comprehension; not with `max_workers=1` |
+
+   `asyncio.create_task`/`ensure_future` wrappers are unwrapped.
+   `asyncio.to_thread(fn, ...)` and `loop.run_in_executor(ex, fn, ...)` units
+   run `fn` in a thread.
+
+2. **Same-file LLM call, really concurrent.** A unit is either a direct LLM
+   call, or a call or reference to a function in the same file: a plain name,
+   a `self.`/`cls.` method, `functools.partial` or a lambda. Helpers are
+   followed up to 3 levels deep. Asyncio units must reach an **awaited** call
+   through `async def`s; a sync client inside a coroutine blocks the event
+   loop, so those calls do not overlap. Thread units must reach a **sync**
+   call. LLM calls are recognized by `owner_d/llmcalls.py`: Anthropic SDK
+   `messages.create/stream/parse` (also `beta.`), Bedrock
+   `converse`/`converse_stream`, and `invoke_model` with
+   `body=json.dumps(<static dict>)`.
+
+3. **Large cached prefix.** The call has an **explicit** breakpoint inside
+   its static prefix: a `cache_control` block (Anthropic, Bedrock InvokeModel
+   Claude) or a `cachePoint` block (Bedrock Converse, Nova). The prefix is read
+   in cache order (`tools` -> `system` -> `messages`) and stops at the first
+   dynamic piece. Breakpoints after that piece do not count.
+   - **Size.** The static text up to the last such breakpoint is estimated at
+     4 characters per token. Tool definitions are counted by compact JSON
+     length, without the marker itself.
+   - **Threshold.** The estimate must reach the model's minimum cacheable
+     length. LLM-01's table is reused (`claude_minimum`; 1,024 for Nova, whose
+     tool definitions do not count).
+   - **Unknown model.** An unknown Anthropic model uses 4,096. An unknown
+     Bedrock model is not flagged.
+
+4. **No warm-up.** No call earlier in the fan-out's function sends the same
+   model and static prefix. An earlier call to the same target counts (e.g.
+   `first = await answer(qs[0])` before
+   `gather(*(answer(q) for q in qs[1:]))`), and so does an earlier fan-out.
+
+Not flagged:
+- sequential loops;
+- calls with no cache marker (LLM-01's territory);
+- calls with only top-level automatic `cache_control`. Its breakpoint sits on
+  the last, per-item block, so siblings share no entry;
+- cached prefixes below the minimum;
+- dynamic or unresolvable prefixes (prompts read from files or other modules),
+  `**kwargs`, `extra_body`, Bedrock Prompt management;
+- OpenAI, whose caching is automatic and has no marker;
+- fan-out targets defined in other modules;
+- any file that pre-warms (`max_tokens=0` / `maxTokens: 0` anywhere, or a
+  function or call whose name contains `warm`) or uses `Semaphore(1)`.
+
+`# noqa` or `# noqa: LLM-06` on the fan-out line or on the LLM call line
+suppresses a finding.
+
+Confidence:
+- `low` by default. Other traffic within the cache TTL may already have
+  warmed the entry, and static analysis cannot see traffic timing.
+- `medium` for Anthropic fan-outs at a script entry point (module level or a
+  function named `main`), which usually starts cold. Bedrock stays `low`.
+
+The identity is
+`<fan-out qualname>:<fan-out api>-><LLM call qualname>:<provider>.<api>`, e.g.
+`answer_all:asyncio.gather->answer:anthropic.messages.create`. A repeat gets
+`#2`. The evidence is the fan-out expression. Missing, non-Python or
+unparseable files are left out of `evaluated_scope`, never reported clean.
+
+Not covered: LangChain/LiteLLM/agent frameworks, `multiprocessing.Pool`,
+fan-outs across modules or processes, and warm-ups done by a caller in
+another function or file.
+
+**Telemetry follow-up.** The taxonomy maps LLM-06 to CloudWatch Logs Insights
+on client usage logs (`owner-d-log-analyzer`): concurrent requests with the
+same prefix that each report `cache_creation_input_tokens` /
+`cacheWriteInputTokens` and no cache read. That route needs a documented
+client log schema (request time, prefix hash, cache write/read tokens) and is
+not implemented in v1. `owner_d/llm06.py` exports no `LOGS_INSIGHTS_QUERY` or
+normalizer.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm06/llm06-01-positive-input.json
+```
