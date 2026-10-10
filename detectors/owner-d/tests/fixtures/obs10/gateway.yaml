@@ -1,0 +1,52 @@
+# Synthetic fixture for OBS-10: gateway that drops debug logs and health-check spans.
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: otel-gateway
+  namespace: observability
+spec:
+  mode: deployment
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: 0.0.0.0:4317
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+      k8sattributes:
+      batch:
+      filter/debug-logs:
+        error_mode: ignore
+        logs:
+          log_record:
+            - 'severity_number < SEVERITY_NUMBER_INFO'
+      filter/health:
+        error_mode: ignore
+        traces:
+          span:
+            - 'attributes["url.path"] == "/healthz"'
+    exporters:
+      otlphttp/backend:
+        endpoint: https://otlp.vendor.example.com
+      debug:
+    service:
+      pipelines:
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, k8sattributes, filter/debug-logs, batch]
+          exporters: [otlphttp/backend]
+        logs/debug:
+          receivers: [otlp]
+          processors: []
+          exporters: [debug]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, filter/health, batch]
+          exporters: [otlphttp/backend]
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlphttp/backend]

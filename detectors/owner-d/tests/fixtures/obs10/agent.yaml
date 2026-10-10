@@ -1,0 +1,44 @@
+# Synthetic fixture for OBS-10: node agent that forwards everything to the gateway.
+apiVersion: opentelemetry.io/v1beta1
+kind: OpenTelemetryCollector
+metadata:
+  name: node-agent
+spec:
+  mode: daemonset
+  config:
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+      filelog:
+        include: [/var/log/pods/*/*/*.log]
+      hostmetrics:
+        scrapers:
+          cpu:
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+      batch:
+      filter/host:
+        metrics:
+          metric:
+            - 'name == "system.cpu.time"'
+    exporters:
+      otlp/gateway:
+        endpoint: otel-gateway-collector.observability.svc.cluster.local:4317
+      debug:
+    service:
+      pipelines:
+        logs:
+          receivers: [filelog, otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/gateway]
+        traces:
+          receivers: [otlp]
+          processors: [memory_limiter, batch]
+          exporters: [otlp/gateway, debug]
+        metrics:
+          receivers: [hostmetrics]
+          processors: [memory_limiter, filter/host, batch]
+          exporters: [otlp/gateway]
