@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm17-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "LLM-17",
+  "detector_version": "1.0.0",
+  "context": {
+    "min_window_days": 7,
+    "min_sample_count": 100,
+    "median_utilization_threshold": 0.1,
+    "peak_utilization_threshold": 0.5,
+    "min_peak_to_mean_ratio": 4
+  },
+  "scope": [
+    "resource:ecs/agents/support-agent-worker",
+    "resource:metric/triage-agent-pool",
+    "resource:lambda/planner-agent"
+  ],
+  "sources": [
+    {
+      "source_id": "cloudwatch:ecs/agents/support-agent-worker",
+      "scope_id": "resource:ecs/agents/support-agent-worker",
+      "kind": "telemetry",
+      "locator": "cloudwatch://ap-south-1/AWS/ECS/CPUUtilization?ClusterName=agents&ServiceName=support-agent-worker&period=3600&stat=Average,Maximum",
+      "data": {
+        "resource_id": "ecs/agents/support-agent-worker",
+        "resource_type": "aws_ecs_service",
+        "workload": "agent",
+        "metric": "cpu_utilization",
+        "provisioned_capacity": 6,
+        "capacity_unit": "task",
+        "autoscaling": false,
+        "mean_utilization": 0.0729,
+        "median_utilization": 0.045,
+        "peak_utilization": 0.92,
+        "window_days": 10.0,
+        "sample_count": 240,
+        "period_seconds": 3600,
+        "window_start": "2026-09-30T12:00:00Z",
+        "window_end": "2026-10-10T12:00:00Z"
+      }
+    },
+    {
+      "source_id": "cloudwatch:metric/triage-agent-pool",
+      "scope_id": "resource:metric/triage-agent-pool",
+      "kind": "telemetry",
+      "locator": "cloudwatch://ap-south-1/Example/Agents/AgentWorkerUtilization?pool=triage&period=3600&stat=Average,Maximum",
+      "data": {
+        "resource_id": "metric/triage-agent-pool",
+        "resource_type": "custom_capacity_pool",
+        "workload": "agent",
+        "metric": "capacity_utilization",
+        "provisioned_capacity": 8,
+        "capacity_unit": "worker",
+        "autoscaling": null,
+        "mean_utilization": 0.59,
+        "median_utilization": 0.59,
+        "peak_utilization": 0.78,
+        "window_days": 10.0,
+        "sample_count": 240,
+        "period_seconds": 3600,
+        "window_start": "2026-09-30T12:00:00Z",
+        "window_end": "2026-10-10T12:00:00Z"
+      }
+    }
+  ]
+}

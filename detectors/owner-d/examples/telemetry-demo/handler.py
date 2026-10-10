@@ -20,13 +20,18 @@ a ``waste`` path and a clean ``control`` path, and every emitted item is labeled
           in-process cache (every agent misses every question once), vs the same agents through one shared cache
           (only the first agent misses). One structured cache-lookup line per lookup; no LLM is called
 
+* LLM-17  (opt-in, not part of ``all``) ``AgentWorkerUtilization`` in ``OwnerD/Demo`` for a fixed pool of agent
+          workers, backfilled hourly for LLM17_DAYS days: idle most hours with one burst a day (waste), vs a pool
+          sized for its steady load (control). Two series in total, however often it runs
+
 The event selects what to emit: ``{"scenario": "all" | "OBS-11" | "OBS-17" | "OBS-04" | "OBS-06" | "LLM-10"}``,
-or ``{"scenario": "LLM-05" | "LLM-12"}``. Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series``
+or ``{"scenario": "LLM-05" | "LLM-12" | "LLM-17"}``. Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series``
 (OBS-06 request ids), ``tool_calls`` (LLM-10 iterations), ``agents`` and ``rounds`` (LLM-12); ``path`` (LLM-10,
-LLM-05 and LLM-12: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
+LLM-05, LLM-12 and LLM-17: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
 no dependency beyond the Python runtime (boto3 is used only for PutMetricData).
 """
 
+import datetime
 import hashlib
 import json
 import os
@@ -39,7 +44,7 @@ import uuid
 NAMESPACE = "OwnerD/Demo"
 METRIC_NAME = "RequestLatencyMs"
 SCENARIOS = ("OBS-11", "OBS-17", "OBS-04", "OBS-06", "LLM-10")  # what "all" runs
-OPT_IN_SCENARIOS = ("LLM-05", "LLM-12")  # selected by name only, so "all" keeps its output
+OPT_IN_SCENARIOS = ("LLM-05", "LLM-12", "LLM-17")  # selected by name only, so "all" keeps its output
 
 # OBS-06 series bound: request_id values come from a fixed pool, endpoint from a fixed list.
 REQUEST_ID_POOL = 40
@@ -400,6 +405,62 @@ def llm12(emit, agents, rounds, path="both"):
     return summary
 
 
+# ---- LLM-17: fixed agent capacity with bursty utilization ----------------------------------------------
+
+# A fixed pool of agent workers reports its own utilization (busy workers / pool size, in percent), as a worker
+# pool would. One run backfills LLM17_DAYS days of hourly statistic sets, so owner D's LLM-17 (min_window_days 7)
+# has the history at once. CloudWatch accepts timestamps up to two weeks old; datapoints older than 24 hours can
+# take up to 48 hours to show up in GetMetricData. Re-running puts the same values at the same hours.
+
+LLM17_METRIC = "AgentWorkerUtilization"
+LLM17_DAYS = 8
+LLM17_WORKERS = 4
+LLM17_BURST_HOUR = 13  # UTC hour of the waste pool's daily burst
+LLM17_SERIES = 2  # waste + control: every OwnerD/Demo series this scenario can create
+
+
+def _llm17_dims(path):
+    return [{"Name": "synthetic", "Value": "true"}, {"Name": "check", "Value": "LLM-17"},
+            {"Name": "path", "Value": path}]
+
+
+def _worker_utilization(path, hour_index, hour_of_day):
+    """(average, maximum) percent of the pool busy in one hour."""
+    if path == "waste":
+        if hour_of_day == LLM17_BURST_HOUR:
+            return 72.0, 98.0  # the daily burst the 4 always-on workers are sized for
+        base = 2.0 + hour_index % 4
+        return base, base + 4.0
+    base = 55.0 + (hour_index % 5) * 2  # the control pool is sized for its steady load
+    return base, base + 15.0
+
+
+def llm17(emit, path="both"):
+    if path not in LLM10_PATHS:
+        raise ValueError(f"path must be one of {', '.join(LLM10_PATHS)}")
+    paths = [label for label in ("waste", "control") if path in ("both", label)]
+    end = int(_now()) // 3600 * 3600  # start of the current hour: only completed hours are backfilled
+    hours = LLM17_DAYS * 24
+    data = []
+    for label in paths:
+        for i in range(hours):
+            stamp = end - (hours - i) * 3600
+            average, maximum = _worker_utilization(label, i, time.gmtime(stamp).tm_hour)
+            data.append({"MetricName": LLM17_METRIC, "Dimensions": _llm17_dims(label),
+                         "Timestamp": datetime.datetime.fromtimestamp(stamp, datetime.timezone.utc),
+                         "StatisticValues": {"SampleCount": 60, "Sum": average * 60, "Minimum": average / 2,
+                                             "Maximum": maximum},
+                         "Unit": "Percent"})
+    emit.metrics(data)
+    summary = {}
+    for label in paths:
+        emit.json("LLM-17", label, level="INFO", message="agent worker utilization backfilled", namespace=NAMESPACE,
+                  metric=LLM17_METRIC, workers=LLM17_WORKERS, hours=hours)
+        summary[f"{label}_datapoints"] = hours
+    summary["days"] = LLM17_DAYS
+    return summary
+
+
 # ---- entry points ---------------------------------------------------------------------------------------
 
 def _scenarios(value):
@@ -433,6 +494,7 @@ def run(event=None, write=None, cloudwatch=None, xray=None):
         "LLM-10": lambda: llm10(emit, _knob(event, "tool_calls"), event.get("path", "both")),
         "LLM-05": lambda: llm05(emit, event.get("path", "both")),
         "LLM-12": lambda: llm12(emit, _knob(event, "agents"), _knob(event, "rounds"), event.get("path", "both")),
+        "LLM-17": lambda: llm17(emit, event.get("path", "both")),
     }
     emitted = {check: steps[check]() for check in selected}
     return {"synthetic": True, "run_id": emit.run_id, "scenarios": list(selected), "emitted": emitted}

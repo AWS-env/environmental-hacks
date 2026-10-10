@@ -91,7 +91,7 @@ A pair that fails is refused: it is not published and is listed under
 
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
-| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
+| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06, LLM-17 |
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-12 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
 | `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12 (artifact mode) |
@@ -159,7 +159,12 @@ ID, `scope_per_payload` (1-200, default 50) and `dry_run`.
 - Telemetry analyzer. INF-01 needs `resources`, `discover`, or both. `window`
   accepts `lookback_days` (default 15, at most 30) or `start`/`end`, plus
   `period_seconds` (default 3600). `list_metrics` (`namespace`,
-  `metric_name`, `max_pages` ≤ 20) feeds ListMetrics checks.
+  `metric_name`, `max_pages` ≤ 20) feeds ListMetrics checks. LLM-17 reads only
+  the fixed agent/inference capacity listed in `agent_capacity` (at most 50,
+  see [LLM-17](#llm-17--static-provisioning--sizing-for-theoretical-max-for-agent-workloads-cloudwatch-utilization)),
+  for example `"agent_capacity": [{"type": "ecs", "cluster": "agents",
+  "service": "worker", "provisioned_capacity": 6, "capacity_unit": "task",
+  "autoscaling": false}]`, over the same `window`.
 - Log analyzer. `log_groups` takes `prefix`, `max_pages` (≤ 20) and
   `include_tags` (≤ 100 lookups). `logs` takes `log_groups` (exact names, at
   most 50, each must match the allowlist), `prefix`, `lookback_hours`
@@ -218,8 +223,9 @@ minimum.
 ### Registered checks (one line each)
 
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
-(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11, OBS-17
-and LLM-12 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
+(`cpu_metrics`), OBS-06 (`metrics`), LLM-17 (`capacity_metrics`), OBS-07
+(`log_groups`), OBS-11, OBS-17 and LLM-12 (`logs_insights`), LLM-10 and LLM-05
+(`traces`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
 API pages use an adapter. The adapter builds the sources with account-free
@@ -231,9 +237,11 @@ TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:n
                adapter="list_metrics", defaults=OBS06_DEFAULTS),
 ```
 
-Without `checks`, the telemetry analyzer runs INF-01 and OBS-06. OBS-06 needs
-`list_metrics` (for example `{"namespace": "OwnerD/Demo"}`); without it,
-ListMetrics lists every namespace. Pass `"checks": ["INF-01"]` to run only
+Without `checks`, the telemetry analyzer runs INF-01, OBS-06 and LLM-17.
+OBS-06 needs `list_metrics` (for example `{"namespace": "OwnerD/Demo"}`);
+without it, ListMetrics lists every namespace. LLM-17 needs `agent_capacity`;
+without it, LLM-17 reads nothing and is listed under `skipped`, so the
+scheduled run (`"discover": {}`) costs nothing extra. Pass `"checks": ["INF-01"]` to run only
 one of them. The log analyzer runs OBS-07, OBS-11, OBS-17 and LLM-12 by
 default. OBS-11, OBS-17 and LLM-12 each run one Logs Insights query over the
 allowlisted groups (billed per GB scanned); pass `"checks": ["OBS-07"]` to skip
@@ -243,6 +251,9 @@ Raw shapes:
 
 - `metrics`: `{"pages": [ListMetrics responses]}`. The last page keeps
   `NextToken` when the listing was truncated.
+- `capacity_metrics`: `{"resources": [parsed agent_capacity entries],
+  "series": {id: {"average", "maximum", "complete"}}, "period_seconds"}`, the
+  same series shape as `cpu_metrics`.
 - `log_groups`: `{"pages": [DescribeLogGroups responses], "logGroups": [...],
   "tags": {name: tags} | None}`.
 - `logs_insights`: `{"rows", "statistics", "log_groups", "query"}`. The check
@@ -461,6 +472,8 @@ proportion, so keep both as they are unless you have checked the log volume.
   group, one query over 24 hours scanned about 22 KB.
 - GetMetricData bills per metric requested. INF-01 requests 2 metrics per
   EC2/ECS resource, at most 200 resources, at most 10 pages per 250 resources.
+  LLM-17 requests 2 metrics per declared `agent_capacity` entry (at most 50,
+  so at most $0.001 per run), and none without `agent_capacity`.
   ListMetrics, DescribeLogGroups and X-Ray reads are bounded by page and trace
   limits.
 - Lambdas run on demand, plus the optional schedules above, which are
@@ -2264,6 +2277,149 @@ The fixtures under `tests/fixtures/llm05/` are synthetic `BatchGetTraces`
 responses shaped on the X-Ray segment document format, not production traces.
 The telemetry demo's opt-in `LLM-05` scenario emits a matching waste/control
 pair (see `examples/telemetry-demo/README.md`).
+
+## LLM-17 — Static provisioning / sizing for theoretical max for agent workloads (CloudWatch utilization)
+
+Flags fixed agent or inference capacity that idles most of the time and is
+used only in short bursts. The capacity is sized for the burst but held all
+the time, so the bursts would be better served by autoscaling or serverless
+inference
+([AGENTSUS02-BP03](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp03.html)).
+The signal is CloudWatch utilization metrics the client already has: a low
+median (p50), a peak that reaches real demand, and a high peak-to-mean ratio.
+When the bursts reach 100%, the finding also says that the same capacity is
+short at the peak (the under-provisioned side of the pattern). No
+energy or cost measurements are emitted.
+
+Why metrics and not Logs Insights: the taxonomy row maps LLM-17 to Logs
+Insights and `owner-d-log-analyzer`. Utilization of provisioned capacity is
+already a CloudWatch metric: `CPUUtilization` for EC2 and ECS, and
+`ProvisionedConcurrencyUtilization` for Lambda provisioned concurrency.
+Reconstructing it from logs would need app-specific log lines and would scan
+every log byte of the window. The check therefore runs in
+`owner-d-telemetry-analyzer` next to INF-01, reads only `GetMetricData`, and
+needs no new IAM permission.
+
+### Input
+
+The telemetry event lists the capacity to judge in `agent_capacity` (at most
+50 entries). Only declared capacity is read, because metrics cannot tell an
+agent worker from any other instance. Without `agent_capacity`, LLM-17 reads
+nothing and is listed under `skipped`.
+
+| `type` | Fields | Metric read (Average and Maximum per period) |
+| --- | --- | --- |
+| `ec2` | `id` (`i-...`) | `AWS/EC2` `CPUUtilization` (percent) |
+| `ecs` | `cluster`, `service` | `AWS/ECS` `CPUUtilization`, percent of the service's reservation |
+| `lambda` | `name`, `qualifier` (alias or version with provisioned concurrency) | `AWS/Lambda` `ProvisionedConcurrencyUtilization` (`FunctionName` + `Resource`), a fraction |
+| `custom` | `name`, `namespace`, `metric_name`, `dimensions`, `unit` (`percent`, the default, or `fraction`) | a utilization metric the workload publishes itself, e.g. busy agent workers / pool size |
+
+Every entry also takes `provisioned_capacity` and `capacity_unit` (for the
+summary; default `1` and a per-type unit), `autoscaling` (`true`, `false`, or
+`null`/omitted for unknown) and `workload` (`agent`, the default, or
+`inference`). A `lambda` entry without `qualifier` is on-demand Lambda. It has
+no fixed capacity and no utilization metric, so it stays in scope with a
+limitation and is never reported clean. This is the same graceful
+`unavailable` as INF-01 on Lambda.
+
+`metrics.normalize_capacity_metrics` turns the raw series into one
+`telemetry` source per `resource:<type>/<id>` (`resource:metric/<name>` for
+`custom`):
+
+| Field | Meaning |
+| --- | --- |
+| `resource_id`, `resource_type`, `workload`, `metric` | Identity; `metric` is `cpu_utilization`, `provisioned_concurrency_utilization` or `capacity_utilization` |
+| `provisioned_capacity` / `capacity_unit` / `autoscaling` | As declared |
+| `mean_utilization` / `median_utilization` | Mean and median of the period averages, fractions of capacity in `[0, 1]` |
+| `peak_utilization` | Highest period maximum, a fraction in `[0, 1]`; values above 1 are capped with a limitation |
+| `window_days` / `sample_count` | Observed span and number of periods with data |
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_window_days` | Minimum observed telemetry window | `7` |
+| `min_sample_count` | Minimum number of periods with data | `100` |
+| `median_utilization_threshold` | Median (p50) below this means the capacity is mostly idle | `0.10` |
+| `peak_utilization_threshold` | A peak at/above this is a real burst | `0.50` |
+| `min_peak_to_mean_ratio` | Peak at/above this multiple of the mean is bursty | `4` |
+
+The values are `llm17.REFERENCE_SETTINGS` and the registry defaults. A week
+covers the weekly cycle of an agent workload, and the default 15-day lookback
+leaves room for it. The peak threshold is the same as INF-01's, so the two
+checks split the same telemetry (see below). Missing or invalid settings make
+the result `unavailable`.
+
+### Detection rule
+
+A finding (identity `bursty-fixed-capacity`) is emitted when
+`window_days >= min_window_days`, `sample_count >= min_sample_count`,
+`median_utilization < median_utilization_threshold`,
+`peak_utilization >= peak_utilization_threshold`,
+`peak_utilization >= min_peak_to_mean_ratio * mean_utilization`, and the
+capacity is not declared autoscaled. Confidence is `high` when `autoscaling`
+is declared `false`, and `medium` when it is unknown. Evidence cites the exact
+`median_utilization`, `mean_utilization`, `peak_utilization`,
+`provisioned_capacity`, `window_days` and `sample_count` values. The following
+are evaluated but not flagged, with a note:
+
+- a low median without a burst (peak below the threshold). That is sustained
+  over-provisioning, INF-01's pattern;
+- a low median and a high peak below the ratio, which means busy stretches
+  rather than bursts;
+- bursty capacity declared `autoscaling: true`.
+
+### When it is not wasteful (`not_wasteful_when`)
+
+- The capacity already scales with demand: target tracking, step or
+  scheduled scaling that covers known bursts. Declare `autoscaling: true`.
+- Warm capacity is a latency requirement: an interactive agent whose latency
+  target a cold start or scale-out would break, and the fixed floor is already
+  the smallest that meets it.
+- The capacity is a commitment that is already paid for, such as Bedrock
+  provisioned throughput with a term or a reserved instance. Right-size it at
+  renewal instead.
+- The window misses the peak season or a planned launch that the capacity is
+  reserved for.
+
+### Relation to INF-01 and INF-02
+
+INF-01 flags a low average **and** a peak below `0.50`. LLM-17 requires a peak
+at or above `0.50`, so the two never flag the same series. INF-01's "driven by
+real peaks" note is exactly where LLM-17 starts. INF-02 is a static manifest
+check (a fixed replica count with no autoscaler in the supplied files). It
+proves that the count is fixed, not that the capacity idles. LLM-17 proves
+the idle and burst pattern from runtime telemetry of declared agent capacity.
+A static proxy for agent IaC is left out of v1: for ECS it would repeat
+INF-02, and provisioned throughput or provisioned concurrency in a template
+does not show that the workload is bursty.
+
+### Limitations
+
+- Only declared capacity is read; there is no discovery. `autoscaling` is
+  taken from the event and not read from Application Auto Scaling.
+- CPU is a proxy for an agent worker's load. A worker bound on I/O or GPU can
+  look idle on CPU while it is busy; use a `custom` utilization metric for
+  those workers.
+- Bedrock provisioned throughput and SageMaker endpoints publish no
+  utilization-of-capacity metric that this collector reads. A connector can
+  still supply the normalized fields above, because the detector accepts any
+  `resource_type`.
+- Hourly periods (the default) can hide bursts shorter than an hour in the
+  average, though not in the maximum.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm17/llm17-01-positive-input.json
+```
+
+The fixture is synthetic: an ECS agent worker service with 6 fixed tasks, a
+custom agent pool metric, and an on-demand Lambda that stays unevaluated.
+The telemetry demo's opt-in `LLM-17` scenario backfills a matching
+waste/control pair of `OwnerD/Demo` series (see
+`examples/telemetry-demo/README.md`).
 
 
 ## LLM-12 — Per-agent isolated caches not shared across the fleet (Logs Insights)
