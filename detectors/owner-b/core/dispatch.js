@@ -21,5 +21,9 @@ const network={
   "NET-02":require('../checks/net-02'),
   'NET-01':require('../checks/net-01'),
 };
-function evaluate(input){return network[input.check_id]?network[input.check_id].evaluate(input):jobs[input.check_id]?jobs[input.check_id].evaluate(input):database.evaluate(input);}
-module.exports={evaluate,jobs,network};
+const orm={
+  'DB-39':require('../checks/db-39'),
+};
+// ORM checks parse with WASM tree-sitter and return a Promise; the other checks are synchronous.
+function evaluate(input){return orm[input.check_id]?orm[input.check_id].evaluate(input):network[input.check_id]?network[input.check_id].evaluate(input):jobs[input.check_id]?jobs[input.check_id].evaluate(input):database.evaluate(input);}
+module.exports={evaluate,jobs,network,orm};

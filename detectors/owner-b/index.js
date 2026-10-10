@@ -11,6 +11,7 @@ module.exports = {
     ...require('./core/dispatch').jobs,
     ...require('./core/dispatch').network,
     'DB-34': require('./checks/db-34'),
+    ...require('./core/dispatch').orm,
   },
   db34: {
     scanSource: db34.scanSource,

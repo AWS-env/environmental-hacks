@@ -57,7 +57,11 @@ class WorkerHubTest(unittest.TestCase):
         self.assertEqual(len(entries), len(validated))
         self.assertEqual(status["hub"], {"bus": "findings-hub", "published": len(entries), "failed": 0,
                                          "skipped_too_large": []})
-        self.assertEqual({e["Source"] for e in entries}, {"owner-c.scan-api", "owner-d.scan-api"})
+        # One source per owner that produced a validated result. Owner B (Node) joins when it can load (Node and the root
+        # dependencies present), like the other Node-based owners; the report says which owners ran, so no environment guess.
+        expected = {f"owner-{owner.lower()}.scan-api" for owner in {c["owner"] for c in validated}}
+        self.assertTrue({"owner-c.scan-api", "owner-d.scan-api"} <= expected, expected)
+        self.assertEqual({e["Source"] for e in entries}, expected)
         for entry in entries:
             self.assertEqual((entry["DetailType"], entry["EventBusName"]), ("detector.result.v1", "findings-hub"))
             result = json.loads(entry["Detail"])

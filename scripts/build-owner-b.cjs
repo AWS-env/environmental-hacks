@@ -5,4 +5,8 @@ const path=require('node:path');
 const out=path.join(__dirname,'../.build/owner-b');
 fs.mkdirSync(out,{recursive:true});
 esbuild.buildSync({entryPoints:['detectors/owner-b/handlers/static.js','detectors/owner-b/handlers/log.js','detectors/owner-b/handlers/telemetry.js','detectors/owner-b/handlers/heuristic.js','detectors/owner-b/handlers/network.js','detectors/owner-b/handlers/network-upload.js'],outdir:out,bundle:true,platform:'node',target:'node22',format:'cjs',minify:false,metafile:true,write:true});
+// ORM checks parse with WASM tree-sitter: ship the vendored grammars and the runtime next to the bundles (see detectors/owner-b/parsers/tree-sitter.js).
+fs.mkdirSync(path.join(out,'grammars'),{recursive:true});
+for(const f of fs.readdirSync(path.join(__dirname,'../detectors/owner-b/grammars')).filter(n=>n.endsWith('.wasm')))fs.copyFileSync(path.join(__dirname,'../detectors/owner-b/grammars',f),path.join(out,'grammars',f));
+fs.copyFileSync(require.resolve('web-tree-sitter/tree-sitter.wasm'),path.join(out,'tree-sitter.wasm'));
 console.log('Built Owner B static/log/telemetry/heuristic handlers in .build/owner-b');
