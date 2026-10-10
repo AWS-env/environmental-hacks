@@ -298,6 +298,44 @@ function walkLoopBody(loop: Parser.SyntaxNode, fn: (n: Parser.SyntaxNode) => voi
   visit(body);
 }
 
+/** Names a binding target binds directly (`x`, `a, (b, c)`), not attribute/subscript bases. */
+function boundNames(target: Parser.SyntaxNode, out: Set<string>): void {
+  if (target.type === "identifier") out.add(target.text);
+  else if (["pattern_list", "tuple_pattern", "list_pattern", "parenthesized_expression", "list_splat_pattern"].includes(target.type))
+    for (const c of target.namedChildren) boundNames(c, out);
+}
+
+/**
+ * Whether an attribute/subscript accumulator (`node.text`, `lines[i]`, `out[k]`) names a
+ * different object each iteration: its base or an index is the loop variable or is
+ * re-bound in the loop body, so each string is only extended once per object.
+ */
+function perIterationTarget(loop: Parser.SyntaxNode, target: Parser.SyntaxNode): boolean {
+  if (target.type === "identifier") return false;
+  const bound = new Set<string>();
+  const loopTarget = loop.type === "for_statement" ? loop.childForFieldName("left") : null;
+  if (loopTarget) boundNames(loopTarget, bound);
+  walkLoopBody(loop, (n) => {
+    if (n.type === "assignment" || n.type === "augmented_assignment" || n.type === "for_statement") {
+      const left = n.childForFieldName("left");
+      if (left) boundNames(left, bound);
+    } else if (n.type === "named_expression") {
+      const name = n.childForFieldName("name");
+      if (name) boundNames(name, bound);
+    }
+  });
+  let hit = false;
+  const visit = (n: Parser.SyntaxNode) => {
+    if (hit) return;
+    const p = n.parent;
+    const isAttrName = p?.type === "attribute" && p.childForFieldName("attribute")?.id === n.id;
+    if (n.type === "identifier" && !isAttrName && bound.has(n.text)) hit = true;
+    for (const c of n.namedChildren) visit(c);
+  };
+  visit(target);
+  return hit;
+}
+
 interface LoopUse {
   reassigned: boolean;
   read: boolean;
@@ -385,6 +423,7 @@ export function detectStringConcatInLoop(
       confidence = "medium";
     }
 
+    if (perIterationTarget(loop, acc.target)) continue;
     const use = loopUse(loop, key);
     if (use.reassigned || use.read) continue;
 

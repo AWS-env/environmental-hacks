@@ -184,3 +184,37 @@ class Reader:
         for r in rows:
             self.buf += r
             sink(self.buf)
+
+# Attribute/subscript targets keyed by the loop variable: a different string each iteration.
+def per_item_subscript(lines):
+    for i, line in enumerate(lines):
+        lines[i] += "\n"
+    return lines
+
+
+def per_item_attribute(nodes):
+    for node in nodes:
+        node.text += "!"
+
+
+def per_item_key(rows):
+    for row in rows:
+        row["name"] += " (deprecated)"
+
+
+def per_item_rebuild(objs):
+    for o in objs:
+        o.name = o.name + "_v2"
+
+
+def per_key_dict(items):
+    out = {}
+    for k, v in items:
+        out[k] += v + ","
+    return out
+
+
+def per_item_while(node):
+    while node:
+        node.label += "*"
+        node = node.next

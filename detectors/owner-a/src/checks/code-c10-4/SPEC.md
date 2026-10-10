@@ -51,6 +51,8 @@ loop is not a drop-in and the `+=` adds no extra asymptotic cost. Append-only lo
 - `for` over a literal collection of constant items, or `range(<int literals>)`, of 8 or fewer
   items. 9 items is flagged.
 - The accumulator is re-assigned (reset) elsewhere in the loop body, or is the loop variable.
+- An attribute/subscript accumulator whose base or index is the loop variable or is re-bound in
+  the loop body (`node.text += s`, `lines[i] += s`, `out[k] += s`): a different string each iteration.
 - The accumulator is read elsewhere in the same loop body (see above).
 - Building with a list and `"".join(parts)` (no `+=` on a string).
 - `# noqa` or `# noqa: CODE-C10.4` on the loop header or the statement line.
