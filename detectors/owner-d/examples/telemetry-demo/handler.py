@@ -16,11 +16,17 @@ a ``waste`` path and a clean ``control`` path, and every emitted item is labeled
 * LLM-05  (opt-in, not part of ``all``) a two-step pipeline whose second ``chat`` call sends the same model the
           same request (identical ``gen_ai.input.messages.hash``), vs a chain whose second request carries the
           first step's output. No LLM is called
+* LLM-12  (opt-in, not part of ``all``) LLM cache lookup lines from one simulated fleet agent per invocation:
+          each agent's own in-process cache starts cold, so every agent misses the keys another agent already
+          fetched, vs a fleet-shared cache that agent 1 warmed, so later agents hit. No LLM is called
 
 The event selects what to emit: ``{"scenario": "all" | "OBS-11" | "OBS-17" | "OBS-04" | "OBS-06" | "LLM-10"}``,
 or ``{"scenario": "LLM-05"}``. Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series`` (OBS-06
 request ids), ``tool_calls`` (LLM-10 iterations); ``path`` (LLM-10 and LLM-05: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
 no dependency beyond the Python runtime (boto3 is used only for PutMetricData).
+
+``{"scenario": "LLM-12", "agent": 1}`` plays fleet agent 1-4 (``agent`` knob, clamped; ``path`` as above). Invoke
+agents 1, 2 and 3 in that order, at least 10 seconds apart, so LLM-12 sees misses of one key on several agents.
 """
 
 import hashlib
@@ -35,14 +41,15 @@ import uuid
 NAMESPACE = "OwnerD/Demo"
 METRIC_NAME = "RequestLatencyMs"
 SCENARIOS = ("OBS-11", "OBS-17", "OBS-04", "OBS-06", "LLM-10")  # what "all" runs
-OPT_IN_SCENARIOS = ("LLM-05",)  # selected by name only, so "all" keeps its output
+OPT_IN_SCENARIOS = ("LLM-05", "LLM-12")  # selected by name only, so "all" keeps its output
 
 # OBS-06 series bound: request_id values come from a fixed pool, endpoint from a fixed list.
 REQUEST_ID_POOL = 40
 ENDPOINTS = ("/checkout", "/search")
 MAX_METRIC_SERIES = REQUEST_ID_POOL + len(ENDPOINTS)
 
-LIMITS = {"repeat": (20, 1, 50), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25)}
+LIMITS = {"repeat": (20, 1, 50), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25),
+          "agent": (1, 1, 4)}
 SPAN_SECONDS = 0.01
 
 
@@ -339,6 +346,49 @@ def llm05(emit, path="both"):
     return summary
 
 
+# ---- LLM-12: per-agent isolated caches ----------------------------------------------------------------
+
+# Each invocation plays one agent of a fleet (agent_id demo-agent-a..d). The waste path keeps its own in-process
+# dict cache, which starts cold in every agent, so each agent misses the keys another agent already fetched. The
+# control path uses a different key set and stands in for a cache shared by the fleet: agent 1 (invoked first)
+# warms it and later agents hit. Lines carry what owner D's LLM-12 query reads (llm12.LOGS_INSIGHTS_QUERY):
+# agent_id, cache_key (a 16-hex prompt hash, never the prompt) and cache_hit. No LLM is called.
+
+FLEET_AGENTS = "abcd"
+WASTE_PROMPTS = tuple(f"Summarise support ticket T-{1100 + i} for the on-call engineer." for i in range(10))
+CONTROL_PROMPTS = tuple(f"Summarise incident I-{2200 + i} for the weekly report." for i in range(10))
+
+
+def _prompt_hash(prompt):
+    return hashlib.sha256(prompt.encode()).hexdigest()[:16]
+
+
+def _cache_lookups(emit, path, agent_id, cache_name, cache, prompts):
+    misses = 0
+    for prompt in prompts * 2:  # the agent asks every prompt twice
+        key = _prompt_hash(prompt)
+        hit = key in cache
+        if not hit:
+            misses += 1
+            cache[key] = "synthetic answer"  # stands in for the model call
+        emit.json("LLM-12", path, level="INFO", message="llm cache lookup", agent_id=agent_id, cache=cache_name,
+                  cache_key=key, cache_hit=hit)
+    return {f"{path}_lookups": 2 * len(prompts), f"{path}_misses": misses}
+
+
+def llm12(emit, agent, path="both"):
+    if path not in LLM10_PATHS:
+        raise ValueError(f"path must be one of {', '.join(LLM10_PATHS)}")
+    agent_id = f"demo-agent-{FLEET_AGENTS[agent - 1]}"
+    summary = {"agent_id": agent_id}
+    if path in ("both", "waste"):
+        summary.update(_cache_lookups(emit, "waste", agent_id, "in-process", {}, WASTE_PROMPTS))
+    if path in ("both", "control"):
+        shared = {} if agent == 1 else {_prompt_hash(p): "synthetic answer" for p in CONTROL_PROMPTS}
+        summary.update(_cache_lookups(emit, "control", agent_id, "fleet-shared", shared, CONTROL_PROMPTS))
+    return summary
+
+
 # ---- entry points ---------------------------------------------------------------------------------------
 
 def _scenarios(value):
@@ -371,6 +421,7 @@ def run(event=None, write=None, cloudwatch=None, xray=None):
         "OBS-06": lambda: obs06(emit, _knob(event, "series")),
         "LLM-10": lambda: llm10(emit, _knob(event, "tool_calls"), event.get("path", "both")),
         "LLM-05": lambda: llm05(emit, event.get("path", "both")),
+        "LLM-12": lambda: llm12(emit, _knob(event, "agent"), event.get("path", "both")),
     }
     emitted = {check: steps[check]() for check in selected}
     return {"synthetic": True, "run_id": emit.run_id, "scenarios": list(selected), "emitted": emitted}

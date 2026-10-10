@@ -22,6 +22,7 @@ X-Ray subsegments. Owner D's telemetry analyzers then have real evidence to read
 | `OBS-06` | `RequestLatencyMs` keyed by `request_id` (`req-000`..`req-039`, one series per request). | `RequestLatencyMs` keyed by `endpoint` (2 values). | `ListMetrics` shows a dimension whose value count grows with traffic, next to a bounded one. |
 | `LLM-10` | `invoke_agent demo_unbounded_agent` runs `tool_calls` turns (default 12, max 25). Each turn is a `chat` span followed by `execute_tool get_order_status` with byte-identical arguments. It ends with `stop_reason=max_iterations`. | `invoke_agent demo_bounded_agent`: 3 `chat` turns and 2 different tools (`get_order_status`, then `draft_reply`), ending with `stop_reason=answer_ready`. | Owner D's LLM-10 detector flags the waste run for `identical-tool-calls` (12 > 3) and `iteration-budget` (12 > 10). The control run stays under both limits. |
 | `LLM-05` (opt-in) | `invoke_agent demo_redundant_pipeline`: 2 `chat` calls with the same model and the same `gen_ai.input.messages.hash`; step 2 re-sends step 1's request unchanged. | `invoke_agent demo_chained_pipeline`: the same first call, then a second request that carries step 1's output (2 distinct digests). | Owner D's LLM-05 detector flags the waste run for `consecutive-identical-calls` (2 > 1) and leaves the control run alone. |
+| `LLM-12` (opt-in) | One invocation per simulated agent (`agent` 1-4, `agent_id` `demo-agent-a`..`d`). The agent asks 10 prompts twice through its own in-process cache, which starts cold: 10 misses, then 10 hits, on the same 10 keys in every agent. | A different set of 10 prompts through a fleet-shared cache: agent 1 misses each key once, and later agents hit every lookup. | With agents 1, 2 and 3 invoked at least 10 s apart, Owner D's LLM-12 detector flags `cross-agent-duplicate-misses`: 20 of 40 misses (50%) were already cached on another agent. The control keys alone are clean. |
 
 Shared dimensions on every metric: `synthetic`, `check=OBS-06` and `path`.
 
@@ -74,6 +75,11 @@ forms such as `obs11` are also accepted. Each numeric knob is optional and is cl
 `path` applies to LLM-10 and LLM-05 and takes `both` (the default), `waste` or `control`. Both runs share one
 entrypoint, so a clean-only result needs a time window that contains only `"path": "control"` traces.
 
+`LLM-12` (or `llm12`) is opt-in too. It takes `agent` (1-4, default 1, clamped), the fleet agent this
+invocation plays, and `path` as above. Its JSON lines carry `agent_id`, `cache` (`in-process` or
+`fleet-shared`), `cache_key` (a 16-hex SHA-256 prefix of the synthetic prompt, never the prompt) and
+`cache_hit`: the fields Owner D's LLM-12 query reads.
+
 The response summarizes what was emitted, along with a `run_id` that also appears in every log line.
 
 ## Build, deploy, invoke
@@ -120,6 +126,20 @@ done
 The `llm10` scenario sends no custom metrics. Ten runs cost almost nothing: 10 X-Ray traces, which fall
 within the 100,000 free traces each month, and a few log lines. Re-run any call that reports
 `"xray": "not_sampled"`.
+
+LLM-12 needs the same keys missed on several agents, with first misses at least 10 s apart (closer misses
+count as concurrent). Invoke agents 1, 2 and 3 in that order, 15 s apart:
+
+```bash
+for agent in 1 2 3; do
+  aws lambda invoke --function-name owner-d-telemetry-demo --cli-binary-format raw-in-base64-out \
+    --payload "{\"scenario\":\"llm12\",\"agent\":$agent}" --profile aws-agent --region ap-south-1 \
+    /tmp/telemetry-demo-llm12.json
+  sleep 15
+done
+```
+
+The three runs write 120 short log lines (about 25 KB) and send no metrics or traces.
 
 Read-only checks that the evidence landed. Metrics can take a few minutes to appear, and traces about a
 minute:

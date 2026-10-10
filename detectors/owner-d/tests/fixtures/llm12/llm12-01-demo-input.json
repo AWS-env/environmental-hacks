@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/telemetry-demo",
+  "scan_id": "scan-llm12-demo",
+  "commit_sha": "0000000000000000000000000000000000000000",
+  "check_id": "LLM-12",
+  "detector_version": "1.0.0",
+  "context": {
+    "min_lookups": 50,
+    "min_agents": 2,
+    "min_duplicated_misses": 5,
+    "min_duplicated_miss_share": 0.2
+  },
+  "scope": [
+    "resource:log-group//aws/lambda/owner-d-telemetry-demo"
+  ],
+  "sources": [
+    {
+      "source_id": "logs-insights:/aws/lambda/owner-d-telemetry-demo",
+      "scope_id": "resource:log-group//aws/lambda/owner-d-telemetry-demo",
+      "kind": "telemetry",
+      "locator": "logs-insights://ap-south-1/log-group//aws/lambda/owner-d-telemetry-demo",
+      "data": {
+        "resource_id": "/aws/lambda/owner-d-telemetry-demo",
+        "resource_type": "aws_cloudwatch_log_group",
+        "lookups": 120,
+        "misses": 40,
+        "keys": 20,
+        "duplicated_keys": 10,
+        "duplicated_misses": 20,
+        "max_agents_per_key": 3,
+        "max_missed_agents_per_key": 3,
+        "named_agent_lookups": 120,
+        "example_key_hashes": [
+          "69966274c1676ead",
+          "4ece0084b2b061ca"
+        ],
+        "concurrent_miss_seconds": 10,
+        "problems": [],
+        "window": {
+          "start": "2026-10-09T12:00:00Z",
+          "end": "2026-10-10T12:00:00Z"
+        }
+      }
+    }
+  ]
+}

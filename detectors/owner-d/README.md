@@ -92,7 +92,7 @@ A pair that fails is refused: it is not published and is listed under
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
-| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17 |
+| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-12 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
 | `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12 (artifact mode) |
 
@@ -218,8 +218,8 @@ minimum.
 ### Registered checks (one line each)
 
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
-(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11 and
-OBS-17 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
+(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11,
+OBS-17 and LLM-12 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
 API pages use an adapter. The adapter builds the sources with account-free
@@ -234,9 +234,10 @@ TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:n
 Without `checks`, the telemetry analyzer runs INF-01 and OBS-06. OBS-06 needs
 `list_metrics` (for example `{"namespace": "OwnerD/Demo"}`); without it,
 ListMetrics lists every namespace. Pass `"checks": ["INF-01"]` to run only
-one of them. The log analyzer runs OBS-07, OBS-11 and OBS-17 by default.
-OBS-11 and OBS-17 each run one Logs Insights query over the allowlisted groups
-(billed per GB scanned); pass `"checks": ["OBS-07"]` to skip both.
+one of them. The log analyzer runs OBS-07, OBS-11, OBS-17 and LLM-12 by
+default. OBS-11, OBS-17 and LLM-12 each run one Logs Insights query over the
+allowlisted groups (billed per GB scanned); pass `"checks": ["OBS-07"]` to
+skip all three.
 
 Raw shapes:
 
@@ -429,16 +430,16 @@ each analyzer, so `rate(1 day)` is about 30 runs a month.
 
 | Item | Per run | Per month (30 runs) |
 | --- | --- | --- |
-| Logs Insights, $0.0067/GB scanned. OBS-11 and OBS-17 each scan the last 24 hours of the `LogQueryPattern` groups once, so 2 x V GB, where V is the GB those groups ingest per day | 2 x V x $0.0067 | 60 x V x $0.0067 |
+| Logs Insights, $0.0067/GB scanned. OBS-11, OBS-17 and LLM-12 each scan the last 24 hours of the `LogQueryPattern` groups once, so 3 x V GB, where V is the GB those groups ingest per day | 3 x V x $0.0067 | 90 x V x $0.0067 |
 | GetMetricData (INF-01), $0.01 per 1,000 metrics. At most 2 metrics x 50 discovered resources by default | <= $0.001 | <= $0.03 |
 | X-Ray traces accessed, $0.50 per million. At most 50 traces | <= $0.000025 | <= $0.00075 (1M traces free per month) |
 | Lambda: 3 invocations, 256 MB arm64, at most 120 + 300 + 120 s | <= 135 GB-s, under $0.002 | <= 4,050 GB-s, under $0.06 (free tier covers 400,000 GB-s) |
 | Scheduler, STS, ListMetrics, DescribeLogGroups, PutEvents | a few requests | negligible (Scheduler: 14 million invocations free per month) |
 
 Examples for the Logs Insights line: the demo log group scanned about 22 KB
-per query, so at that size one run costs about $0.0000003. At 100 MB a day
-of `owner-d-*` Lambda logs, one run costs about $0.0013 and a month about
-$0.04. At 1 GB a day, a run costs about $0.013 and a month about $0.40. With
+per query, so at that size one run costs about $0.0000005. At 100 MB a day
+of `owner-d-*` Lambda logs, one run costs about $0.002 and a month about
+$0.06. At 1 GB a day, a run costs about $0.020 and a month about $0.60. With
 the current `owner-d-*` log volume, the schedules cost well under $0.10 a
 month in total, mostly GetMetricData and Lambda time, before the free tier. Widening
 `LogQueryPattern` or the schedule rate raises the Logs Insights cost in
@@ -453,10 +454,10 @@ proportion, so keep both as they are unless you have checked the log volume.
   (`MaximumRetryAttempts: 0`), so a failure never re-runs a query. Failed
   events go to `owner-d-telemetry-dlq`, and the
   `owner-d-telemetry-dlq-not-empty` alarm goes off.
-- A log-analyzer run without `checks` runs 3 checks: OBS-07 reads
-  DescribeLogGroups, and OBS-11 and OBS-17 each run their own Logs Insights
-  query over the same window and log groups. A default run therefore scans
-  that log data twice. Pass `checks` to run fewer queries. On the demo log
+- A log-analyzer run without `checks` runs 4 checks: OBS-07 reads
+  DescribeLogGroups, and OBS-11, OBS-17 and LLM-12 each run their own Logs
+  Insights query over the same window and log groups. A default run therefore
+  scans that log data three times. Pass `checks` to run fewer queries. On the demo log
   group, one query over 24 hours scanned about 22 KB.
 - GetMetricData bills per metric requested. INF-01 requests 2 metrics per
   EC2/ECS resource, at most 200 resources, at most 10 pages per 250 resources.
@@ -1666,7 +1667,7 @@ attempt or a flapping health check that logs every poll. CloudWatch Logs bills i
 [pattern analysis](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_AnalyzeLogData_Patterns.html)
 is the console way to find such "frequently occurring or high-cost log lines".
 The check runs on the `owner-d-log-analyzer` route (source `logs_insights`).
-Without `checks`, the log analyzer runs OBS-07, OBS-11 and OBS-17.
+Without `checks`, the log analyzer runs OBS-07, OBS-11, OBS-17 and LLM-12.
 
 ### Input
 
@@ -2263,6 +2264,148 @@ The fixtures under `tests/fixtures/llm05/` are synthetic `BatchGetTraces`
 responses shaped on the X-Ray segment document format, not production traces.
 The telemetry demo's opt-in `LLM-05` scenario emits a matching waste/control
 pair (see `examples/telemetry-demo/README.md`).
+
+
+## LLM-12 — Per-agent isolated caches not shared across the fleet (Logs Insights)
+
+Flags log groups where several agents miss the same cache keys: agent B misses
+a key that agent A already fetched and cached in its own memory, so a cache
+shared across the fleet would have served B. AWS
+[AGENTSUS02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp02.html)
+lists "running caches isolated to each agent that don't share across the
+fleet, so each agent has to re-warm its own cache" as an anti-pattern. It also
+says: "If five agents each maintain their own cache, the fleet warms five
+caches instead of one, and cross-agent hits never happen." The check reads the
+cache lookup lines the client already logs, through the log analyzer
+(`logs_insights` source). It is telemetry-only (`SUPPORTED_KIND =
+"telemetry"`), so repository scans report it `unavailable`. There is no static
+proxy. An in-process `lru_cache` or dict cache is not wasteful by itself, and
+whether the code runs as several agents is a deployment fact that the source
+does not show. LLM-02 and LLM-13 already cover the static caching patterns.
+
+### Input
+
+`owner_d.llm12.LOGS_INSIGHTS_QUERY` runs over the allowlisted groups and the
+analyzer's window (24 hours by default):
+
+```text
+filter @message like /"(cache_hit|cacheHit|cache_status|cacheStatus)"\s*:/
+| parse @message /"(cache_hit|cacheHit)"\s*:\s*"?(?<o12_hit>true|false|True|False|TRUE|FALSE|1|0)"?\s*[,}]/
+| parse @message /"(cache_status|cacheStatus)"\s*:\s*"(?<o12_status>hit|miss|HIT|MISS|Hit|Miss)"/
+| parse @message /"(cache_key|cacheKey|prompt_hash|promptHash|request_hash|requestHash)"\s*:\s*"(?<o12_key>[^"\\]{1,200})"/
+| parse @message /"(agent_id|agentId|instance_id|instanceId)"\s*:\s*"?(?<o12_agent>[^",}\\\s]{1,128})/
+| filter ispresent(o12_key) and (ispresent(o12_hit) or ispresent(o12_status))
+| fields if(coalesce(o12_hit, o12_status) like /^(true|True|TRUE|1|hit|HIT|Hit)$/, 0, 1) as o12_miss,
+    if(coalesce(o12_hit, o12_status) like /^(true|True|TRUE|1|hit|HIT|Hit)$/, 9999999999999, toMillis(@timestamp)) as o12_miss_ms,
+    coalesce(o12_agent, @logStream) as o12_who, if(ispresent(o12_agent), 1, 0) as o12_named
+| stats count(*) as o12_lookups, sum(o12_miss) as o12_misses, sum(o12_named) as o12_named_lookups,
+    min(o12_miss_ms) as o12_first_miss by @log, o12_key, o12_who
+| fields if(o12_misses > 0, 1, 0) as o12_missed, if(o12_misses > 0, o12_first_miss, 0) as o12_miss_last
+| stats sum(o12_lookups) as o12_k_lookups, sum(o12_misses) as o12_k_misses, sum(o12_named_lookups) as o12_k_named,
+    count(*) as o12_k_agents, sum(o12_missed) as o12_k_missed_agents, min(o12_first_miss) as o12_k_first,
+    max(o12_miss_last) as o12_k_last by @log, o12_key
+| fields if(o12_k_missed_agents >= 2 and o12_k_last - o12_k_first >= 10000, "duplicated", "other") as o12_kind,
+    if(o12_k_missed_agents >= 2 and o12_k_last - o12_k_first >= 10000, o12_k_missed_agents - 1, 0) as o12_k_dup
+| stats count(*) as keys, sum(o12_k_lookups) as lookups, sum(o12_k_misses) as misses,
+    sum(o12_k_dup) as duplicated_misses, sum(o12_k_named) as named_lookups, max(o12_k_agents) as max_agents,
+    max(o12_k_missed_agents) as max_missed_agents, sortsFirst(o12_key) as example_first,
+    sortsLast(o12_key) as example_last by @log, o12_kind
+| sort @log asc, o12_kind asc
+```
+
+Expected log fields: one JSON line per cache lookup, for example
+`{"agent_id": "agent-7", "cache_key": "9f2c1a…", "cache_hit": false}`.
+
+| Field | Accepted keys | Values |
+| --- | --- | --- |
+| Key | `cache_key`, `cacheKey`, `prompt_hash`, `promptHash`, `request_hash`, `requestHash` | a string of up to 200 characters; log a hash, not the prompt |
+| Outcome | `cache_hit`, `cacheHit` / `cache_status`, `cacheStatus` | `true`/`false`/`1`/`0` / `hit`/`miss` |
+| Agent (optional) | `agent_id`, `agentId`, `instance_id`, `instanceId` | any token; without it the agent is the log stream (one Lambda execution environment or container) |
+
+The three `stats` stages aggregate per (key, agent), per key and per log
+group ([multiple stats](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/CWL_QuerySyntax-Stats.html)).
+At most two rows per log group leave CloudWatch Logs: `duplicated` for keys
+that count as cross-agent duplicates and `other` for the rest. Each row has
+counts and the first and last key in sort order. A key is a cross-agent
+duplicate when at least two agents missed it and the latest of their first
+misses came at least `CONCURRENT_MISS_SECONDS` (10 s) after the earliest. A
+shared cache without request coalescing would also miss concurrent requests, so
+misses closer together than that are not counted. Each duplicate key adds
+(agents that missed it − 1) duplicated misses.
+
+`normalize_logs_insights(raw, *, settings)` builds one `telemetry` source per
+queried log group, with scope `resource:log-group/<name>` and the account ID
+removed. Every queried group gets a source, with zero counts when it logged no
+cache lookups. Data fields: `lookups`, `misses`, `keys`, `duplicated_keys`,
+`duplicated_misses`, `max_agents_per_key`, `max_missed_agents_per_key`,
+`named_agent_lookups` (lookups with an explicit agent field),
+`example_key_hashes` (16-hex SHA-256 prefixes of the example keys; raw keys
+never leave the analyzer), `concurrent_miss_seconds`, `window` and `problems`.
+The following go into `problems`, which leaves the group unevaluated:
+
+- the query hit its row limit;
+- a row without a queried `@log`;
+- an unknown `o12_kind` or a second row of one kind;
+- a non-numeric or inconsistent count (for example misses above lookups).
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_lookups` | Groups with fewer cache lookups in the window are not evaluated | `50` |
+| `min_agents` | At least one key must be looked up by this many agents, or the group is not evaluated (at least 2) | `2` |
+| `min_duplicated_misses` | Fewest cross-agent duplicated misses that can be flagged | `5` |
+| `min_duplicated_miss_share` | Duplicated misses must be more than this share of the group's misses | `0.2` |
+
+`llm12.REFERENCE_SETTINGS` holds these values, and the registry's
+`LLM12_DEFAULTS` copies them; a test keeps the two equal. All four are team
+choices: a fifth of all misses that a shared cache would have served is
+material, and the minimums keep a handful of lookups from deciding. Missing or
+invalid settings make the result `unavailable`.
+
+### Detection rule
+
+- `cross-agent-duplicate-misses`: `duplicated_misses` is at least
+  `min_duplicated_misses` and strictly more than `min_duplicated_miss_share` of
+  `misses`. The summary gives the duplicated-miss share, the number of
+  duplicated keys, the most agents per key, the hit rate and the example key
+  hashes. Confidence is `medium` when every lookup names its agent, `low` when
+  some agents are inferred from log streams. Evidence: `duplicated_misses`,
+  `misses`, `duplicated_keys`, `max_agents_per_key`, `example_key_hashes`,
+  `lookups`.
+
+Not evaluated (never clean): a group with no cache lookup lines carrying a key
+and an outcome (the fields are absent), fewer than `min_lookups` lookups, or no
+key looked up by `min_agents` agents (one agent, or agents with disjoint keys).
+Duplicates under the limits are noted. The fingerprint uses the identity per
+scope, so changing counts keep the finding. Measurements stay absent.
+
+### Limitations
+
+- The agent count is the most agents that looked up one key, a lower bound on
+  the fleet size. Logs Insights cannot count distinct agents after the per-key
+  stage.
+- TTLs are not logged, so a miss after another agent's entry expired also
+  counts. A shared cache with a short TTL can look the same.
+- When three or more agents miss one key, the window applies to the spread
+  between the first and the last, so concurrent misses inside it can still
+  count.
+- Keys longer than 200 characters, other field names and text (non-JSON) lines
+  are not recognized. Several logical caches in one log group are judged
+  together.
+- The query has been checked offline only, against a Python model of its
+  stages (`tests/test_llm12.py`), not yet against the live service.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm12/llm12-01-demo-input.json
+```
+
+The input is synthetic. It is the telemetry demo's opt-in `LLM-12` scenario
+(agents 1, 2 and 3, 15 s apart), passed through the Python model of the query
+and the normalizer.
 
 
 ## OBS-04 — Unstructured logs requiring query-time parsing

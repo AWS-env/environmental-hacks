@@ -69,6 +69,8 @@ LLM05_DEFAULTS = {  # LLM-05 reference values (owner_d.llm05.REFERENCE_SETTINGS,
     "min_chain_calls": 3,
     "min_repeat_share": 0.5,
 }
+LLM12_DEFAULTS = {"min_lookups": 50, "min_agents": 2, "min_duplicated_misses": 5,  # llm12.REFERENCE_SETTINGS
+                  "min_duplicated_miss_share": 0.2}
 
 
 @dataclass(frozen=True)
@@ -94,6 +96,7 @@ CHECKS = (
     TelemetryCheck("OBS-17", "owner_d.obs17", "logs_insights", defaults=OBS17_DEFAULTS),
     TelemetryCheck("LLM-05", "owner_d.llm05", "traces", normalizer="owner_d.llm05:normalize_xray_traces",
                    adapter="xray_traces", defaults=LLM05_DEFAULTS),
+    TelemetryCheck("LLM-12", "owner_d.llm12", "logs_insights", defaults=LLM12_DEFAULTS),
 )
 
 
