@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf04-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "INF-04",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "iac"
+  },
+  "scope": [
+    "file:template-positive.yaml"
+  ],
+  "sources": [
+    {
+      "source_id": "src:template-positive.yaml",
+      "scope_id": "file:template-positive.yaml",
+      "kind": "static",
+      "locator": "template-positive.yaml",
+      "content": "# Synthetic fixture (INF04-01): components that nothing in the template uses, and disabled triggers.\nAWSTemplateFormatVersion: \"2010-09-09\"\nTransform: AWS::Serverless-2016-10-31\nResources:\n  FnRole:\n    Type: AWS::IAM::Role\n    Properties:\n      AssumeRolePolicyDocument:\n        Version: \"2012-10-17\"\n        Statement:\n          - Effect: Allow\n            Principal: { Service: lambda.amazonaws.com }\n            Action: sts:AssumeRole\n  LegacyExport:\n    Type: AWS::Lambda::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.handler\n      Role: !GetAtt FnRole.Arn\n      Code:\n        ZipFile: \"def handler(event, context): return event\"\n  LegacyExportLogs:\n    Type: AWS::Logs::LogGroup\n    Properties:\n      LogGroupName: !Sub /aws/lambda/${LegacyExport}\n      RetentionInDays: 7\n  LegacyExportErrors:\n    Type: AWS::CloudWatch::Alarm\n    Properties:\n      Namespace: AWS/Lambda\n      MetricName: Errors\n      Dimensions:\n        - Name: FunctionName\n          Value: !Ref LegacyExport\n      Statistic: Sum\n      Period: 300\n      EvaluationPeriods: 1\n      Threshold: 1\n      ComparisonOperator: GreaterThanOrEqualToThreshold\n  ReportBuilder:\n    Type: AWS::Lambda::Function\n    Properties:\n      FunctionName: report-builder\n      Runtime: nodejs20.x\n      Handler: index.handler\n      Role: !GetAtt FnRole.Arn\n      Code:\n        ZipFile: \"exports.handler = async () => ({})\"\n  ResizeImages:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.handler\n      CodeUri: src/\n  OldJobsQueue:\n    Type: AWS::SQS::Queue\n    Properties:\n      VisibilityTimeout: 60\n  AlertsTopic:\n    Type: AWS::SNS::Topic\n    Properties:\n      TopicName: legacy-alerts\n  NightlyCleanup:\n    Type: AWS::Lambda::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.handler\n      Role: !GetAtt FnRole.Arn\n      Code:\n        ZipFile: \"def handler(event, context): return event\"\n  NightlyCleanupRule:\n    Type: AWS::Events::Rule\n    Properties:\n      ScheduleExpression: cron(0 2 * * ? *)\n      State: DISABLED\n      Targets:\n        - Arn: !GetAtt NightlyCleanup.Arn\n          Id: cleanup\n  NightlyCleanupPermission:\n    Type: AWS::Lambda::Permission\n    Properties:\n      Action: lambda:InvokeFunction\n      FunctionName: !Ref NightlyCleanup\n      Principal: events.amazonaws.com\n      SourceArn: !GetAtt NightlyCleanupRule.Arn\n  QuarterlyReport:\n    Type: AWS::Lambda::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.handler\n      Role: !GetAtt FnRole.Arn\n      Code:\n        ZipFile: \"def handler(event, context): return event\"\n  QuarterlyReportScheduleRole:\n    Type: AWS::IAM::Role\n    Properties:\n      AssumeRolePolicyDocument:\n        Version: \"2012-10-17\"\n        Statement:\n          - Effect: Allow\n            Principal: { Service: scheduler.amazonaws.com }\n            Action: sts:AssumeRole\n      Policies:\n        - PolicyName: invoke\n          PolicyDocument:\n            Version: \"2012-10-17\"\n            Statement:\n              - Effect: Allow\n                Action: lambda:InvokeFunction\n                Resource: !GetAtt QuarterlyReport.Arn\n  QuarterlyReportSchedule:\n    Type: AWS::Scheduler::Schedule\n    Properties:\n      ScheduleExpression: cron(0 6 1 */3 ? *)\n      FlexibleTimeWindow:\n        Mode: \"OFF\"\n      State: DISABLED\n      Target:\n        Arn: !GetAtt QuarterlyReport.Arn\n        RoleArn: !GetAtt QuarterlyReportScheduleRole.Arn\n  IngestQueue:\n    Type: AWS::SQS::Queue\n  IngestWorker:\n    Type: AWS::Lambda::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.handler\n      Role: !GetAtt FnRole.Arn\n      Code:\n        ZipFile: \"def handler(event, context): return event\"\n  IngestMapping:\n    Type: AWS::Lambda::EventSourceMapping\n    Properties:\n      EventSourceArn: !GetAtt IngestQueue.Arn\n      FunctionName: !Ref IngestWorker\n      Enabled: false\n  WeeklyDigest:\n    Type: AWS::Serverless::Function\n    Properties:\n      Runtime: python3.12\n      Handler: app.handler\n      CodeUri: src/\n      Events:\n        Weekly:\n          Type: Schedule\n          Properties:\n            Schedule: rate(7 days)\n            Enabled: false\n"
+    }
+  ]
+}

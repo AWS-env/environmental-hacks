@@ -1,0 +1,234 @@
+# Synthetic fixture (INF04-02): every component is used by something in the template (or not judged).
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Parameters:
+  ScheduleState:
+    Type: String
+    Default: DISABLED
+    AllowedValues: [DISABLED, ENABLED]
+Resources:
+  FnRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+  OrdersQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt OrdersDlq.Arn
+        maxReceiveCount: 5
+  OrdersDlq:
+    Type: AWS::SQS::Queue
+  OrdersWorker:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  OrdersMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt OrdersQueue.Arn
+      FunctionName: !Ref OrdersWorker
+  OrdersPausedMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt OrdersQueue.Arn
+      FunctionName: !Ref OrdersWorker
+      Enabled: false
+  WebhookFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "exports.handler = async () => ({})"
+  WebhookUrl:
+    Type: AWS::Lambda::Url
+    Properties:
+      AuthType: AWS_IAM
+      TargetFunctionArn: !GetAtt WebhookFn.Arn
+  TickFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  TickRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: rate(1 hour)
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt TickFn.Arn
+          Id: tick
+  OptionalFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  OptionalSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      ScheduleExpression: rate(1 day)
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      State: !Ref ScheduleState
+      Target:
+        Arn: !GetAtt OptionalFn.Arn
+        RoleArn: arn:aws:iam::123456789012:role/scheduler
+  LiveFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  LiveAlias:
+    Type: AWS::Lambda::Alias
+    Properties:
+      FunctionName: !Ref LiveFn
+      FunctionVersion: $LATEST
+      Name: live
+  LiveAliasPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref LiveAlias
+      Principal: s3.amazonaws.com
+      SourceArn: arn:aws:s3:::uploads-bucket
+  ApiFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  Api:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: api
+      ProtocolType: HTTP
+      Target: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${ApiFn.Arn}/invocations
+  ExportedFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  SamApiFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      CodeUri: src/
+      Events:
+        Get:
+          Type: Api
+          Properties:
+            Path: /items
+            Method: get
+  ProducerFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      CodeUri: src/
+      FunctionUrlConfig:
+        AuthType: AWS_IAM
+      Environment:
+        Variables:
+          EVENTS_TOPIC: !Ref EventsTopic
+          AUDIT_QUEUE_URL: !Ref AuditQueue
+  EventsTopic:
+    Type: AWS::SNS::Topic
+  AuditQueue:
+    Type: AWS::SQS::Queue
+  FanoutTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      Subscription:
+        - Protocol: email
+          Endpoint: ops@example.com
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+  QueueDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt OrdersQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 100
+      ComparisonOperator: GreaterThanThreshold
+      AlarmActions: [!Ref AlarmTopic]
+  ProviderFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  Seed:
+    Type: Custom::Seed
+    Properties:
+      ServiceToken: !GetAtt ProviderFn.Arn
+  StepFn:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  Workflow:
+    Type: AWS::StepFunctions::StateMachine
+    Properties:
+      RoleArn: arn:aws:iam::123456789012:role/sfn
+      DefinitionString: !Sub |
+        {"StartAt": "Run", "States": {"Run": {"Type": "Task", "Resource": "${StepFn.Arn}", "End": true}}}
+  PolicyQueue:
+    Type: AWS::SQS::Queue
+  PolicyQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues: [!Ref PolicyQueue]
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal: { Service: events.amazonaws.com }
+            Action: sqs:SendMessage
+            Resource: !GetAtt PolicyQueue.Arn
+  ScaledToZero:
+    Type: AWS::ECS::Service
+    Properties:
+      Cluster: web
+      DesiredCount: 0
+      TaskDefinition: arn:aws:ecs:ap-south-1:123456789012:task-definition/web:1
+Outputs:
+  ExportedFnArn:
+    Value: !GetAtt ExportedFn.Arn
+    Export:
+      Name: exported-fn-arn

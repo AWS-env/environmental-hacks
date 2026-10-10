@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-inf04-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "INF-04",
+  "detector_version": "1.0.0",
+  "context": {
+    "min_window_days": 14,
+    "max_activity": 0
+  },
+  "scope": [
+    "resource:rds/orders-db",
+    "resource:lambda/legacy-export",
+    "resource:lambda/orders"
+  ],
+  "sources": [
+    {
+      "source_id": "cloudwatch:rds/orders-db",
+      "scope_id": "resource:rds/orders-db",
+      "kind": "telemetry",
+      "locator": "cloudwatch://ap-south-1/rds/orders-db?period=86400&stat=Maximum",
+      "data": {
+        "resource_id": "rds/orders-db",
+        "resource_type": "aws_rds_db_instance",
+        "metric": "database_connections",
+        "statistic": "Maximum",
+        "activity_value": 0,
+        "datapoints": 30,
+        "observed_days": 30.0,
+        "window_days": 30.0,
+        "period_seconds": 86400
+      }
+    },
+    {
+      "source_id": "cloudwatch:lambda/legacy-export",
+      "scope_id": "resource:lambda/legacy-export",
+      "kind": "telemetry",
+      "locator": "cloudwatch://ap-south-1/lambda/legacy-export?period=86400&stat=Sum",
+      "data": {
+        "resource_id": "lambda/legacy-export",
+        "resource_type": "aws_lambda_function",
+        "metric": "invocations",
+        "statistic": "Sum",
+        "activity_value": 0,
+        "datapoints": 0,
+        "observed_days": 0,
+        "window_days": 30.0,
+        "period_seconds": 86400
+      }
+    },
+    {
+      "source_id": "cloudwatch:lambda/orders",
+      "scope_id": "resource:lambda/orders",
+      "kind": "telemetry",
+      "locator": "cloudwatch://ap-south-1/lambda/orders?period=86400&stat=Sum",
+      "data": {
+        "resource_id": "lambda/orders",
+        "resource_type": "aws_lambda_function",
+        "metric": "invocations",
+        "statistic": "Sum",
+        "activity_value": 4521,
+        "datapoints": 30,
+        "observed_days": 30.0,
+        "window_days": 30.0,
+        "period_seconds": 86400
+      }
+    }
+  ]
+}

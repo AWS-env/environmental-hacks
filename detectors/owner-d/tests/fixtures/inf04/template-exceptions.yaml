@@ -1,0 +1,45 @@
+# Synthetic fixture (INF04-03): documented exceptions are not flagged.
+AWSTemplateFormatVersion: "2010-09-09"
+Conditions:
+  IsProd: !Equals [!Ref "AWS::AccountId", "123456789012"]
+Resources:
+  # Break-glass runbook function, invoked by hand during incidents.
+  # noqa: INF-04
+  BreakGlass:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: arn:aws:iam::123456789012:role/fn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  SeasonalSale:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: arn:aws:iam::123456789012:role/fn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  SeasonalSaleRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: cron(0 0 25 11 ? *)
+      State: DISABLED  # noqa: INF-04 (re-enabled every November)
+      Targets:
+        - Arn: !GetAtt SeasonalSale.Arn
+          Id: sale
+  # noqa: E501
+  OtherCodeQueue:
+    Type: AWS::SQS::Queue
+  DrStandbyQueue:
+    Type: AWS::SQS::Queue
+    Condition: IsProd
+  CustomS3AutoDeleteObjectsCustomResourceProviderHandler9D90184F:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: arn:aws:iam::123456789012:role/fn
+      Code:
+        ZipFile: "exports.handler = async () => ({})"

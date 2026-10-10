@@ -1,0 +1,148 @@
+# Synthetic fixture (INF04-01): components that nothing in the template uses, and disabled triggers.
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  FnRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+  LegacyExport:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  LegacyExportLogs:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${LegacyExport}
+      RetentionInDays: 7
+  LegacyExportErrors:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref LegacyExport
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+  ReportBuilder:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: report-builder
+      Runtime: nodejs20.x
+      Handler: index.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "exports.handler = async () => ({})"
+  ResizeImages:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      CodeUri: src/
+  OldJobsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 60
+  AlertsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: legacy-alerts
+  NightlyCleanup:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  NightlyCleanupRule:
+    Type: AWS::Events::Rule
+    Properties:
+      ScheduleExpression: cron(0 2 * * ? *)
+      State: DISABLED
+      Targets:
+        - Arn: !GetAtt NightlyCleanup.Arn
+          Id: cleanup
+  NightlyCleanupPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref NightlyCleanup
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt NightlyCleanupRule.Arn
+  QuarterlyReport:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  QuarterlyReportScheduleRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt QuarterlyReport.Arn
+  QuarterlyReportSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      ScheduleExpression: cron(0 6 1 */3 ? *)
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      State: DISABLED
+      Target:
+        Arn: !GetAtt QuarterlyReport.Arn
+        RoleArn: !GetAtt QuarterlyReportScheduleRole.Arn
+  IngestQueue:
+    Type: AWS::SQS::Queue
+  IngestWorker:
+    Type: AWS::Lambda::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      Role: !GetAtt FnRole.Arn
+      Code:
+        ZipFile: "def handler(event, context): return event"
+  IngestMapping:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      EventSourceArn: !GetAtt IngestQueue.Arn
+      FunctionName: !Ref IngestWorker
+      Enabled: false
+  WeeklyDigest:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: python3.12
+      Handler: app.handler
+      CodeUri: src/
+      Events:
+        Weekly:
+          Type: Schedule
+          Properties:
+            Schedule: rate(7 days)
+            Enabled: false

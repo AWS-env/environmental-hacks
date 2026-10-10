@@ -1,10 +1,13 @@
-"""AWS Lambda `owner-d-telemetry-analyzer`: read-only CloudWatch metrics for Owner D checks (INF-01, OBS-06, LLM-17).
+"""AWS Lambda `owner-d-telemetry-analyzer`: read-only CloudWatch metrics for Owner D checks (INF-01, OBS-06, LLM-17,
+INF-04).
 
 Collects CloudWatch metrics in the client's project (optionally through a read-only role), normalizes them
 per check (registry.py), evaluates the contract v1 detectors and publishes detector.result.v1 events to
 the findings-hub bus. INF-01 reads CPUUtilization Average/Maximum per EC2 instance or ECS service; Lambda
 functions are listed but publish no CPU utilization, so they stay unevaluated with a limitation. LLM-17 reads
 the utilization of the fixed agent/inference capacity listed in `agent_capacity` (nothing without it).
+INF-04 reads
+one daily activity series per resource listed (or discovered) under "activity" (aws/activity.py).
 
 Event:
     {"repository_id": "github:o/r", "commit_sha": "<40 hex>", "scan_id": "optional",
@@ -21,6 +24,9 @@ Event:
                         {"type": "lambda", "name": "agent-fn", "qualifier": "live"},
                         {"type": "custom", "name": "agent-pool", "namespace": "OwnerD/Demo",
                          "metric_name": "AgentWorkerUtilization", "dimensions": {"path": "waste"}}],  # LLM-17
+     "activity": {"resources": [{"type": "lambda", "name": "orders"}, {"type": "rds", "id": "orders-db"},
+                                {"type": "alb", "name": "app/web/0123456789abcdef"}],
+                  "discover": {"types": ["rds"]}, "lookback_days": 30},  # activity_metrics source (INF-04)
      "settings": {"INF-01": {"min_window_days": 14, "min_sample_count": 100,
                              "average_utilization_threshold": 0.1, "peak_utilization_threshold": 0.5}},
      "scope_per_payload": 50, "dry_run": false}
@@ -28,12 +34,13 @@ Event:
 """
 from __future__ import annotations
 
-from owner_d.aws import common, metrics
+from owner_d.aws import activity, common, metrics
 
 ANALYZER = "owner-d-telemetry-analyzer"
 SOURCE = "owner-d.telemetry-analyzer"
 COLLECTORS = {"cpu_metrics": metrics.collect_cpu_metrics, "metrics": metrics.collect_list_metrics,
-              "capacity_metrics": metrics.collect_capacity_metrics}
+              "capacity_metrics": metrics.collect_capacity_metrics,
+              "activity_metrics": activity.collect_activity_metrics}
 
 
 def lambda_handler(event, context=None):
