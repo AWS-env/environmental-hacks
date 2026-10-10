@@ -296,6 +296,123 @@ costs money per secret on this Free-plan project. CloudFormation's
 Lambda environment variables. The parameter keeps the value out of the
 repository at no cost.
 
+#### Optional schedules
+
+The stack has one EventBridge Scheduler schedule per analyzer:
+`owner-d-telemetry-analyzer-schedule`, `owner-d-log-analyzer-schedule` and
+`owner-d-trace-analyzer-schedule`. They share three parameters:
+
+| Parameter | Default | Meaning |
+| --- | --- | --- |
+| `AnalyzerScheduleState` | `DISABLED` | `ENABLED` or `DISABLED`, for all three schedules |
+| `AnalyzerScheduleExpression` | `rate(1 day)` | Scheduler expression for all three schedules |
+| `AnalyzerScheduleCommitSha` | none (required) | `commit_sha` in scheduled events (contract v1 needs a full 40-character SHA). Pass the commit the analyzers were built from on every deploy that adds or enables the schedules |
+
+With the defaults, a deploy only adds the three schedules in the `DISABLED`
+state and their role, `owner-d-telemetry-analyzer-scheduler-role`. That
+role may only call `lambda:InvokeFunction` on the three analyzers and
+`sqs:SendMessage` to `owner-d-telemetry-dlq`. Nothing runs until you enable
+the schedules.
+
+Each schedule invokes its analyzer asynchronously with a fixed event that
+goes through this stack's read-only role:
+
+- `repository_id`: `github:AWS-env/environmental-hacks`.
+- `scan_id`: `owner-d-scheduled-<scheduled time>`, filled in by Scheduler
+  (`<aws.scheduler.scheduled-time>`). The three analyzers of one run share
+  this scan id, so one readback shows the whole run.
+- `role_arn`: the `ReadOnlyRoleArn` output. The event never holds the
+  ExternalId; the analyzers add it themselves for this role.
+- The telemetry analyzer gets `"discover": {}`. The log analyzer gets the
+  default Logs Insights bounds, `{"lookback_hours": 24, "limit": 1000,
+  "timeout_seconds": 60}`, over the `LogQueryPattern` groups only. The trace
+  analyzer gets the default X-Ray bounds, `{"lookback_minutes": 60,
+  "max_traces": 50, "max_pages": 5}`.
+
+Scheduler does not retry (`MaximumRetryAttempts: 0`), the same as the
+analyzers' async invoke config, so a failure never re-runs a query. An event
+Scheduler cannot deliver goes to `owner-d-telemetry-dlq`, which raises the
+`owner-d-telemetry-dlq-not-empty` alarm. A 15-minute flexible window spreads
+the three runs, so they do not all start at once. There is no reserved
+concurrency.
+
+To enable or disable the schedules, update the stack through a change set.
+Every existing parameter, including `ReadOnlyExternalId`, keeps its previous
+value (`UsePreviousValue=true`), so the ExternalId is never typed, printed or
+committed. These commands are a proposal; review them before running them
+with your own profile:
+
+```bash
+export AWS_PROFILE=<your profile> AWS_REGION=ap-south-1 AWS_DEFAULT_REGION=ap-south-1
+STATE=ENABLED   # or DISABLED
+aws cloudformation create-change-set --stack-name owner-d-telemetry \
+  --change-set-name "owner-d-telemetry-schedules-$(date +%s)" \
+  --template-body file://cdk/owner-d/telemetry.yaml --capabilities CAPABILITY_NAMED_IAM \
+  --tags Key=owner,Value=D Key=project,Value=environmental-hacks \
+  --parameters \
+    ParameterKey=CodeBucket,UsePreviousValue=true \
+    ParameterKey=CodeKey,UsePreviousValue=true \
+    ParameterKey=FindingsBusName,UsePreviousValue=true \
+    ParameterKey=LogQueryPattern,UsePreviousValue=true \
+    ParameterKey=LogRetentionDays,UsePreviousValue=true \
+    ParameterKey=ReadOnlyExternalId,UsePreviousValue=true \
+    ParameterKey=ReservedConcurrency,UsePreviousValue=true \
+    ParameterKey=AnalyzerScheduleExpression,UsePreviousValue=true \
+    "ParameterKey=AnalyzerScheduleCommitSha,ParameterValue=$(git rev-parse origin/main)" \
+    "ParameterKey=AnalyzerScheduleState,ParameterValue=$STATE"
+# review: only the three AWS::Scheduler::Schedule resources should show Modify
+aws cloudformation describe-change-set --stack-name owner-d-telemetry --change-set-name <name from above> \
+  --query 'Changes[].ResourceChange.[Action,LogicalResourceId,ResourceType,Replacement]' --output table
+aws cloudformation execute-change-set --stack-name owner-d-telemetry --change-set-name <name from above>
+aws cloudformation wait stack-update-complete --stack-name owner-d-telemetry
+aws scheduler get-schedule --name owner-d-log-analyzer-schedule --query State
+```
+
+The first deploy that adds the schedules cannot use `UsePreviousValue` for
+the three new parameters, because the stack does not have them yet. Pass them
+explicitly that time: `ParameterValue=DISABLED` for the state,
+`"ParameterKey=AnalyzerScheduleExpression,ParameterValue=rate(1 day)"` and
+`ParameterValue=$(git rev-parse origin/main)` for the commit. The commit has
+no default and the enable command above passes it explicitly, so scheduled
+findings always carry the commit of the current build. If `CodeKey` was built
+from a commit other than `origin/main`, pass that commit instead. To change the
+expression later, replace `UsePreviousValue=true` with `ParameterValue=...`.
+Disable the schedules through the stack as well. Do not change them with
+`aws scheduler update-schedule`, which would drift from the template.
+
+After a scheduled run, list the persisted scans:
+
+```bash
+PYTHONPATH=hub python -m findings_hub.readback --repository-id github:AWS-env/environmental-hacks
+```
+
+The telemetry demo's own schedule (`owner-d-telemetry-demo-schedule`,
+`cdk/owner-d/telemetry-demo.yaml`) is separate and stays `DISABLED`. Enabling
+the analyzer schedules does not generate demo telemetry.
+
+#### Schedule cost at `rate(1 day)`
+
+Prices are ap-south-1 on-demand prices from the AWS price list
+(published 2026-10-07), before the free tier. One run is one invocation of
+each analyzer, so `rate(1 day)` is about 30 runs a month.
+
+| Item | Per run | Per month (30 runs) |
+| --- | --- | --- |
+| Logs Insights, $0.0067/GB scanned. OBS-11 and OBS-17 each scan the last 24 hours of the `LogQueryPattern` groups once, so 2 x V GB, where V is the GB those groups ingest per day | 2 x V x $0.0067 | 60 x V x $0.0067 |
+| GetMetricData (INF-01), $0.01 per 1,000 metrics. At most 2 metrics x 50 discovered resources by default | <= $0.001 | <= $0.03 |
+| X-Ray traces accessed, $0.50 per million. At most 50 traces | <= $0.000025 | <= $0.00075 (1M traces free per month) |
+| Lambda: 3 invocations, 256 MB arm64, at most 120 + 300 + 120 s | <= 135 GB-s, under $0.002 | <= 4,050 GB-s, under $0.06 (free tier covers 400,000 GB-s) |
+| Scheduler, STS, ListMetrics, DescribeLogGroups, PutEvents | a few requests | negligible (Scheduler: 14 million invocations free per month) |
+
+Examples for the Logs Insights line: the demo log group scanned about 22 KB
+per query, so at that size one run costs about $0.0000003. At 100 MB a day
+of `owner-d-*` Lambda logs, one run costs about $0.0013 and a month about
+$0.04. At 1 GB a day, a run costs about $0.013 and a month about $0.40. With
+the current `owner-d-*` log volume, the schedules cost well under $0.10 a
+month in total, mostly GetMetricData and Lambda time, before the free tier. Widening
+`LogQueryPattern` or the schedule rate raises the Logs Insights cost in
+proportion, so keep both as they are unless you have checked the log volume.
+
 ### Cost and limits
 
 - Logs Insights bills per GB of log data scanned. Queries need an allowlisted
@@ -314,8 +431,9 @@ repository at no cost.
   EC2/ECS resource, at most 200 resources, at most 10 pages per 250 resources.
   ListMetrics, DescribeLogGroups and X-Ray reads are bounded by page and trace
   limits.
-- Lambdas run on demand only: arm64, 256 MB, no VPC, NAT or schedule. Their
-  log groups keep 7 days.
+- Lambdas run on demand, plus the optional schedules above, which are
+  `DISABLED` by default: arm64, 256 MB, no VPC or NAT. Their log groups keep
+  7 days.
 - This project's Lambda concurrent-executions quota is 10. Lambda refuses any
   reserved concurrency at that quota, so `ReservedConcurrency` defaults to 0
   (no reservation). Each handler bounds its own work: one Logs Insights query
