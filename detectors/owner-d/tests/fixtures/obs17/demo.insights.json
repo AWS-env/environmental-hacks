@@ -1,0 +1,257 @@
+{
+ "_note": "Real Logs Insights GetQueryResults responses recorded read-only from the synthetic owner-d-telemetry-demo log group (ap-south-1, last 24 h, 2026-10-10). Sanitized: the account ID in @log is replaced by the AWS documentation placeholder 123456789012 and @ptr values are removed. The rows hold counts only; the demo data is synthetic.",
+ "log_group": "/aws/lambda/owner-d-telemetry-demo",
+ "responses": {
+  "all": {
+   "query_prefix": "",
+   "window": {
+    "start": "2026-10-09T02:39:12Z",
+    "end": "2026-10-10T02:39:12Z"
+   },
+   "status": "Complete",
+   "statistics": {
+    "recordsMatched": 53.0,
+    "recordsScanned": 87.0,
+    "estimatedRecordsSkipped": 0.0,
+    "bytesScanned": 22461.0,
+    "estimatedBytesSkipped": 0.0,
+    "logGroupsScanned": 1.0,
+    "resultCount": 5.0
+   },
+   "results": [
+    [
+     {
+      "field": "@log",
+      "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+     },
+     {
+      "field": "o17_level",
+      "value": "INFO"
+     },
+     {
+      "field": "o17_bucket",
+      "value": "1"
+     },
+     {
+      "field": "events",
+      "value": "26"
+     },
+     {
+      "field": "chars",
+      "value": "5458"
+     },
+     {
+      "field": "max_chars",
+      "value": "221"
+     }
+    ],
+    [
+     {
+      "field": "@log",
+      "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+     },
+     {
+      "field": "o17_level",
+      "value": "WARN"
+     },
+     {
+      "field": "o17_bucket",
+      "value": "1"
+     },
+     {
+      "field": "events",
+      "value": "22"
+     },
+     {
+      "field": "chars",
+      "value": "3854"
+     },
+     {
+      "field": "max_chars",
+      "value": "194"
+     }
+    ],
+    [
+     {
+      "field": "@log",
+      "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+     },
+     {
+      "field": "o17_level",
+      "value": "ERROR"
+     },
+     {
+      "field": "o17_bucket",
+      "value": "1"
+     },
+     {
+      "field": "events",
+      "value": "1"
+     },
+     {
+      "field": "chars",
+      "value": "260"
+     },
+     {
+      "field": "max_chars",
+      "value": "260"
+     }
+    ],
+    [
+     {
+      "field": "@log",
+      "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+     },
+     {
+      "field": "o17_bucket",
+      "value": "1"
+     },
+     {
+      "field": "events",
+      "value": "3"
+     },
+     {
+      "field": "chars",
+      "value": "454"
+     },
+     {
+      "field": "max_chars",
+      "value": "153"
+     }
+    ],
+    [
+     {
+      "field": "@log",
+      "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+     },
+     {
+      "field": "o17_level",
+      "value": "ERROR"
+     },
+     {
+      "field": "o17_bucket",
+      "value": "11"
+     },
+     {
+      "field": "events",
+      "value": "1"
+     },
+     {
+      "field": "chars",
+      "value": "5587"
+     },
+     {
+      "field": "max_chars",
+      "value": "5587"
+     },
+     {
+      "field": "trace_events",
+      "value": "1"
+     },
+     {
+      "field": "body_events",
+      "value": "1"
+     }
+    ]
+   ]
+  },
+  "waste": {
+   "query_prefix": "filter check = \"OBS-17\" and path = \"waste\"\n| ",
+   "window": {
+    "start": "2026-10-09T02:39:28Z",
+    "end": "2026-10-10T02:39:28Z"
+   },
+   "status": "Complete",
+   "statistics": {
+    "recordsMatched": 1.0,
+    "recordsScanned": 87.0,
+    "estimatedRecordsSkipped": 0.0,
+    "bytesScanned": 22461.0,
+    "estimatedBytesSkipped": 0.0,
+    "logGroupsScanned": 1.0,
+    "resultCount": 1.0
+   },
+   "results": [
+    [
+     {
+      "field": "@log",
+      "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+     },
+     {
+      "field": "o17_level",
+      "value": "ERROR"
+     },
+     {
+      "field": "o17_bucket",
+      "value": "11"
+     },
+     {
+      "field": "events",
+      "value": "1"
+     },
+     {
+      "field": "chars",
+      "value": "5587"
+     },
+     {
+      "field": "max_chars",
+      "value": "5587"
+     },
+     {
+      "field": "trace_events",
+      "value": "1"
+     },
+     {
+      "field": "body_events",
+      "value": "1"
+     }
+    ]
+   ]
+  },
+  "control": {
+   "query_prefix": "filter check = \"OBS-17\" and path = \"control\"\n| ",
+   "window": {
+    "start": "2026-10-09T02:39:30Z",
+    "end": "2026-10-10T02:39:30Z"
+   },
+   "status": "Complete",
+   "statistics": {
+    "recordsMatched": 1.0,
+    "recordsScanned": 87.0,
+    "estimatedRecordsSkipped": 0.0,
+    "bytesScanned": 22461.0,
+    "estimatedBytesSkipped": 0.0,
+    "logGroupsScanned": 1.0,
+    "resultCount": 1.0
+   },
+   "results": [
+    [
+     {
+      "field": "@log",
+      "value": "123456789012:/aws/lambda/owner-d-telemetry-demo"
+     },
+     {
+      "field": "o17_level",
+      "value": "ERROR"
+     },
+     {
+      "field": "o17_bucket",
+      "value": "1"
+     },
+     {
+      "field": "events",
+      "value": "1"
+     },
+     {
+      "field": "chars",
+      "value": "260"
+     },
+     {
+      "field": "max_chars",
+      "value": "260"
+     }
+    ]
+   ]
+  }
+ }
+}

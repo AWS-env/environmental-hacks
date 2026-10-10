@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/environmental-hacks",
+  "scan_id": "obs17-demo-recorded",
+  "commit_sha": "0123456789abcdef0123456789abcdef01234567",
+  "check_id": "OBS-17",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_event_bytes": 4096,
+    "min_bytes_share": 0.25,
+    "max_trace_repeats": 1,
+    "max_error_trace_repeats": 10,
+    "min_events": 20
+  },
+  "scope": [
+    "resource:log-group//aws/lambda/owner-d-telemetry-demo"
+  ],
+  "sources": [
+    {
+      "source_id": "logs-insights:/aws/lambda/owner-d-telemetry-demo",
+      "scope_id": "resource:log-group//aws/lambda/owner-d-telemetry-demo",
+      "kind": "telemetry",
+      "locator": "logs-insights://ap-south-1/log-group//aws/lambda/owner-d-telemetry-demo",
+      "data": {
+        "resource_id": "/aws/lambda/owner-d-telemetry-demo",
+        "resource_type": "aws_cloudwatch_log_group",
+        "bucket_chars": 512,
+        "events": 53,
+        "event_chars": 15613,
+        "max_event_chars": 5587,
+        "size_histogram": [
+          {
+            "bucket": 1,
+            "events": 52,
+            "chars": 10026,
+            "trace_events": 0,
+            "body_events": 0
+          },
+          {
+            "bucket": 11,
+            "events": 1,
+            "chars": 5587,
+            "trace_events": 1,
+            "body_events": 1
+          }
+        ],
+        "events_by_level": {
+          "error": 2,
+          "below_error": 48,
+          "unknown": 3
+        },
+        "trace_events_by_level": {
+          "error": 1,
+          "below_error": 0,
+          "unknown": 0
+        },
+        "body_field_events": 1,
+        "problems": [],
+        "window": {
+          "start": "2026-10-09T02:39:12Z",
+          "end": "2026-10-10T02:39:12Z"
+        }
+      }
+    }
+  ]
+}

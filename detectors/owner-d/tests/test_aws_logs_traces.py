@@ -77,7 +77,8 @@ class LogHandlerTests(AwsTestCase):
                                         normalizer=f"{module.__name__}:normalize_describe_log_groups",
                                         adapter="describe_log_groups")
         with Registered(module, check):
-            out = log_handler.lambda_handler(self.base_event(log_groups={"prefix": "/aws/lambda/", "include_tags": True}))
+            out = log_handler.lambda_handler(self.base_event(checks=["OBS-07"],
+                                                             log_groups={"prefix": "/aws/lambda/", "include_tags": True}))
         self.assertEqual(out["results"], [{"check_id": "OBS-07", "status": "completed", "scope": 4, "evaluated": 4,
                                            "findings": 0}])
         entry = self.fakes["events"].entries[0]
@@ -122,7 +123,8 @@ class LogHandlerTests(AwsTestCase):
             {"source_id": "q", "scope_id": "query:retries", "kind": "telemetry", "locator": "logs-insights:retries",
              "data": {"rows": raw["rows"], "bytes": raw["statistics"]["bytesScanned"]}}]
         with Registered(module, registry.TelemetryCheck("OBS-11", module.__name__, "logs_insights")):
-            out = log_handler.lambda_handler(self.base_event(logs={"lookback_hours": 2}, dry_run=True), Context())
+            out = log_handler.lambda_handler(self.base_event(checks=["OBS-11"], logs={"lookback_hours": 2}, dry_run=True),
+                                             Context())
         self.assertEqual(out["results"][0]["status"], "completed")
         start = next(kw for name, kw in logs.calls if name == "start_query")
         self.assertEqual(start["logGroupNames"], [g["logGroupName"] for g in GROUPS[:3]])  # /aws/lambda/other excluded
@@ -169,7 +171,8 @@ class LogHandlerTests(AwsTestCase):
         self.assertEqual(self.fakes["events"].entries, [])
 
     def test_no_registered_checks_is_an_explicit_error(self):
-        with mock.patch.object(registry, "CHECKS", tuple(c for c in registry.CHECKS if c.source != "log_groups")):
+        with mock.patch.object(registry, "CHECKS", tuple(c for c in registry.CHECKS
+                                                         if c.source not in ("log_groups", "logs_insights"))):
             with self.assertRaisesRegex(ValueError, "no checks are registered"):
                 log_handler.lambda_handler(self.base_event())
 
@@ -231,7 +234,8 @@ class RegistryTests(unittest.TestCase):
     def test_every_registered_check_loads_with_a_known_source_and_adapter(self):
         wired = {c.check_id: (c.source, c.adapter) for c in registry.CHECKS}
         self.assertEqual(wired, {"INF-01": ("cpu_metrics", None), "OBS-06": ("metrics", "list_metrics"),
-                                 "OBS-07": ("log_groups", "describe_log_groups"), "LLM-10": ("traces", "xray_traces")})
+                                 "OBS-07": ("log_groups", "describe_log_groups"), "LLM-10": ("traces", "xray_traces"),
+                                 "OBS-17": ("logs_insights", None)})
         for check in registry.CHECKS:
             module, normalize = registry.load(check)
             self.assertEqual(module.CHECK_ID, check.check_id)
@@ -336,7 +340,8 @@ class RealChecksThroughTheAnalyzersTests(AwsTestCase):
                "logGroupArn": "arn:aws:logs:ap-south-1:123456789012:log-group:/aws/lambda/owner-d-big"}
         self.fakes["logs"] = FakeLogs([big] + GROUPS[:1], tags={big["logGroupArn"]: {"team": "d"},
                                                                 GROUPS[0]["logGroupArn"]: {}})
-        out = log_handler.lambda_handler(self.base_event(log_groups={"prefix": "/aws/lambda/", "include_tags": True}))
+        out = log_handler.lambda_handler(self.base_event(checks=["OBS-07"],
+                                                         log_groups={"prefix": "/aws/lambda/", "include_tags": True}))
         self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
         self.assertEqual(out["results"][0]["check_id"], "OBS-07")
         self.assertEqual(out["results"][0]["findings"], 1)
