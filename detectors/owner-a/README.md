@@ -48,6 +48,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
   - `unclosed-handle`: a file/socket/connection opened into a local name that is neither context-managed, closed in `finally`, nor handed on. Reliability finding with low energy weight.
 - **`CODE-C11.4`**: Blocking the main thread (#51)
   - `blocking-call-in-async`: `time.sleep`, `requests.*`, `urlopen`, sync `httpx.*`, `subprocess.*`, `os.system`, `input()` or `open()` called directly in an `async def` (not awaited, not in a nested sync def). Impact is event-loop latency, not a measured energy cost.
+- **`CODE-C6.1`**: Unnecessary object, runtime half (#79)
+  - `allocation-churn`: reads a client-produced `memray stats --json` export (artifact source, not source text): total bytes allocated far above the peak, plus a client-code hotspot by allocation count. Runs through the same `evaluate` entry point; unrecognised or incomplete artifacts are `unavailable`, never clean.
 
 ## Shared contract v1
 

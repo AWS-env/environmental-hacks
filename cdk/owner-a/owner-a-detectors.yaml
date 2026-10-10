@@ -8,7 +8,7 @@ Metadata:
   com.aws.cloudformation.Context:
     arch: >-
       contract v1 input -> owner-a-static-scan -> PutEvents findings-hub;
-      client CI -> owner-a-presign (regional SigV4 PUT url) -> S3 artifacts/ (parser Lambda arrives with the first artifact check);
+      client CI -> owner-a-presign (regional SigV4 PUT url) -> S3 artifacts/ -> owner-a-profile-parser -> PutEvents findings-hub;
       async failures -> owner-a-dlq (+ alarm)
     must:
       - "all resources prefixed owner-a- and tagged owner=A (docs/aws_service_mapping_v1.6.md guardrails)"
@@ -64,6 +64,7 @@ Resources:
 
   ArtifactsBucket:
     Type: AWS::S3::Bucket
+    DependsOn: ParserInvokePermission
     DeletionPolicy: Delete
     UpdateReplacePolicy: Delete
     Properties:
@@ -86,6 +87,14 @@ Resources:
             Prefix: artifacts/
             ExpirationInDays: 7
             AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 }
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Function: !GetAtt ProfileParser.Arn
+            Filter:
+              S3Key:
+                Rules:
+                  - { Name: prefix, Value: "artifacts/" }
       Tags:
         - { Key: owner, Value: A }
         - { Key: project, Value: environmental-hacks }
@@ -111,6 +120,13 @@ Resources:
     Type: AWS::Logs::LogGroup
     Properties:
       LogGroupName: /aws/lambda/owner-a-static-scan
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: A }
+  ProfileParserLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-a-profile-parser
       RetentionInDays: !Ref LogRetentionDays
       Tags:
         - { Key: owner, Value: A }
@@ -143,6 +159,34 @@ Resources:
                 Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
               - Effect: Allow
                 Action: ["events:DescribeEventBus"]
+                Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
+              - Effect: Allow
+                Action: ["sqs:SendMessage"]
+                Resource: !GetAtt Dlq.Arn
+      Tags:
+        - { Key: owner, Value: A }
+
+  ProfileParserRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: owner-a-profile-parser-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - { Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: "sts:AssumeRole" }
+      Policies:
+        - PolicyName: owner-a-profile-parser
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ["logs:CreateLogStream", "logs:PutLogEvents"]
+                Resource: !Sub "${ProfileParserLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: ["s3:GetObject"]
+                Resource: !Sub "arn:${AWS::Partition}:s3:::owner-a-artifacts-${AWS::AccountId}-${AWS::Region}/artifacts/*"
+              - Effect: Allow
+                Action: ["events:PutEvents", "events:DescribeEventBus"]
                 Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
               - Effect: Allow
                 Action: ["sqs:SendMessage"]
@@ -197,6 +241,39 @@ Resources:
         - { Key: owner, Value: A }
         - { Key: project, Value: environmental-hacks }
 
+  ProfileParser:
+    Type: AWS::Lambda::Function
+    DependsOn: ProfileParserLogGroup
+    Properties:
+      FunctionName: owner-a-profile-parser
+      Description: Reads client-uploaded profiler artifacts from S3 (bytes only, 5 MB cap) and publishes detector.result.v1.
+      Runtime: nodejs22.x
+      Architectures: [arm64]
+      Handler: dist/aws/artifact-handler.handler
+      Role: !GetAtt ProfileParserRole.Arn
+      MemorySize: 256
+      Timeout: 60
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      DeadLetterConfig:
+        TargetArn: !GetAtt Dlq.Arn
+      Environment:
+        Variables:
+          FINDINGS_BUS_NAME: !Ref FindingsBusName
+      Tags:
+        - { Key: owner, Value: A }
+        - { Key: project, Value: environmental-hacks }
+
+  ParserInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref ProfileParser
+      Action: lambda:InvokeFunction
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref AWS::AccountId
+      SourceArn: !Sub "arn:${AWS::Partition}:s3:::owner-a-artifacts-${AWS::AccountId}-${AWS::Region}"
+
   Presign:
     Type: AWS::Lambda::Function
     DependsOn: PresignLogGroup
@@ -244,6 +321,7 @@ Resources:
 
 Outputs:
   StaticScanFunction: { Value: !Ref StaticScan }
+  ProfileParserFunction: { Value: !Ref ProfileParser }
   PresignFunction: { Value: !Ref Presign }
   ArtifactsBucketName: { Value: !Ref ArtifactsBucket }
   DlqUrl: { Value: !Ref Dlq }
