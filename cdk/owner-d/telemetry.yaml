@@ -3,15 +3,17 @@ Description: >-
   Owner D read-only telemetry route: owner-d-telemetry-analyzer (CloudWatch metrics), owner-d-log-analyzer
   (CloudWatch Logs / Logs Insights) and owner-d-trace-analyzer (X-Ray) read existing telemetry, optionally
   through the read-only role owner-d-telemetry-readonly (simulated client role), evaluate Owner D contract v1
-  detectors and publish detector.result.v1 events to the findings-hub bus. On-demand only; no VPC or NAT.
+  detectors and publish detector.result.v1 events to the findings-hub bus. On demand, plus optional
+  EventBridge Scheduler schedules that are created DISABLED; no VPC or NAT.
 
 Metadata:
   com.aws.cloudformation.Context:
     arch: >-
-      invoke (async or sync) -> owner-d-{telemetry,log,trace}-analyzer -> STS AssumeRole owner-d-telemetry-readonly
+      invoke (async or sync) or (disabled) EventBridge Scheduler -> owner-d-{telemetry,log,trace}-analyzer
+      -> STS AssumeRole owner-d-telemetry-readonly
       (optional) -> CloudWatch GetMetricData/ListMetrics | Logs DescribeLogGroups/StartQuery | X-Ray traces (read)
       -> PutEvents findings-hub (detector.result.v1) -> owner-d-findings-writer -> DynamoDB owner-d-findings;
-      failed async invocations -> owner-d-telemetry-dlq
+      failed async invocations and undeliverable scheduled invocations -> owner-d-telemetry-dlq
     must:
       - "all resources prefixed owner-d- & tagged owner=D (docs/aws_service_mapping_v1.6.md guardrails)"
       - "ap-south-1 only (project selected Region): the ProjectRegionOnly rule refuses any other Region"
@@ -19,6 +21,7 @@ Metadata:
       - "findings-hub bus and the findings writer exist outside this stack (owner-d-findings-hub)"
       - "no reserved concurrency by default: the project's Lambda concurrency quota is 10, so Lambda refuses any reservation"
       - "owner-d-telemetry-readonly requires sts:ExternalId; the value is a NoEcho parameter, never committed"
+      - "analyzer schedules default to DISABLED; their input never holds the ExternalId (the analyzers inject it)"
     ref:
       - docs/ARCHITECTURE_FLOWS.md
       - detectors/owner-d/README.md
@@ -66,6 +69,25 @@ Parameters:
     Description: >-
       Per-function reserved concurrency. 0 = no reservation (required while the project's concurrency quota
       is 10, because Lambda must keep 10 unreserved). Handlers already bound their own work.
+  AnalyzerScheduleState:
+    Type: String
+    Default: DISABLED
+    AllowedValues: [DISABLED, ENABLED]
+    Description: >-
+      State of the three analyzer schedules. Keep DISABLED unless you want recurring telemetry findings
+      (see the cost notes in detectors/owner-d/README.md).
+  AnalyzerScheduleExpression:
+    Type: String
+    Default: rate(1 day)
+    Description: EventBridge Scheduler expression shared by the three analyzer schedules.
+  AnalyzerScheduleCommitSha:
+    Type: String
+    AllowedPattern: "[a-f0-9]{40}"
+    ConstraintDescription: a full 40-character lowercase git commit SHA.
+    Description: >-
+      commit_sha sent in scheduled events (the handlers and contract v1 require a full SHA). Required, with no
+      default, so a stale commit is never reported: pass the commit the analyzers were built from on every
+      deploy that adds or enables the schedules.
 
 Rules:
   ProjectRegionOnly:
@@ -429,6 +451,117 @@ Resources:
       MaximumRetryAttempts: 0
       MaximumEventAgeInSeconds: 3600
 
+  # ---- optional schedules (DISABLED by default) ---------------------------------------------------
+  # One schedule per analyzer, all through owner-d-telemetry-readonly. The input names that role but never
+  # the ExternalId: the analyzers add READONLY_EXTERNAL_ID themselves for their own stack's role.
+  # Scheduler invokes Lambda targets asynchronously. No retries (a retry would re-run Logs Insights, billed
+  # per GB scanned); an event Scheduler cannot deliver goes to owner-d-telemetry-dlq. The flexible window
+  # spreads the three runs so they do not start together (concurrency quota 10).
+  AnalyzerScheduleRole:
+    Type: AWS::IAM::Role
+    Metadata:
+      com.aws.cloudformation.Context:
+        must:
+          - "only lambda:InvokeFunction on the three analyzers and sqs:SendMessage to owner-d-telemetry-dlq"
+    Properties:
+      RoleName: owner-d-telemetry-analyzer-scheduler-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: scheduler.amazonaws.com }
+            Action: sts:AssumeRole
+            Condition:
+              StringEquals:
+                "aws:SourceAccount": !Ref AWS::AccountId
+      Policies:
+        - PolicyName: owner-d-telemetry-analyzer-scheduler
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: InvokeAnalyzers
+                Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt TelemetryAnalyzerFunction.Arn
+                  - !GetAtt LogAnalyzerFunction.Arn
+                  - !GetAtt TraceAnalyzerFunction.Arn
+              - Sid: UndeliveredToDlq
+                Effect: Allow
+                Action: sqs:SendMessage
+                Resource: !GetAtt TelemetryDlq.Arn
+      Tags:
+        - { Key: owner, Value: D }
+
+  # AWS::Scheduler::Schedule has no Tags property; the owner-d- name carries ownership.
+  TelemetryAnalyzerSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: owner-d-telemetry-analyzer-schedule
+      Description: Optional recurring INF-01/OBS-06 run through owner-d-telemetry-readonly. Created DISABLED.
+      State: !Ref AnalyzerScheduleState
+      ScheduleExpression: !Ref AnalyzerScheduleExpression
+      FlexibleTimeWindow:
+        Mode: FLEXIBLE
+        MaximumWindowInMinutes: 15
+      Target:
+        Arn: !GetAtt TelemetryAnalyzerFunction.Arn
+        RoleArn: !GetAtt AnalyzerScheduleRole.Arn
+        Input: !Sub >-
+          {"repository_id": "github:AWS-env/environmental-hacks", "commit_sha": "${AnalyzerScheduleCommitSha}",
+          "scan_id": "owner-d-scheduled-<aws.scheduler.scheduled-time>", "role_arn": "${ReadOnlyRole.Arn}",
+          "discover": {}}
+        RetryPolicy:
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt TelemetryDlq.Arn
+
+  LogAnalyzerSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: owner-d-log-analyzer-schedule
+      Description: >-
+        Optional recurring OBS-07/OBS-11/OBS-17 run through owner-d-telemetry-readonly. Logs Insights stays
+        within LogQueryPattern and the default 24-hour window. Created DISABLED.
+      State: !Ref AnalyzerScheduleState
+      ScheduleExpression: !Ref AnalyzerScheduleExpression
+      FlexibleTimeWindow:
+        Mode: FLEXIBLE
+        MaximumWindowInMinutes: 15
+      Target:
+        Arn: !GetAtt LogAnalyzerFunction.Arn
+        RoleArn: !GetAtt AnalyzerScheduleRole.Arn
+        Input: !Sub >-
+          {"repository_id": "github:AWS-env/environmental-hacks", "commit_sha": "${AnalyzerScheduleCommitSha}",
+          "scan_id": "owner-d-scheduled-<aws.scheduler.scheduled-time>", "role_arn": "${ReadOnlyRole.Arn}",
+          "logs": {"lookback_hours": 24, "limit": 1000, "timeout_seconds": 60}}
+        RetryPolicy:
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt TelemetryDlq.Arn
+
+  TraceAnalyzerSchedule:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Name: owner-d-trace-analyzer-schedule
+      Description: Optional recurring LLM-10/LLM-05 run through owner-d-telemetry-readonly. Created DISABLED.
+      State: !Ref AnalyzerScheduleState
+      ScheduleExpression: !Ref AnalyzerScheduleExpression
+      FlexibleTimeWindow:
+        Mode: FLEXIBLE
+        MaximumWindowInMinutes: 15
+      Target:
+        Arn: !GetAtt TraceAnalyzerFunction.Arn
+        RoleArn: !GetAtt AnalyzerScheduleRole.Arn
+        Input: !Sub >-
+          {"repository_id": "github:AWS-env/environmental-hacks", "commit_sha": "${AnalyzerScheduleCommitSha}",
+          "scan_id": "owner-d-scheduled-<aws.scheduler.scheduled-time>", "role_arn": "${ReadOnlyRole.Arn}",
+          "xray": {"lookback_minutes": 60, "max_traces": 50, "max_pages": 5}}
+        RetryPolicy:
+          MaximumRetryAttempts: 0
+        DeadLetterConfig:
+          Arn: !GetAtt TelemetryDlq.Arn
+
 Outputs:
   TelemetryAnalyzerFunctionName:
     Value: !Ref TelemetryAnalyzerFunction
@@ -443,3 +576,6 @@ Outputs:
     Value: !GetAtt ReadOnlyRole.Arn
   TelemetryDlqUrl:
     Value: !Ref TelemetryDlq
+  AnalyzerScheduleNames:
+    Description: The three analyzer schedules; their state is AnalyzerScheduleState.
+    Value: !Join [",", [!Ref TelemetryAnalyzerSchedule, !Ref LogAnalyzerSchedule, !Ref TraceAnalyzerSchedule]]
