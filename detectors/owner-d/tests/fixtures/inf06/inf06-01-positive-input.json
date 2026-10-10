@@ -5,7 +5,7 @@
   "scan_id": "scan-inf06-001",
   "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
   "check_id": "INF-06",
-  "detector_version": "1.0.0",
+  "detector_version": "1.0.1",
   "context": {
     "format": "iac"
   },

@@ -327,6 +327,88 @@ class Inf06BoundaryTests(unittest.TestCase):
         self.assertEqual(after["findings"][0]["evidence"][0]["line_start"], 9)
 
 
+class Inf06ReviewFixTests(unittest.TestCase):
+    """PR #479 review: overridden Globals keys, SAM in serverless.yaml, explicit defaults, multi-document."""
+
+    OVERRIDDEN = sam([sam_function("ApiFn", "Api", "MemorySize: 512"), sam_function("QueueFn", "SQS", "MemorySize: 512"),
+                      sam_function("JobFn", "Schedule", "MemorySize: 512")],
+                     globals_="MemorySize: 2048\nArchitectures: [arm64]\n")
+
+    def test_overridden_globals_keys_are_never_cited(self):
+        finding = inline(self.OVERRIDDEN)["findings"][0]
+        self.assertIn("MemorySize 512, Timeout 3 (platform default), Architectures arm64", finding["summary"])
+        self.assertIn("partly from the shared defaults block and partly per function", finding["summary"])
+        self.assertNotIn("2048", finding["summary"])
+        evidence = finding["evidence"][0]
+        self.assertEqual((evidence["line_start"], evidence["value"]), (12, "      MemorySize: 512"))  # ApiFn
+
+    def test_noqa_is_honoured_on_every_line_that_sets_the_cited_sizing(self):
+        def with_comment(old, new):
+            self.assertIn(old, self.OVERRIDDEN)
+            return inline(self.OVERRIDDEN.replace(old, new, 1))["findings"]
+        self.assertEqual(with_comment("      MemorySize: 512\n", "      MemorySize: 512  # noqa: INF-06\n"), [])
+        self.assertEqual(with_comment("    Architectures: [arm64]\n", "    Architectures: [arm64]  # noqa: INF-06\n"), [])
+        self.assertEqual(with_comment("  ApiFn:\n", "  # noqa: INF-06 one tier by design\n  ApiFn:\n"), [])
+        self.assertEqual(with_comment("  Function:\n", "  # noqa: INF-06\n  Function:\n"), [])
+        # the overridden Globals value sets nothing, so a comment on it does not suppress
+        self.assertEqual(len(with_comment("    MemorySize: 2048\n", "    MemorySize: 2048  # noqa: INF-06\n")), 1)
+        # every cited Globals line counts, not only the first
+        text = sam(THREE).replace("    Timeout: 30\n", "    Timeout: 30  # noqa: INF-06\n")
+        self.assertEqual(inline(text)["findings"], [])
+
+    def test_shared_evidence_quotes_only_inherited_sizing_keys(self):
+        result = inline(sam(THREE, globals_="MemorySize: 1024\nRuntime: python3.12\nTimeout: 30\n"))
+        self.assertEqual(result["findings"][0]["evidence"][0]["value"], "    MemorySize: 1024")
+        result = inline(sam(THREE, globals_="MemorySize: 1024\nArchitectures:\n  - arm64\nRuntime: python3.12\n"))
+        self.assertEqual(result["findings"][0]["evidence"][0]["value"],
+                         "    MemorySize: 1024\n    Architectures:\n      - arm64")
+
+    def test_sam_template_named_serverless_yaml_is_judged_as_a_template(self):
+        for name in ("serverless.yaml", "serverless.yml", "serverless.prod.yml"):
+            with self.subTest(name=name):
+                result = inline(sam(THREE), name)
+                self.assertEqual(result["status"], "completed")
+                self.assertEqual(len(result["findings"]), 1)
+                self.assertIn("SAM Globals.Function", result["findings"][0]["summary"])
+        clean = sam([sam_function("ApiFn", "Api", "MemorySize: 256"), *THREE[1:]])
+        self.assertEqual(inline(clean, "serverless.yaml")["status"], "completed")
+        with self.assertRaises(NotEvaluated):  # Serverless structure without an AWS service: not a template either
+            inf06.parse("serverless.yml", "service: x\nprovider:\n  name: google\n")
+        with self.assertRaisesRegex(NotEvaluated, "no CloudFormation Resources found"):
+            inf06.parse("serverless.yml", "custom:\n  a: b\n")
+
+    def test_explicit_value_equal_to_the_platform_default_matches_an_omitted_one(self):
+        functions = [*THREE[:2], sam_function("JobFn", "Schedule", "Architectures: [x86_64]\nTimeout: 30.0")]
+        result = inline(sam(functions))
+        self.assertEqual(len(result["findings"]), 1)
+        self.assertIn("MemorySize 1024, Timeout 30, Architectures x86_64)", result["findings"][0]["summary"])
+        functions = [sam_function("ApiFn", "Api"), sam_function("QueueFn", "SQS", "MemorySize: 128"),
+                     sam_function("JobFn", "Schedule", "Timeout: 3")]
+        summary = inline(sam(functions, globals_=""))["findings"][0]["summary"]
+        self.assertIn("MemorySize 128, Timeout 3, Architectures x86_64 (platform default)", summary)
+        service = ("provider:\n  name: aws\nfunctions:\n  a:\n    handler: a.h\n    memorySize: 1024\n    url: true\n"
+                   "  b:\n    handler: b.h\n    events:\n      - sqs: arn\n"
+                   "  c:\n    handler: c.h\n    events:\n      - schedule: rate(1 hour)\n")
+        summary = inline(service, "serverless.yml")["findings"][0]["summary"]
+        self.assertIn("memorySize 1024, timeout 6 (platform default)", summary)
+
+    def test_only_platform_defaults_everywhere_are_still_not_judged(self):
+        self.assertEqual(inline(sam(THREE, globals_=""))["findings"], [])
+        functions = [sam_function(n, k, "Architectures: [x86_64]") for n, k in (("A", "Api"), ("Q", "SQS"), ("J", "Schedule"))]
+        self.assertEqual(inline(sam(functions, globals_=""))["findings"], [])  # Architectures alone is not sizing
+
+    def test_each_yaml_document_is_judged_on_its_own(self):
+        doc = sam(THREE)
+        result = inline(doc + "---\n" + doc)
+        self.assertEqual([f["identity"] for f in result["findings"]], [IDENTITY, IDENTITY + "#2"])
+        self.assertEqual([f["evidence"][0]["line_start"] for f in result["findings"]], [5, 5 + len(doc.splitlines()) + 1])
+        suppressed = doc.replace("  Function:\n", "  # noqa: INF-06\n  Function:\n")
+        self.assertEqual(len(inline(suppressed + "---\n" + doc)["findings"]), 1)  # noqa covers its own document only
+        split = sam(THREE[:2]) + "---\n" + sam(THREE[2:])  # kinds split across documents are not compared
+        self.assertEqual(inline(split)["findings"], [])
+        self.assertEqual(inline(split, "serverless.yaml")["findings"], [])
+
+
 class Inf06ContractTests(unittest.TestCase):
     def test_fingerprint_matches_shared_contract_implementation(self):
         args = (REPOSITORY_ID, CHECK_ID, "file:sam-globals.yaml", IDENTITY)

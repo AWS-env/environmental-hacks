@@ -4115,12 +4115,18 @@ the INF-07 parser (`inf07.parse`), so the same files are accepted and declined.
 ### Input
 
 A contract v1 `input` payload with one `static` source per `file:<path>` scope
-item. Each file (each YAML document) is judged on its own. Supported files:
+item. Each file is judged on its own, and so is each document of a
+multi-document YAML file (`---`): functions are never compared across
+documents, and a second finding in the same file gets the identity
+`lambda-functions:uniform-sizing#2`. Supported files:
 
 - **CloudFormation/SAM** `.yaml`/`.yml`/`.json`/`.template`, including
   CDK-synthesized `cdk.out/*.template.json` (as INF-07)
 - **Serverless Framework** `serverless.yml`/`serverless.yaml` (also
-  `serverless.<stage>.yml`) with `provider.name: aws` and inline `functions`
+  `serverless.<stage>.yml`) with `provider.name: aws` and inline `functions`.
+  A `serverless*.yml` file with no top-level `service` or `provider` key (for
+  example a SAM template named `serverless.yaml`) is read as a
+  CloudFormation/SAM template instead, as INF-07 does
 
 No context settings are required.
 
@@ -4139,30 +4145,39 @@ A function is named by `Ref`, `Fn::GetAtt`, `Fn::Sub` (`${Fn.Arn}`) or a
 
 | Identity | Flagged when | Confidence |
 | --- | --- | --- |
-| `lambda-functions:uniform-sizing` | The template has at least one function of **each** of the three kinds (so at least 3 workloads), and every function with exactly one kind has identical effective `MemorySize`, `Timeout` and `Architectures` (Serverless: `memorySize`, `timeout`, `architecture`). Each counted function must get `MemorySize` or `Timeout` from its own properties or from the shared SAM `Globals.Function` / Serverless `provider` block. | low |
+| `lambda-functions:uniform-sizing` | The template has at least one function of **each** of the three kinds (so at least 3 workloads), and every function with exactly one kind has identical effective `MemorySize`, `Timeout` and `Architectures` (Serverless: `memorySize`, `timeout`, `architecture`). At least one counted function must get `MemorySize` or `Timeout` from its own properties or from the shared SAM `Globals.Function` / Serverless `provider` block. | low |
 
-Values are compared as written: numbers are normalised, a `Ref`/`!Ref` to a
-template parameter matches only the same parameter, and a Serverless
-`${...}` variable matches only the identical reference. An undeclared value
-takes the platform default (Lambda: 128 MB, 3 s, `x86_64`; Serverless
-Framework: 1024 MB, 6 s, `x86_64`), which the summary marks as such.
+Effective values are compared: a function value overrides the shared block,
+and an undeclared value takes the platform default (Lambda: 128 MB, 3 s,
+`x86_64`; Serverless Framework: 1024 MB, 6 s, `x86_64`), so an explicit
+`MemorySize: 128` or `Architectures: [x86_64]` matches an omitted one. The
+summary marks a value as the platform default when no counted function
+declares it. Numbers are normalised, a `Ref`/`!Ref` to a template parameter
+matches only the same parameter, and a Serverless `${...}` variable matches
+only the identical reference.
 
-Evidence is the sizing lines of the shared block when every counted function
-takes at least one value from it, otherwise the sizing lines of the first
-counted function that declares its own. The summary lists the values, where
-they come from and the functions of each kind.
+Evidence quotes only keys that set the effective sizing, never a shared key
+that functions override: the first counted function's own sizing lines when
+any counted function declares its own, otherwise the shared-block lines the
+functions inherit. It is the first contiguous run of such key lines, with
+their value lines (a block list). The summary lists the effective values,
+where they come from and the functions of each kind.
 
 Not flagged:
 
 - templates missing one of the three kinds (for example an API plus queue
   consumers only), or where any counted function differs in one dimension
-- templates where no sizing is declared at all (pure platform defaults); that
-  is "never sized", not a shared default
+- templates where no counted function declares `MemorySize` or `Timeout`
+  (pure platform defaults, even with an explicit `x86_64`); that is "never
+  sized", not a shared default
 - functions with no recognised trigger (custom resources, seeders, functions
   invoked by other code) or with triggers of two kinds (for example an API
   handler with a warm-up schedule); they are not counted and do not block
-- `# noqa` / `# noqa: INF-06` on the cited line, or directly above the
-  shared block (`Function:` under `Globals`, `provider:`) or the cited function
+- `# noqa` / `# noqa: INF-06` on, or directly above, any line that sets the
+  cited function's effective sizing (its own keys and the shared keys it
+  inherits), or directly above the shared block (`Function:` under `Globals`,
+  `provider:`) or the cited function. A comment on an overridden shared key
+  does not suppress. A comment covers its own YAML document only
 
 Not judged (no finding, stated in the limitation): a counted function whose
 sizing or `Properties` use an intrinsic other than a parameter `Ref` (`!If`,

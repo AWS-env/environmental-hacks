@@ -1,6 +1,6 @@
 """INF-06: one-size-fits-all design pattern across workloads — static IaC heuristic.
 
-Detector semantics version 1.0.0. Reads CloudFormation / SAM templates (YAML or JSON, including
+Detector semantics version 1.0.1. Reads CloudFormation / SAM templates (YAML or JSON, including
 CDK-synthesized `*.template.json`) and Serverless Framework `serverless.yml` files as text — never
 deployed, resolved or sent to AWS — and flags a template whose Lambda functions cover all three
 clearly different workload kinds, identified by their triggers:
@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import re
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from . import inf07, miniyaml, textstatic
 from .inf07 import _get, _text
@@ -31,7 +31,7 @@ from .miniyaml import Mapping, Scalar, Sequence
 from .textstatic import EvaluationError, NotEvaluated, ParseError, TextHit, Unsupported, fingerprint  # noqa: F401
 
 CHECK_ID = "INF-06"
-DETECTOR_VERSION = "1.0.0"
+DETECTOR_VERSION = "1.0.1"
 NOQA = ("INF-06", "INF06")
 FORMATS = (
     "CloudFormation/SAM templates (.yaml/.yml/.json/.template, incl. CDK-synthesized *.template.json) and "
@@ -130,16 +130,24 @@ def _is_service(doc):
         and (_text(_get(provider, "name")) or "").strip() == "aws"
 
 
+def _looks_serverless(doc):
+    """A top-level Serverless Framework `service` or `provider` key (CloudFormation has neither)."""
+    return isinstance(doc, Mapping) and ("service" in doc.items or "provider" in doc.items)
+
+
 def parse(locator, content):
+    """Each YAML document is judged on its own. A `serverless*.yml` file without any Serverless
+    `service`/`provider` structure (e.g. a SAM template named serverless.yaml) is read as a template."""
     if _SERVERLESS.search(locator.replace("\\", "/")):
         try:
             docs = miniyaml.load_all(content)
         except miniyaml.YamlError as error:
             raise ParseError(str(error)) from None
-        services = [doc for doc in docs if _is_service(doc)]
-        if not services:
-            raise NotEvaluated("no Serverless Framework service with provider.name aws and inline functions")
-        return Ctx(locator, content, services=services)
+        if any(_looks_serverless(doc) for doc in docs):
+            services = [doc for doc in docs if _is_service(doc)]
+            if not services:
+                raise NotEvaluated("no Serverless Framework service with provider.name aws and inline functions")
+            return Ctx(locator, content, services=services)
     return Ctx(locator, content, templates=inf07.parse(locator, content).templates)
 
 
@@ -151,10 +159,17 @@ class Workload:
     name: str
     line: int
     kinds: set = field(default_factory=set)
-    sizing: tuple | None = None  # comparable tokens (memory, timeout, architecture); None = unknown
+    sizing: tuple | None = None  # effective tokens (memory, timeout, architecture); None = unknown
     declared: bool = False  # MemorySize or Timeout set on the function or in the shared block
-    shared: bool = False  # at least one value comes from the shared Globals/provider block
-    own_lines: list = field(default_factory=list)  # lines of sizing keys declared on the function itself
+    # Where each effective value comes from: ("own", line), ("shared", line) or ("default", None).
+    origins: list = field(default_factory=list)
+
+    def lines(self, origin):
+        return [line for kind, line in self.origins if kind == origin]
+
+    @property
+    def shared(self):  # at least one value comes from the shared Globals/provider block
+        return bool(self.lines("shared"))
 
 
 def _token(node, params, serverless, is_list):
@@ -187,19 +202,22 @@ def _token(node, params, serverless, is_list):
 
 
 def _size(own, shared, keys, defaults, params, workload):
-    """Fill workload.sizing/declared/shared/own_lines from the function's own mapping and the shared block."""
+    """Fill workload.sizing/declared/origins from the function's own mapping and the shared block.
+    An omitted value takes the platform default, so `MemorySize: 128` written out and an omitted
+    MemorySize compare equal (effective values)."""
     tokens = []
     serverless = keys is SLS_KEYS
     for index, key in enumerate(keys):
         is_list = key == "Architectures"
         if own.get(key) is not None:
             token = _token(own.get(key), params, serverless, is_list)
-            workload.own_lines.append(own.key_lines.get(key, own.line))
+            workload.origins.append(("own", own.key_lines.get(key, own.line)))
         elif shared is not None and shared.get(key) is not None:
             token = _token(shared.get(key), params, serverless, is_list)
-            workload.shared = True
+            workload.origins.append(("shared", shared.key_lines.get(key, shared.line)))
         else:
-            tokens.append(("default", defaults[index]))
+            tokens.append(("value", defaults[index]))
+            workload.origins.append(("default", None))
             continue
         if token is None:
             workload.sizing = None
@@ -319,11 +337,11 @@ def _service_workloads(doc):
 # -- judgement --------------------------------------------------------------------------------
 
 
-def _show(token):
+def _show(token, defaulted):
     kind, value = token
     if kind == "parameter":
         return f"parameter {value!r}"
-    return f"{value} (platform default)" if kind == "default" else value
+    return f"{value} (platform default)" if defaulted else value
 
 
 def _names(workloads):
@@ -332,40 +350,69 @@ def _names(workloads):
     return ", ".join(names[:NAMES_SHOWN]) + more
 
 
-def _evidence(lines, fallback):
-    lines = sorted(set(lines))
-    if not lines:
-        return fallback, fallback
-    end = lines[-1] if lines[-1] < lines[0] + EVIDENCE_SPAN else lines[0]
-    return lines[0], end
+def _indent(text):
+    return len(text) - len(text.lstrip())
 
 
-def judge(workloads, shared_block, keys, labels):
-    """One TextHit when every single-kind workload of all three kinds has identical declared sizing."""
+def _evidence(text_lines, cited):
+    """(line, end) of the first contiguous run of cited sizing-key lines, with each key's own value
+    continuation lines (a block list, a closing JSON bracket), so no other key is ever quoted."""
+    cited = sorted(set(cited))
+    line = end = cited[0]
+    key_indent = _indent(text_lines[line - 1]) if line <= len(text_lines) else 0
+    while end + 1 <= len(text_lines) and end + 1 < line + EVIDENCE_SPAN:
+        following = text_lines[end]
+        if end + 1 in cited:
+            key_indent = _indent(following)
+        elif not following.strip() or not (_indent(following) > key_indent or (
+                _indent(following) == key_indent and following.strip()[0] in "]}")):
+            break
+        end += 1
+    return line, end
+
+
+def _suppressed(lines, hit, cited, blocks):
+    """`# noqa: INF-06` on (or in comment lines directly above) any line that sets the cited
+    function's effective sizing, or directly above the shared block / cited function."""
+    probes = [replace(hit, line=line, block_line=line) for line in cited]
+    probes += [replace(hit, block_line=block) for block in blocks]
+    return any(textstatic.is_suppressed(lines, probe, NOQA) for probe in probes)
+
+
+def judge(workloads, shared_block, labels, lines=()):
+    """One TextHit when every single-kind workload of all three kinds has identical effective sizing."""
     counted = sorted((w for w in workloads if len(w.kinds) == 1), key=lambda w: w.line)
     by_kind = {kind: [w for w in counted if kind in w.kinds] for kind in KINDS}
     if len(counted) < MIN_WORKLOADS or not all(by_kind.values()):
         return None
-    if any(w.sizing is None or not w.declared for w in counted):
-        return None  # unknown sizing, or pure platform defaults: not judged
+    if any(w.sizing is None for w in counted) or not any(w.declared for w in counted):
+        return None  # unknown sizing, or every counted function on pure platform defaults: not judged
     if len({w.sizing for w in counted}) != 1:
         return None
     sizing = counted[0].sizing
-    values = ", ".join(f"{label} {_show(token)}" for label, token in zip(labels, sizing))
-    if all(w.shared for w in counted) and shared_block is not None:
-        block_name, block_key_line, block = shared_block
-        line, end = _evidence([block.key_lines.get(k, block.line) for k in keys if block.get(k) is not None],
-                              block.line)
-        where = f"from the shared {block_name} block, applied to every function regardless of workload kind"
+    defaulted = [all(w.origins[i][0] == "default" for w in counted) for i in range(len(sizing))]
+    values = ", ".join(f"{label} {_show(token, d)}" for label, token, d in zip(labels, sizing, defaulted))
+    # Cite one function's effective sizing: its own key lines when it overrides anything (the first
+    # counted function that does), otherwise the shared-block lines it inherits. Overridden shared
+    # keys are never cited.
+    first = next((w for w in counted if w.lines("own")), None)
+    if first is None:
+        first = next(w for w in counted if w.shared)  # some counted function is declared
+        block_name, block_key_line, _ = shared_block
+        line, end = _evidence(lines, first.lines("shared"))
+        where = (f"from the shared {block_name} block, applied to every function regardless of workload kind"
+                 if all(w.shared for w in counted)
+                 else f"partly from the shared {block_name} block and partly platform defaults")
         block_line = block_key_line
+        blocks = [block_key_line]
     else:
-        first = next((w for w in counted if w.own_lines), counted[0])
-        line, end = _evidence(first.own_lines, first.line)
+        line, end = _evidence(lines, first.lines("own"))
         where = ("declared function by function" if not any(w.shared for w in counted)
                  else "partly from the shared defaults block and partly per function")
-        block_line = first.line if first.own_lines else line
+        block_line = first.line
+        blocks = [first.line] + ([shared_block[1]] if first.shared else [])
     kinds = "; ".join(f"{KIND_LABELS[kind]}: {_names(by_kind[kind])}" for kind in KINDS)
-    return TextHit(
+    hit = TextHit(
         line=line,
         end_line=end,
         block_line=block_line,
@@ -378,9 +425,12 @@ def judge(workloads, shared_block, keys, labels):
         ),
         confidence="low",
     )
+    cited = [line for _, line in first.origins if line is not None]
+    return None if _suppressed(lines, hit, cited, blocks) else hit
 
 
 def run(ctx):
+    """One judgement per YAML document: functions are never compared across documents."""
     hits = []
     for doc in ctx.templates:
         workloads, globals_fn = _template_workloads(doc)
@@ -388,13 +438,13 @@ def run(ctx):
         shared = None
         if globals_fn is not None:
             shared = ("SAM Globals.Function", globals_node.key_lines.get("Function", globals_fn.line), globals_fn)
-        hit = judge(workloads, shared, CFN_KEYS, CFN_KEYS)
+        hit = judge(workloads, shared, CFN_KEYS, ctx.lines)
         if hit:
             hits.append(hit)
     for doc in ctx.services:
         workloads, provider = _service_workloads(doc)
         shared = ("Serverless provider", doc.key_lines.get("provider", provider.line), provider)
-        hit = judge(workloads, shared, SLS_KEYS, SLS_KEYS)
+        hit = judge(workloads, shared, SLS_KEYS, ctx.lines)
         if hit:
             hits.append(hit)
     return hits
