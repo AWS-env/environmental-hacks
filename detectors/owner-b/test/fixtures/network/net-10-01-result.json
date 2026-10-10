@@ -1,0 +1,181 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "route:catalog"
+    ],
+    "limitations": [
+      "Bounded read-only evidence analysis. Client metadata/policy assertions require review; no inferred energy, carbon or savings. Sampled observations are not total workload counts."
+    ]
+  },
+  "findings": [
+    {
+      "identity": "catalog:numeric-format:json:float64-le",
+      "summary": "A representative lossless numeric-array comparison improves the declared objective within the tested processing budget.",
+      "recommendation": "Use only the tested compression/format/precision configuration. Review packed versus fixed/varint fields and distribution; do not assume built-in compression determines efficiency.",
+      "evidence": [
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "benchmark",
+          "value": {
+            "format_version": 1,
+            "input_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "schema_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "workload": "catalog-numeric",
+            "operations": 10000,
+            "hot_path": true,
+            "interoperability_allows_change": true,
+            "equivalence": {
+              "verified": true,
+              "unknown_fields_preserved": true,
+              "precision_preserved": true,
+              "output_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            },
+            "baseline": {
+              "input_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "output_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "schema_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "format": "json",
+              "binary": false,
+              "runtime": "node-22.0.0",
+              "machine": "fixture-machine",
+              "tool_version": "1",
+              "warmup_policy": "five unmeasured runs",
+              "compression": "none",
+              "timing_kind": "cpu",
+              "time_unit": "milliseconds",
+              "size_unit": "bytes",
+              "samples": [
+                {
+                  "bytes": 10000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                },
+                {
+                  "bytes": 10000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                },
+                {
+                  "bytes": 10000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                },
+                {
+                  "bytes": 10000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                },
+                {
+                  "bytes": 10000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                }
+              ]
+            },
+            "candidate": {
+              "input_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "output_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "schema_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "format": "float64-le",
+              "binary": true,
+              "runtime": "node-22.0.0",
+              "machine": "fixture-machine",
+              "tool_version": "1",
+              "warmup_policy": "five unmeasured runs",
+              "compression": "none",
+              "timing_kind": "cpu",
+              "time_unit": "milliseconds",
+              "size_unit": "bytes",
+              "samples": [
+                {
+                  "bytes": 6000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                },
+                {
+                  "bytes": 6000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                },
+                {
+                  "bytes": 6000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                },
+                {
+                  "bytes": 6000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                },
+                {
+                  "bytes": 6000,
+                  "encode_ms": 1,
+                  "decode_ms": 2
+                }
+              ]
+            }
+          }
+        },
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "numeric_array",
+          "value": {
+            "elements": 10000,
+            "distribution_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "precision": "IEEE754 float64 exact",
+            "input_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "lossless": true
+          }
+        }
+      ],
+      "references": [
+        "https://protobuf.dev/programming-guides/encoding/"
+      ],
+      "confidence": "medium",
+      "scope_id": "route:catalog",
+      "fingerprint": "93993dd415f3133bb773af23bf0b3b24c49c51f5300f6d827117a7f18e08fd32"
+    }
+  ],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-10-1",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-10",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_change_fraction": 0.1,
+    "max_cpu_regression_fraction": 0.1,
+    "max_noise_fraction": 0.1,
+    "max_poll_interval_seconds": 60,
+    "max_small_bytes": 1024,
+    "min_array_elements": 1000,
+    "min_calls": 5,
+    "min_connection_ratio": 0.8,
+    "min_conversion_cpu_ms": 10,
+    "min_duplicate_requests": 2,
+    "min_improvement_fraction": 0.2,
+    "min_payload_bytes": 1024,
+    "min_polls": 100,
+    "min_pressure_fraction": 0.75,
+    "min_repeated_requests": 10,
+    "min_repetitions": 5,
+    "min_response_bytes": 1024,
+    "min_retry_attempts": 3,
+    "min_retry_delay_ms": 100,
+    "min_serial_gap_ms": 0,
+    "min_unused_fraction": 0.5,
+    "mode": "runtime",
+    "objective": "bytes",
+    "rule_version": "network-1"
+  },
+  "scope": [
+    "route:catalog"
+  ]
+}
