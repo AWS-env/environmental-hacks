@@ -26,6 +26,7 @@ LIMITATION = ("Translated by the scanner from owner B's pre-contract scanSource 
 ORM_DETECTOR_VERSION, ORM_RULE_VERSION = "1.0.0", "orm-1"
 ORM_CHECKS = {
     "DB-13": {"max_literal_iterations": 5},
+    "DB-23": {"unique_key_fields": ["id", "pk"]},
     "DB-39": {"min_literal_offset": 100},
 }
 ORM_SUFFIXES = (".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
@@ -37,7 +38,7 @@ ORM_CHECK_SUFFIXES = {}
 JS_TEST_PATH = re.compile(r"(^|/)(__tests__|__mocks__|__fixtures__|e2e|integration-tests?|cypress)(/|$)|\.(test|spec|stories)\.[cm]?[jt]sx?$", re.I)
 # Lowest confidence a scan reports per check; lower-confidence findings stay out of the scan result (and are counted in its limitations).
 # DB-23's low tier is mostly scoped queries (where: { userId }), which is noise on a public scan.
-ORM_MIN_CONFIDENCE = {}
+ORM_MIN_CONFIDENCE = {"DB-23": "medium"}
 CONFIDENCE_ORDER = {"low": 0, "medium": 1, "high": 2}
 
 
