@@ -22,6 +22,7 @@ const network={
   'NET-01':require('../checks/net-01'),
 };
 const orm={
+  'DB-09':require('../checks/db-09'),
   'DB-13':require('../checks/db-13'),
   'DB-14':require('../checks/db-14'),
   'DB-23':require('../checks/db-23'),
