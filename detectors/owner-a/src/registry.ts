@@ -15,6 +15,7 @@ import { checkCodeC37 } from "./checks/code-c3-7/index.js";
 import { checkCodeC35 } from "./checks/code-c3-5/index.js";
 import { checkCodeC36 } from "./checks/code-c3-6/index.js";
 import { checkCodeC13 } from "./checks/code-c1-3/index.js";
+import { checkCodeC51 } from "./checks/code-c5-1/index.js";
 
 export interface RegisteredCheck {
   version: string;
@@ -121,6 +122,16 @@ export const CHECKS: ReadonlyMap<string, RegisteredCheck> = new Map([
       run: (parsed) => checkCodeC13(parsed),
       limitations: [
         "Only `if`/`elif`/`else` chains and conditional expressions are analysed; `match` statements and zero-cost jumps (a trailing `continue`/`return`, `else: pass`) are not flagged.",
+      ],
+    },
+  ],
+  [
+    "CODE-C5.1",
+    {
+      version: "0.1.0",
+      run: (parsed) => checkCodeC51(parsed),
+      limitations: [
+        "Collection binding is resolved only inside the file; a list-typed name that arrives from another module is not seen, and list size and trip count are not measured.",
       ],
     },
   ],

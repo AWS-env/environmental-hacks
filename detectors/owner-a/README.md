@@ -38,6 +38,8 @@ This package contains lightweight, read-only static code detectors for **Owner A
 - **`CODE-C1.3`**: Redundant control flow (#36)
   - `identical-branches`: `if`/`elif`/`else` chains whose arms all run the same code, and `v if c else v`.
   - `empty-branch`: `if` statements whose arms are all `pass`/`...`, and empty trailing `elif` arms, so a condition is evaluated with nothing depending on it.
+- **`CODE-C5.1`**: Inefficient structure choice (#75)
+  - `list-membership-in-loop`: `x in NAME` / `x not in NAME` inside a loop or comprehension where `NAME` is visibly bound to a list or tuple, so every test scans the list (O(n*m)). Skipped when the loop is statically small (8 or fewer items), the collection is mutated in the loop, or the binding is unknown. Medium severity; a set built once before the loop is the usual fix.
 
 ## Shared contract v1
 
