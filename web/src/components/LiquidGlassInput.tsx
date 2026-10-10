@@ -224,7 +224,11 @@ export default function LiquidGlassInput({
 
             {/* Completely Clear Text Input */}
             <input
-              type="text"
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              autoCapitalize="none"
+              spellCheck={false}
               aria-label="GitHub repository URL"
               value={repoUrl}
               onChange={(e) => setRepoUrl(e.target.value)}
