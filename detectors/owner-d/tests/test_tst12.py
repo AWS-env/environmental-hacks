@@ -23,12 +23,16 @@ from owner_d.tst12 import (  # noqa: E402
     CHECK_ID,
     DETECTOR_VERSION,
     IDENTITY,
+    MAX_INTEGER,
     STATIC_LIMITATION,
     EvaluationError,
     evaluate,
     fingerprint,
 )
 from shared.contracts.validation import ContractError, fingerprint as shared_fingerprint, validate_pair  # noqa: E402
+from owner_d.aws import artifact_handler, common  # noqa: E402
+from tests.aws_fakes import AwsTestCase, mock_env  # noqa: E402
+from tests.test_aws_artifacts import BUCKET, PREFIX, FakeS3, artifact, s3_event  # noqa: E402
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "tst12"
 STATIC = FIXTURES / "static"
@@ -524,6 +528,108 @@ class Tst12ArtifactIncompleteTests(unittest.TestCase):
         result = evaluate(payload)
         self.assertEqual(result["status"], "unavailable")
         self.assertTrue(any("max_duration_seconds" in limitation for limitation in result["coverage"]["limitations"]))
+
+
+HUGE = int("9" * 400)  # valid JSON, beyond float range: math.isfinite(HUGE) raises OverflowError
+NUMERIC_FIELDS = ("duration_seconds", "sleep_seconds", "network_call_count", "fixture_bytes", "setup_seconds")
+HEAVY_TEST = {"test_id": "tests/test_api.py::test_fetch_users", "framework": "pytest", "duration_seconds": 14.2,
+              "sleep_seconds": 2.5, "network_call_count": 3, "fixture_bytes": 52428800, "setup_seconds": 4.1}
+
+
+def artifact_source(data):
+    return {"source_id": "artifact-" + data["test_id"], "scope_id": f"test:{data['test_id']}", "kind": "artifact",
+            "locator": f"pytest --durations artifact: {data['test_id']}", "data": data}
+
+
+class Tst12NumberBoundsTests(unittest.TestCase):
+    """Issue #497: out-of-range numbers are malformed input (scope omitted with a reason), never an exception."""
+
+    def run_artifacts(self, *tests, context=ARTIFACT_CONTEXT):
+        payload = make_payload([artifact_source(test) for test in tests], context=context)
+        result = evaluate(payload)
+        validate_pair(payload, result)
+        return result
+
+    def test_huge_int_in_each_numeric_field_omits_only_that_test(self):
+        for field in NUMERIC_FIELDS:
+            for value in (HUGE, -HUGE, 10 ** 300, MAX_INTEGER + 1):
+                with self.subTest(field=field, digits=len(str(value))):
+                    bad = dict(HEAVY_TEST, test_id="tests/test_api.py::test_bad", **{field: value})
+                    result = self.run_artifacts(HEAVY_TEST, bad)
+                    self.assertEqual(result["status"], "partial")
+                    good = ["test:tests/test_api.py::test_fetch_users"]
+                    self.assertEqual(result["coverage"]["evaluated_scope"], good)
+                    self.assertEqual([f["scope_id"] for f in result["findings"]], good)
+                    limitation = next(item for item in result["coverage"]["limitations"]
+                                      if item.startswith("test:tests/test_api.py::test_bad:"))
+                    self.assertIn(f"{field} is out of range", limitation)
+                    self.assertNotIn(str(value)[-40:], json.dumps(result))  # the digits are not echoed back
+
+    def test_largest_accepted_integer_is_still_evaluated(self):
+        result = self.run_artifacts(dict(HEAVY_TEST, fixture_bytes=MAX_INTEGER))
+        self.assertEqual(result["status"], "completed")
+        self.assertIn(f"fixture bytes {MAX_INTEGER} exceeds 10485760", result["findings"][0]["summary"])
+
+    def test_huge_int_in_each_setting_makes_the_result_unavailable(self):
+        for key in ARTIFACT_CONTEXT:
+            for value in (HUGE, MAX_INTEGER + 1):
+                with self.subTest(key=key, digits=len(str(value))):
+                    result = self.run_artifacts(HEAVY_TEST, context=dict(ARTIFACT_CONTEXT, **{key: value}))
+                    self.assertEqual(result["status"], "unavailable")
+                    self.assertEqual(result["findings"], [])
+                    self.assertTrue(any(f"context.{key} is out of range" in item
+                                        for item in result["coverage"]["limitations"]))
+
+    def test_huge_static_setting_omits_the_file_instead_of_raising(self):
+        _, result = run_static([static_source("positive.py", "tests/test_client.py")],
+                               context=dict(STATIC_CONTEXT, max_fixture_bytes=HUGE))
+        self.assertEqual(result["status"], "unavailable")
+        self.assertTrue(any("context.max_fixture_bytes" in item for item in result["coverage"]["limitations"]))
+
+
+class Tst12ArtifactParserNumberBoundsTests(AwsTestCase):
+    """Issue #497 through the artifact parser Lambda: a bad upload is reported, never raised into the DLQ."""
+
+    def setUp(self):
+        super().setUp()
+        self._artifact_env = mock_env({"ARTIFACT_BUCKET": BUCKET})
+        self.fakes["s3"] = FakeS3()
+
+    def tearDown(self):
+        self._artifact_env()
+        super().tearDown()
+
+    def run_key(self, body, **event):
+        self.fakes["s3"].objects[PREFIX + "tst-12.json"] = body
+        return artifact_handler.lambda_handler(s3_event(PREFIX + "tst-12.json") | event)
+
+    def test_huge_ints_in_tests_are_reported_and_good_tests_published(self):
+        bad = [dict(HEAVY_TEST, test_id=f"tests/test_api.py::test_{field}", **{field: HUGE})
+               for field in NUMERIC_FIELDS]
+        out = self.run_key(artifact(HEAVY_TEST, *bad))
+        self.assertEqual((out["outcome"], out["published"], out["refused"], out["errors"]), ("evaluated", 1, [], []))
+        self.assertEqual(out["results"], [{"check_id": "TST-12", "status": "partial", "scope": 6, "evaluated": 1,
+                                           "findings": 1}])
+
+    def test_huge_int_setting_is_reported_not_raised(self):
+        out = self.run_key(artifact(HEAVY_TEST, settings={"max_sleep_seconds": HUGE}))
+        self.assertEqual((out["outcome"], out["published"], out["refused"], out["errors"]), ("evaluated", 1, [], []))
+        self.assertEqual(out["results"][0]["status"], "unavailable")
+
+    def test_long_digit_strings_cannot_push_a_result_past_the_event_limit(self):
+        def tests(value):
+            return [{"test_id": f"tests/test_{i:03d}.py::test_case", **{field: value for field in NUMERIC_FIELDS}}
+                    for i in range(common.DEFAULT_SCOPE_PER_PAYLOAD)]
+
+        # 300-digit ints are within float range; before #497 this valid-size upload produced a ~250 KB result.
+        out = self.run_key(artifact(*tests(10 ** 300)))
+        self.assertEqual((out["outcome"], out["published"], out["errors"]), ("evaluated", 1, []))
+        self.assertEqual(out["results"][0]["evaluated"], 0)
+        # The largest accepted integer in every field of every test still fits one event.
+        out = self.run_key(artifact(*tests(MAX_INTEGER)), dry_run=True)
+        self.assertEqual(out["results"][0]["findings"], common.DEFAULT_SCOPE_PER_PAYLOAD)
+        detail = json.dumps(out["result_payloads"][0], ensure_ascii=False)
+        self.assertLess(len(detail.encode("utf-8")), common.MAX_DETAIL_BYTES)
 
 
 class Tst12ContractTests(unittest.TestCase):

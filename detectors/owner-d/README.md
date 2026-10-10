@@ -527,6 +527,12 @@ Jest timing output and optional instrumentation:
 | `fixture_bytes` | Approximate bytes materialized by fixtures |
 | `setup_seconds` | Observed setup/fixture time before the assertion body |
 
+Numbers in artifact data and context settings must be finite, and integers
+must be at most 2^63 − 1 in magnitude. A larger value is malformed input
+(issue #497). For a data field, that test's scope item is left out of
+`evaluated_scope` with the reason. For a setting, the mode that needs it is
+skipped. Other tests in the payload are still evaluated (version 2.0.1).
+
 ### Context settings
 
 Static mode requires `max_sleep_seconds`, `max_network_calls` and
