@@ -127,6 +127,22 @@ describe("CODE-C1.2 Redundant assignment detector", () => {
     });
   });
 
+  describe("String literals with escape sequences (audit F1)", () => {
+    // Same root cause as C1.3: text next to an escape sequence must still take part in the comparison.
+    it("a subscript copy between two different escaped keys is not a self-assignment", () => {
+      expect(run(String.raw`def f(d):
+    d["a\n"] = d["b\n"]
+`)).toEqual([]);
+    });
+
+    it("an attribute-free subscript with the same escaped key is still a self-assignment", () => {
+      const f = run(String.raw`def f(d):
+    d["a\n"] = d["a\n"]
+`);
+      expect(f.map((x) => x.kind)).toEqual(["self-assignment"]);
+    });
+  });
+
   describe("Robustness (C12-09)", () => {
     it("returns zero findings on invalid Python syntax", () => {
       const content = readFileSync(join(FIXTURES_DIR, "syntax_error.py"), "utf-8");
