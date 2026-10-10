@@ -77,3 +77,7 @@ Adds improper http client instantiation. See checks/net-04/SPEC.md and NETWORK.m
 ## NET-05 registration (#217)
 
 Adds retry storm. See checks/net-05/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
+
+## NET-06 registration (#218)
+
+Adds polling where events would do. See checks/net-06/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
