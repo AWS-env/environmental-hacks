@@ -45,11 +45,31 @@ jobs:
           mkdir demo
           cat detectors/owner-c/tests/fixtures/real/hot.py detectors/owner-c/tests/fixtures/real/mem.py > demo/app.py
 
+      # The hero image is fetched by script after load (not discoverable in the HTML) and uses loading=lazy, so
+      # Lighthouse's LCP discovery insight exercises FE-02 and FE-10. It is noise because Chrome ignores
+      # low-entropy images when choosing the LCP.
       - name: Serve a tiny page for Lighthouse
         run: |
           mkdir -p /tmp/site
-          printf '<!doctype html><html><head><meta charset="utf-8"><title>t</title><link rel="stylesheet" href="app.css"></head><body><h1>Hello</h1></body></html>' > /tmp/site/index.html
+          python - <<'PY'
+          import os, struct, zlib
+          w, h = 412, 240
+          raw = b"".join(b"\x00" + os.urandom(w * 3) for _ in range(h))
+          def chunk(t, b):
+              c = struct.pack(">I", len(b)) + t + b
+              return c + struct.pack(">I", zlib.crc32(t + b))
+          png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                 + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+          open("/tmp/site/hero.png", "wb").write(png)
+          PY
+          echo '{"hero":"hero.png"}' > /tmp/site/data.json
           echo 'body{font-family:sans-serif}' > /tmp/site/app.css
+          cat > /tmp/site/index.html <<'HTML'
+          <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>t</title><link rel="stylesheet" href="app.css"></head>
+          <body style="margin:0"><div id="slot"></div>
+          <script>fetch("data.json").then(function(r){return r.json()}).then(function(d){document.getElementById("slot").innerHTML='<img src="'+d.hero+'" width="412" height="240" loading="lazy" alt="hero">'});</script>
+          </body></html>
+          HTML
           python -m http.server 8765 --directory /tmp/site >/dev/null 2>&1 &
           sleep 2
 
