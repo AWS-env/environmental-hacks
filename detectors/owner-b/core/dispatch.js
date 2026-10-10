@@ -27,6 +27,7 @@ const orm={
   'DB-14':require('../checks/db-14'),
   'DB-23':require('../checks/db-23'),
   'DB-41':require('../checks/db-41'),
+  'DB-29':require('../checks/db-29'),
   'DB-39':require('../checks/db-39'),
 };
 // ORM checks parse with WASM tree-sitter and return a Promise; the other checks are synchronous.
