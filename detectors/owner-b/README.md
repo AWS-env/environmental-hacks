@@ -65,3 +65,7 @@ This increment adds the DB-16 public registry entry, detection specification, si
 ## NET-02 registration (#214)
 
 Adds extraneous fetching. See checks/net-02/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
+
+## NET-03 registration (#215)
+
+Adds no http response caching. See checks/net-03/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
