@@ -1,0 +1,18 @@
+# Synthetic fixture for LLM-18: the worker pinned to us-east-1, its embedding endpoint elsewhere.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: embed-worker
+spec:
+  template:
+    spec:
+      containers:
+        - name: worker
+          image: example/embed-worker:1.4
+          env:
+            - name: AWS_REGION
+              value: us-east-1
+            - name: EMBEDDING_REGION
+              value: "ap-southeast-2"
+            - name: QUEUE_URL
+              value: https://sqs.us-east-1.amazonaws.com/123456789012/embed

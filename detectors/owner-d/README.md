@@ -5454,3 +5454,146 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/inf04/inf04-02-telemetry-input.json
 ```
+
+## LLM-18 — Deploying agent infra far from its dependencies
+
+Flags an LLM or vector-store dependency that is configured with an explicit AWS
+Region that differs from the workload Region declared in the same payload.
+Every model call or vector query then crosses Regions, which adds inter-Region
+latency and data-transfer cost on each agent step. AWS
+[AGENTSUS02-BP03](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp03.html)
+lists "deploying agent infrastructure far from the services it depends on" as
+an anti-pattern. LLM-18 is an OQ-8 judgement row (R14). Following the OQ-8
+decision on issue #211, it is built like OBS-10: a static topology heuristic
+over IaC and config whose findings are candidates for reviewer confirmation in
+the hub report.
+
+The check is static. Python is read with `ast` and `owner_d/llmcalls.py`
+(`static_text`, `resolve`, `call_keywords`, `dict_items`), Terraform with the
+OBS-10 HCL block reader (`obs10.parse_hcl`), serverless.yml and samconfig YAML
+with `owner_d/miniyaml.py`, and other files line by line. Nothing is run,
+planned, synthesized or resolved over the network. The check compares literal
+Regions only. It proves "pinned to another Region than the workload", not
+traffic volume or latency, so no measurements are emitted.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. The payload is judged **as a whole**: the workload Region is collected
+from every source first. Files are accepted when they contain a literal AWS
+Region (or a Terraform `provider "aws"` block whose Region may come from
+`variables.tf`) and one of the signals below:
+
+- **Terraform** `.tf` and `.tfvars`
+- **YAML/JSON/TOML** config: serverless.yml, samconfig, Kubernetes, compose,
+  CloudFormation/SAM, ECS task definitions, `cdk.json`
+- **`.env` files and Dockerfiles**
+- **Python** (`.py`) and **TypeScript/JavaScript** (`.ts`/`.tsx`/`.js`/`.mjs`/`.cjs`)
+
+No context settings are required, so the module has no `REFERENCE_SETTINGS`.
+
+### Detection rule
+
+The **workload Region** is declared by any of:
+
+| Source | Form |
+| --- | --- |
+| Terraform | a default (non-aliased) `provider "aws"` `region`: a string, or `var.x`/`local.x` with exactly one literal value in the same module directory (variable default, `locals`, `.tfvars`) |
+| serverless.yml | `provider.region` |
+| samconfig (`.toml`/`.yaml`) | the `region` of a `default` environment command (other environments are ignored) |
+| CDK app (Python `aws_cdk`, TS/JS `aws-cdk-lib`) | the stack `env` Regions, only when **every** stack environment in the file pins a literal Region |
+| settings | `AWS_REGION`, `AWS_DEFAULT_REGION` or `CDK_DEFAULT_REGION` set to a literal (`KEY=value`, `KEY: value`, Kubernetes `name`/`value`, ECS `{"name", "value"}`) |
+
+The payload must declare **exactly one** workload Region. Several distinct
+Regions (a multi-Region or monorepo payload) or none make every file
+`unavailable` with the reason.
+
+A **dependency** is flagged when its Region is a literal and differs from the
+workload Region:
+
+| Identity | Dependency | Confidence |
+| --- | --- | --- |
+| `<scope>:client/<service>@<region>` | boto3/aioboto3 `.client()`/`.resource()` for `bedrock*`, `bedrock-agentcore*`, `sagemaker*`, `opensearch*`, `es`, `kendra` or `s3vectors` with `region_name=` (or the 2nd positional argument), or on a `Session(region_name=...)` | medium |
+| `<scope>:<Class>@<region>` | an SDK wrapper whose class name contains `Bedrock`, `KnowledgeBases`, `AgentCore`, `SageMaker`, `OpenSearch`, `Kendra` or `S3Vectors` (`ChatBedrockConverse`, `BedrockEmbeddings`, `AnthropicBedrock`, Strands `BedrockModel`, ...) with `region_name=`, `region=` or `aws_region=`; OpenSearch signers `AWSV4SignerAuth`/`AWS4Auth` for `es`/`aoss` | medium |
+| `<scope>:ServerlessSpec@<region>` | a Pinecone `ServerlessSpec(cloud="aws", region=...)` | medium |
+| `client/<Class>@<region>` | TS/JS `new BedrockRuntimeClient({ region: "..." })` and other constructors matching the class-name rule | medium |
+| `endpoint/<host>` | a regional endpoint host in a string: `bedrock*.<region>.amazonaws.com`, `*sagemaker*.<region>.amazonaws.com`, `kendra.*`, `s3vectors.*`, OpenSearch `*.<region>.es.amazonaws.com`/`*.<region>.aoss.amazonaws.com`, and RDS `*.<region>.rds.amazonaws.com` only in a file that mentions `pgvector` | medium |
+| `<address>:provider/aws.<alias>@<region>` | a Terraform `resource`/`data` of type `aws_bedrock*`, `aws_opensearch*`, `aws_sagemaker_endpoint*`, `aws_kendra*` or `aws_s3vectors*` on an aliased provider whose `region` resolves to a literal in the same module | medium |
+| `setting/<KEY>@<region>` | a setting whose name ends in `region`/`region_name` and names a dependency: `bedrock`, `agentcore`, `sagemaker`, `opensearch`, `aoss`, `kendra`, `s3vectors`, `pinecone`, `pgvector`, `vector`, `embed`, `llm`, `model` or `inference` (`BEDROCK_REGION`, `bedrockRegion` in `cdk.json`, `EMBEDDING_REGION`, ...). In Terraform the value may also be `var.x`/`local.x`. | low |
+
+Regions are matched exactly (`us-east-1`, `us-gov-west-1`, ...;
+Availability Zones such as `us-east-1a` are not Regions) and settings are
+lower-cased. `<scope>` is the qualified Python function or `<module>`. A
+client and the `endpoint_url` inside the same call are reported once. The
+summary names both Regions and the files that declare the workload Region.
+Vector stores (OpenSearch, Kendra, S3 Vectors, Pinecone, pgvector) get a
+store recommendation; models get a model-endpoint recommendation.
+
+Not flagged:
+
+- dependencies in the workload Region
+- **failover/fallback**: a dependency in another Region when the same file
+  also configures that service in the workload Region. A limitation counts
+  them.
+- Regions that are not literals: env lookups (`os.getenv("R", "us-west-2")`),
+  f-strings, names bound more than once, `${opt:region}`/`${env:...}`, Terraform
+  variables with no default or with conflicting default and tfvars values. A
+  limitation counts Terraform resources on an unresolved aliased provider.
+- Bedrock cross-region inference profile IDs (`us.`/`eu.`/`apac.`/`global.`):
+  they route from the configured Region by design, and AWS recommends them for
+  availability.
+- other AWS services (`s3`, `sqs`, ...), RDS hosts in files without
+  `pgvector`, Pinecone `ServerlessSpec(cloud="gcp"|"azure")`, bare `region`
+  keys, comment lines and Python docstrings
+- TS/JS constructors with nested `{...}` options (not parsed)
+- `# noqa` / `# noqa: LLM-18` on the flagged line or directly above it; in
+  TS/JS also `// noqa: LLM-18`
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- every file when the payload declares no workload Region or several, and
+  workload-only files when the payload has no dependency Region to compare
+- invalid Python, unbalanced HCL blocks/brackets/heredocs/comments (a known
+  limit of the shared reader: heredocs nested inside brackets), and
+  serverless.yml/samconfig YAML outside the `miniyaml` subset
+- development/test files (the OBS-09 path tokens), example/sample files
+  (`examples/`, `.env.example`, `.env.template`, `.env.dist`) and CI/CD
+  pipelines (`.github/`, `.gitlab-ci.yml`, `buildspec*.yml`, ...), whose Region
+  is where the pipeline runs, not the workload
+
+Other files are out of scope (`Unsupported`), so the scan worker passes only
+these inputs to the check.
+
+### Not wasteful when
+
+The reviewer confirms or dismisses each candidate. Keep a cross-Region
+dependency, and record it with `# noqa: LLM-18`, when:
+
+- the model, model version or feature (for example a Bedrock model, AgentCore
+  or a vector engine) is not offered in the workload Region;
+- data residency or sovereignty requires the data or the model to stay in the
+  other Region;
+- the agent is deliberately multi-Region or the dependency is a disaster
+  recovery target.
+
+### Limitations
+
+Not visible: Regions set at deploy time (CLI flags, pipelines, parameter
+stores), dependencies in other repositories, which Region the code actually
+calls when several are configured, and traffic volume. Azure OpenAI, Vertex AI
+and other non-AWS Regions are not compared with AWS Regions, and Pinecone or
+pgvector hosts that do not name an AWS Region are not judged. Monorepos with
+one workload Region per app are judged only when they declare the same
+Region. A CDK app that pins only its global (us-east-1 WAF/CloudFront) stack
+and leaves the rest to the CLI declares no workload Region.
+
+Kept distinct from LLM-08 (model size), LLM-16 (streaming) and the network
+checks (NET-*, owner B), which judge call patterns rather than placement.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm18/llm18-01-positive-input.json
+```
