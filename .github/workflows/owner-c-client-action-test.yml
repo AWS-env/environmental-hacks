@@ -1,0 +1,82 @@
+name: Owner C client action test
+
+# Exercises .github/actions/owner-c-profile-upload on a clean GitHub-hosted runner against the deployed owner C
+# stack: py-spy and memray run a fixture script, Lighthouse audits a tiny local page, and the artifacts are uploaded
+# under a test repository id so no real repository's results are touched.
+
+on:
+  push:
+    paths:
+      - .github/actions/owner-c-profile-upload/**
+      - .github/workflows/owner-c-client-action-test.yml
+  pull_request:
+    paths:
+      - .github/actions/owner-c-profile-upload/**
+      - .github/workflows/owner-c-client-action-test.yml
+
+permissions:
+  contents: read
+  id-token: write # GitHub OIDC -> role owner-c-client-upload
+
+concurrency:
+  group: owner-c-client-action-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  upload:
+    # OIDC tokens are not issued to workflows from forks.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # The parser leaves test paths out of scope, so profile a copy of the fixtures that is not under tests/.
+      - name: Build the demo workload
+        run: |
+          mkdir demo
+          cat detectors/owner-c/tests/fixtures/real/hot.py detectors/owner-c/tests/fixtures/real/mem.py > demo/app.py
+
+      # The hero image is fetched by script after load (not discoverable in the HTML) and uses loading=lazy, so
+      # Lighthouse's LCP discovery insight exercises FE-02 and FE-10. It is noise because Chrome ignores
+      # low-entropy images when choosing the LCP.
+      - name: Serve a tiny page for Lighthouse
+        run: |
+          mkdir -p /tmp/site
+          python - <<'PY'
+          import os, struct, zlib
+          w, h = 412, 240
+          raw = b"".join(b"\x00" + os.urandom(w * 3) for _ in range(h))
+          def chunk(t, b):
+              c = struct.pack(">I", len(b)) + t + b
+              return c + struct.pack(">I", zlib.crc32(t + b))
+          png = (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                 + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+          open("/tmp/site/hero.png", "wb").write(png)
+          PY
+          echo '{"hero":"hero.png"}' > /tmp/site/data.json
+          echo 'body{font-family:sans-serif}' > /tmp/site/app.css
+          cat > /tmp/site/index.html <<'HTML'
+          <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>t</title><link rel="stylesheet" href="app.css"></head>
+          <body style="margin:0"><div id="slot"></div>
+          <script>fetch("data.json").then(function(r){return r.json()}).then(function(d){document.getElementById("slot").innerHTML='<img src="'+d.hero+'" width="412" height="240" loading="lazy" alt="hero">'});</script>
+          </body></html>
+          HTML
+          python -m http.server 8765 --directory /tmp/site >/dev/null 2>&1 &
+          sleep 2
+
+      - name: Run the action
+        uses: ./.github/actions/owner-c-profile-upload
+        with:
+          artifacts: speedscope,memray_stats,lighthouse
+          python-args: demo/app.py
+          lighthouse-url: http://localhost:8765/index.html
+          repository-id: github:AWS-env/owner-c-action-test
