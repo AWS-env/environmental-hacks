@@ -1,6 +1,6 @@
 """TST-12: heavy fixtures, sleeps and real network calls in unit tests.
 
-Detector semantics version 2.0.0. Two evidence modes, dispatched on source kind:
+Detector semantics version 2.0.1. Two evidence modes, dispatched on source kind:
 
 - static (primary): a Python test module (`file:<path>` scope, one `static` source) is
   parsed with `ast`; it is never imported or executed. Tests, fixtures and setup/teardown
@@ -28,7 +28,7 @@ from pathlib import PurePosixPath
 from urllib.parse import urlsplit
 
 CHECK_ID = "TST-12"
-DETECTOR_VERSION = "2.0.0"
+DETECTOR_VERSION = "2.0.1"
 IDENTITY = "heavy-test-work"  # artifact identity (one artifact per test: scope)
 STATIC_KIND = "static"
 ARTIFACT_KIND = "artifact"
@@ -71,6 +71,10 @@ NUMERIC_DATA_FIELDS = (
     "fixture_bytes",
     "setup_seconds",
 )
+# Largest accepted integer in artifact data and context settings (signed 64-bit). A bigger JSON integer is
+# malformed input: it is copied into every finding, so hundreds of digits would push a result past the
+# one-event size limit, and past float range it cannot be compared at all.
+MAX_INTEGER = 2**63 - 1
 
 IDENTITY_FIELDS = (
     "schema_version",
@@ -131,7 +135,19 @@ def _require(condition, message):
 
 
 def _is_number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+    """A finite int or float. Never raises: an int beyond float range (JSON allows thousands of digits)
+    makes math.isfinite raise OverflowError, so it is not a usable number."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
+def _in_range(value):
+    """Artifact values and settings: ints are bounded so results stay small (one event per result)."""
+    return not isinstance(value, int) or abs(value) <= MAX_INTEGER
 
 
 def _fmt(value):
@@ -147,6 +163,8 @@ def _read_settings(context, keys):
     settings = {}
     for key in keys:
         value = context[key]
+        if not _in_range(value):
+            return None, f"context.{key} is out of range (integers are limited to {MAX_INTEGER})"
         if not _is_number(value):
             return None, f"context.{key} must be a number"
         if value < 0:
@@ -173,7 +191,9 @@ def _artifact_problems(data, test_id_check):
         if field not in data:
             continue
         value = data[field]
-        if not _is_number(value):
+        if not _in_range(value):
+            problems.append(f"{field} is out of range (integers are limited to {MAX_INTEGER})")
+        elif not _is_number(value):
             problems.append(f"{field} must be a number")
         else:
             numeric[field] = value
