@@ -68,6 +68,8 @@ gh api repos/<owner>/<repo>/actions/oidc/customization/sub
 # -> {"use_immutable_subject": true, "sub_claim_prefix": "repo:<owner>@<owner_id>/<repo>@<repo_id>"}
 ```
 
-Then add `<sub_claim_prefix>:*` to the `token.actions.githubusercontent.com:sub` list in the trust policy of role
-`owner-c-client-upload` (ap-south-1). Repositories with `use_immutable_subject: false` use `repo:<owner>/<repo>:*`.
-The role's only permission is invoking `owner-c-presign`.
+Then append `<sub_claim_prefix>:*` to the `ClientRepoSubs` parameter of the `owner-c-python-detectors` stack
+(`cdk/owner-c/python-detectors.yaml`, ap-south-1) in a reviewed PR and update the stack; the role
+`owner-c-client-upload` then trusts that repository. Repositories with `use_immutable_subject: false` use
+`repo:<owner>/<repo>:*`. The role's only permission is invoking `owner-c-presign`. Do not edit the role by hand in IAM:
+the next stack update would overwrite it.
