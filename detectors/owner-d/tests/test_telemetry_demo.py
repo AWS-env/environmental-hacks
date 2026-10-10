@@ -220,13 +220,13 @@ except ImportError:
 FUNCTION = "owner-d-telemetry-demo"
 
 
-def batch_get_traces(invocations, path):
+def batch_get_traces(invocations, path, scenario="LLM-10"):
     """Wrap the emitted documents the way BatchGetTraces returns a Lambda trace with independent subsegments."""
     traces = []
     for i in range(invocations):
         trace_id, lambda_id, function_id = f"1-6a000000-{i:024x}", f"a{i:015x}", f"f{i:015x}"
         daemon = demo.XRayDaemon(f"Root={trace_id};Parent={function_id};Sampled=1", None)
-        _, _, _, xray = run(scenario="LLM-10", path=path)
+        _, _, _, xray = run(scenario=scenario, path=path)
         start, end = xray.documents[0]["start_time"] - 0.01, xray.documents[-1]["end_time"] + 0.01
         segments = [
             {"id": lambda_id, "name": FUNCTION, "trace_id": trace_id, "start_time": start, "end_time": end,
@@ -274,6 +274,73 @@ class Llm10Detector(unittest.TestCase):
         result = self.evaluate(batch_get_traces(9, "waste"))
         self.assertEqual(result["coverage"]["evaluated_scope"], [])
         self.assertIn("below the required min_traces 10", json.dumps(result["coverage"]["limitations"]))
+
+
+class Llm05(unittest.TestCase):
+    """Opt-in LLM-05 scenario: 2 chained `chat` calls with the same request (waste) vs a real chain (control)."""
+
+    def test_waste_repeats_the_request_and_control_carries_the_first_output(self):
+        result, lines, cloudwatch, xray = run(scenario="LLM-05")
+        waste, control = xray.documents
+        self.assertEqual(waste["name"], "invoke_agent demo_redundant_pipeline")
+        self.assertEqual(control["name"], "invoke_agent demo_chained_pipeline")
+        for agent in (waste, control):
+            self.assertEqual([genai(c)["gen_ai.operation.name"] for c in agent["subsegments"]], ["chat", "chat"])
+            self.assertEqual({genai(c)["gen_ai.request.model"] for c in agent["subsegments"]}, {demo.DEMO_MODEL})
+            for doc in [agent, *agent["subsegments"]]:
+                self.assertIs(doc["annotations"]["synthetic"], True)
+                self.assertEqual(doc["annotations"]["check"], "LLM-05")
+                self.assertRegex(doc["id"], r"^[0-9a-f]{16}$")
+        digests = [[genai(c)["gen_ai.input.messages.hash"] for c in a["subsegments"]] for a in (waste, control)]
+        self.assertEqual(len(set(digests[0])), 1)
+        self.assertEqual(len(set(digests[1])), 2)
+        self.assertEqual(digests[0][0], digests[1][0])  # same first step on both paths
+        self.assertNotIn(demo.PIPELINE_QUESTION, json.dumps(xray.documents))  # digest only, no prompt content
+        self.assertEqual(cloudwatch.calls, [])
+        self.assertEqual([(r["path"], r["distinct_requests"]) for r in records(lines)], [("waste", 1), ("control", 2)])
+        self.assertEqual(result["emitted"]["LLM-05"], {"xray": "sent", "waste_llm_calls": 2,
+                                                       "waste_distinct_requests": 1, "control_llm_calls": 2,
+                                                       "control_distinct_requests": 2})
+
+    def test_opt_in_only_and_path_selection(self):
+        self.assertNotIn("LLM-05", demo.SCENARIOS)
+        self.assertEqual(run(scenario="llm05")[0]["scenarios"], ["LLM-05"])
+        _, _, _, xray = run(scenario="LLM-05", path="control")
+        self.assertEqual([d["annotations"]["path"] for d in xray.documents], ["control"])
+        with self.assertRaises(ValueError):
+            run(scenario="LLM-05", path="sometimes")
+
+
+try:
+    from owner_d import llm05
+except ImportError:
+    llm05 = None
+
+
+@unittest.skipIf(llm05 is None, "owner_d.llm05 not on this branch")
+class Llm05Detector(unittest.TestCase):
+    def evaluate(self, traces):
+        scope, sources = llm05.telemetry_sources(llm05.normalize_xray_traces(traces))
+        payload = {
+            "schema_version": "1.0", "kind": "input", "repository_id": "github:AWS-env/telemetry-demo",
+            "scan_id": "scan-telemetry-demo", "commit_sha": "0" * 40, "check_id": "LLM-05",
+            "detector_version": llm05.DETECTOR_VERSION, "context": dict(llm05.REFERENCE_SETTINGS), "scope": scope,
+            "sources": sources}
+        return llm05.evaluate(payload)
+
+    def test_waste_is_flagged_and_control_is_clean(self):
+        waste = self.evaluate(batch_get_traces(10, "waste", scenario="LLM-05"))
+        self.assertEqual(waste["coverage"]["evaluated_scope"], [f"entrypoint:{FUNCTION}"])
+        self.assertEqual([f["identity"] for f in waste["findings"]], ["consecutive-identical-calls"])
+        self.assertIn("2 consecutive identical synthetic-demo-model calls", waste["findings"][0]["summary"])
+        self.assertIn("by demo_redundant_pipeline", waste["findings"][0]["summary"])
+        control = self.evaluate(batch_get_traces(10, "control", scenario="LLM-05"))
+        self.assertEqual((control["status"], control["findings"]), ("completed", []))
+
+    def test_llm10_demo_traffic_gives_llm05_a_limitation_not_a_clean_result(self):
+        result = self.evaluate(batch_get_traces(10, "both"))
+        self.assertEqual((result["status"], result["findings"]), ("unavailable", []))
+        self.assertIn("recorded no comparable input", json.dumps(result["coverage"]["limitations"]))
 
 
 class XRayDaemon(unittest.TestCase):

@@ -213,7 +213,7 @@ class TraceHandlerTests(AwsTestCase):
 class RegistryTests(unittest.TestCase):
     def test_select_and_load(self):
         self.assertEqual([c.check_id for c in registry.select({"cpu_metrics": None})], ["INF-01"])
-        self.assertEqual([c.check_id for c in registry.select({"traces": None})], ["LLM-10"])
+        self.assertEqual([c.check_id for c in registry.select({"traces": None})], ["LLM-10", "LLM-05"])
         self.assertEqual([c.check_id for c in registry.select({"cpu_metrics": None, "metrics": None})],
                          ["INF-01", "OBS-06"])
         with self.assertRaises(ValueError):
@@ -235,7 +235,8 @@ class RegistryTests(unittest.TestCase):
         wired = {c.check_id: (c.source, c.adapter) for c in registry.CHECKS}
         self.assertEqual(wired, {"INF-01": ("cpu_metrics", None), "OBS-06": ("metrics", "list_metrics"),
                                  "OBS-07": ("log_groups", "describe_log_groups"), "OBS-11": ("logs_insights", None),
-                                 "LLM-10": ("traces", "xray_traces"), "OBS-17": ("logs_insights", None)})
+                                 "LLM-10": ("traces", "xray_traces"), "OBS-17": ("logs_insights", None),
+                                 "LLM-05": ("traces", "xray_traces")})
         for check in registry.CHECKS:
             module, normalize = registry.load(check)
             self.assertEqual(module.CHECK_ID, check.check_id)
@@ -287,13 +288,14 @@ class RegistryTests(unittest.TestCase):
 
 
 LLM10_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "llm10"
+LLM05_FIXTURES = Path(__file__).resolve().parent / "fixtures" / "llm05"
 
 
 class FixtureXray(FakeXray):
-    """GetTraceSummaries/BatchGetTraces over the synthetic LLM-10 BatchGetTraces fixture."""
+    """GetTraceSummaries/BatchGetTraces over a synthetic BatchGetTraces fixture (LLM-10 by default)."""
 
-    def __init__(self, name):
-        self.by_id = {t["Id"]: t for t in json.loads((LLM10_FIXTURES / name).read_text())["Traces"]}
+    def __init__(self, name, directory=LLM10_FIXTURES):
+        self.by_id = {t["Id"]: t for t in json.loads((directory / name).read_text())["Traces"]}
         super().__init__(list(self.by_id))
 
     def batch_get_traces(self, TraceIds, **kw):
@@ -351,13 +353,39 @@ class RealChecksThroughTheAnalyzersTests(AwsTestCase):
 
     def test_llm10_agent_loop_traces_are_published(self):
         self.fakes["xray"] = FixtureXray("positive.traces.json")
-        out = trace_handler.lambda_handler(self.base_event(xray={"lookback_minutes": 60},
+        out = trace_handler.lambda_handler(self.base_event(checks=["LLM-10"], xray={"lookback_minutes": 60},
                                                            settings={"LLM-10": {"min_traces": 1}}))
         self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
         self.assertEqual(out["results"][0]["check_id"], "LLM-10")
         self.assertGreaterEqual(out["results"][0]["findings"], 1)
         entry, result = self.stored()
         self.assertEqual((entry["Source"], result["context"]["min_traces"]), ("owner-d.trace-analyzer", 1))
+
+    def test_llm05_redundant_chained_calls_are_published(self):
+        self.fakes["xray"] = FixtureXray("positive.traces.json", LLM05_FIXTURES)
+        out = trace_handler.lambda_handler(self.base_event(checks=["LLM-05"], xray={"lookback_minutes": 60},
+                                                           settings={"LLM-05": {"min_traces": 3}}))
+        self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
+        self.assertEqual(out["results"], [{"check_id": "LLM-05", "status": "completed", "scope": 1, "evaluated": 1,
+                                           "findings": 2}])
+        entry, result = self.stored()
+        self.assertEqual(entry["Source"], "owner-d.trace-analyzer")
+        self.assertEqual({f["identity"] for f in result["findings"]},
+                         {"consecutive-identical-calls", "repeated-chain-requests"})
+        self.assertEqual((result["context"]["min_traces"], result["context"]["min_repeat_share"]), (3, 0.5))
+        self.assertEqual(result["context"]["collection"]["source"], "xray-batchgettraces")
+        self.assertNotIn("Summarise the open incidents", entry["Detail"])  # hashes only, never prompt content
+
+    def test_trace_analyzer_runs_llm10_and_llm05_on_one_collection(self):
+        xray = FixtureXray("positive.traces.json", LLM05_FIXTURES)
+        self.fakes["xray"] = xray
+        out = trace_handler.lambda_handler(self.base_event(xray={"lookback_minutes": 60}, dry_run=True,
+                                                           settings={"LLM-10": {"min_traces": 3},
+                                                                     "LLM-05": {"min_traces": 3}}))
+        self.assertEqual(sum(1 for name, _ in xray.calls if name == "get_trace_summaries"), 1)
+        statuses = {r["check_id"]: (r["status"], r["findings"]) for r in out["results"]}
+        self.assertEqual(statuses, {"LLM-10": ("completed", 0), "LLM-05": ("completed", 2)})
+        self.assertEqual((out["published"], out["refused"], out["errors"]), (0, [], []))
 
 
 if __name__ == "__main__":

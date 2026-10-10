@@ -21,6 +21,7 @@ X-Ray subsegments. Owner D's telemetry analyzers then have real evidence to read
 | `OBS-04` | Three free-text lines (`<time> WARN [...] inventory lookup slow for order_id ... ms 2310`). | The same three events as JSON lines. | Unstructured lines need parsing at query time; the structured ones need none. |
 | `OBS-06` | `RequestLatencyMs` keyed by `request_id` (`req-000`..`req-039`, one series per request). | `RequestLatencyMs` keyed by `endpoint` (2 values). | `ListMetrics` shows a dimension whose value count grows with traffic, next to a bounded one. |
 | `LLM-10` | `invoke_agent demo_unbounded_agent` runs `tool_calls` turns (default 12, max 25). Each turn is a `chat` span followed by `execute_tool get_order_status` with byte-identical arguments. It ends with `stop_reason=max_iterations`. | `invoke_agent demo_bounded_agent`: 3 `chat` turns and 2 different tools (`get_order_status`, then `draft_reply`), ending with `stop_reason=answer_ready`. | Owner D's LLM-10 detector flags the waste run for `identical-tool-calls` (12 > 3) and `iteration-budget` (12 > 10). The control run stays under both limits. |
+| `LLM-05` (opt-in) | `invoke_agent demo_redundant_pipeline`: 2 `chat` calls with the same model and the same `gen_ai.input.messages.hash`; step 2 re-sends step 1's request unchanged. | `invoke_agent demo_chained_pipeline`: the same first call, then a second request that carries step 1's output (2 distinct digests). | Owner D's LLM-05 detector flags the waste run for `consecutive-identical-calls` (2 > 1) and leaves the control run alone. |
 
 Shared dimensions on every metric: `synthetic`, `check=OBS-06` and `path`.
 
@@ -46,6 +47,15 @@ in the form the ADOT `awsxrayexporter` writes to X-Ray. Owner D's LLM-10 normali
 The entrypoint the detector reports is the function segment, `owner-d-telemetry-demo`. Each invocation
 produces one analyzable trace.
 
+### LLM-05 trace shape
+
+The opt-in `LLM-05` scenario uses the same span names and `metadata.default` layout, with `check=LLM-05`,
+`path` and `step` annotations. Its `chat` spans record no prompt content. Each carries
+`gen_ai.input.messages.hash`, a 16-hex SHA-256 digest of the canonical synthetic request, which Owner D's
+LLM-05 normalizer (`llm05.normalize_xray_traces`) compares within one agent run. This attribute is not part of
+the OpenTelemetry GenAI conventions: `gen_ai.input.messages` itself is Opt-In, and this digest stands in for
+it. The LLM-10 scenario records neither, so LLM-05 reports its traces as a limitation, not as clean.
+
 The subsegments are sent straight to the Lambda X-Ray daemon over UDP, under the function's trace. This
 removes the need to bundle `aws-xray-sdk`, which is not in the Python runtime. The zip contains only
 `handler.py`. If the invocation's trace is not sampled, nothing is sent and the response shows
@@ -59,8 +69,9 @@ removes the need to bundle `aws-xray-sdk`, which is not in the Python runtime. T
 
 `scenario` takes `all` (the default) or one of `OBS-11`, `OBS-17`, `OBS-04`, `OBS-06` or `LLM-10`. Short
 forms such as `obs11` are also accepted. Each numeric knob is optional and is clamped to its maximum.
+`LLM-05` (or `llm05`) is opt-in: `all` does not run it, so the output of `all` is unchanged.
 
-`path` applies to LLM-10 only and takes `both` (the default), `waste` or `control`. Both runs share one
+`path` applies to LLM-10 and LLM-05 and takes `both` (the default), `waste` or `control`. Both runs share one
 entrypoint, so a clean-only result needs a time window that contains only `"path": "control"` traces.
 
 The response summarizes what was emitted, along with a `run_id` that also appears in every log line.

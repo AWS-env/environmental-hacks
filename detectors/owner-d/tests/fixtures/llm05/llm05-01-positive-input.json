@@ -1,0 +1,130 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm05-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "LLM-05",
+  "detector_version": "1.0.0",
+  "context": {
+    "min_traces": 3,
+    "max_identical_consecutive_calls": 1,
+    "min_chain_calls": 3,
+    "min_repeat_share": 0.5
+  },
+  "scope": [
+    "entrypoint:research-agent"
+  ],
+  "sources": [
+    {
+      "source_id": "xray:research-agent",
+      "scope_id": "entrypoint:research-agent",
+      "kind": "telemetry",
+      "locator": "aws-xray:BatchGetTraces/research-agent",
+      "data": {
+        "entrypoint": "research-agent",
+        "traces_with_model_calls": 3,
+        "traces_analyzed": 3,
+        "traces_without_inputs": 0,
+        "traces_skipped": 0,
+        "skip_reasons": [],
+        "failed_model_calls": 0,
+        "model_calls_without_input": 0,
+        "uncompared_pairs": 0,
+        "retry_repeats_excluded": 0,
+        "sampling_repeats_excluded": 0,
+        "max_consecutive_identical": {
+          "trace_id": "1-6ad00001-6c5df6f570ed703b72c04b5b",
+          "agent": "researcher",
+          "model": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
+          "input_basis": "content",
+          "input_hash": "a0970c8adfb0475a",
+          "calls": 3,
+          "seconds": 2.4,
+          "duration_seconds": 3.401
+        },
+        "repeated_chains": [
+          {
+            "trace_id": "1-6ad00001-6c5df6f570ed703b72c04b5b",
+            "agent": "researcher",
+            "model_calls": 4,
+            "comparable_calls": 4,
+            "repeated_calls": 2
+          },
+          {
+            "trace_id": "1-6ad00002-113c9b50848d6b1ddb8c938b",
+            "agent": "(entrypoint)",
+            "model_calls": 3,
+            "comparable_calls": 3,
+            "repeated_calls": 1
+          },
+          {
+            "trace_id": "1-6ad00003-4c3a7119ce3a7017ef418260",
+            "agent": "planner",
+            "model_calls": 4,
+            "comparable_calls": 4,
+            "repeated_calls": 2
+          }
+        ],
+        "traces": [
+          {
+            "trace_id": "1-6ad00001-6c5df6f570ed703b72c04b5b",
+            "duration_seconds": 3.401,
+            "agent_runs": 1,
+            "model_calls": 4,
+            "failed_model_calls": 0,
+            "model_calls_without_input": 0,
+            "consecutive_pairs": 3,
+            "comparable_pairs": 3,
+            "uncompared_pairs": 0,
+            "retry_repeats_excluded": 0,
+            "sampling_repeats_excluded": 0,
+            "max_consecutive_identical": {
+              "agent": "researcher",
+              "model": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
+              "input_basis": "content",
+              "input_hash": "a0970c8adfb0475a",
+              "calls": 3,
+              "seconds": 2.4
+            }
+          },
+          {
+            "trace_id": "1-6ad00002-113c9b50848d6b1ddb8c938b",
+            "duration_seconds": 2.477,
+            "agent_runs": 1,
+            "model_calls": 3,
+            "failed_model_calls": 0,
+            "model_calls_without_input": 0,
+            "consecutive_pairs": 2,
+            "comparable_pairs": 2,
+            "uncompared_pairs": 0,
+            "retry_repeats_excluded": 0,
+            "sampling_repeats_excluded": 0,
+            "max_consecutive_identical": {
+              "agent": "(entrypoint)",
+              "model": "us.anthropic.claude-3-5-haiku-20241022-v1:0",
+              "input_basis": "digest",
+              "input_hash": "35bc813b18dbe992",
+              "calls": 2,
+              "seconds": 1.6
+            }
+          },
+          {
+            "trace_id": "1-6ad00003-4c3a7119ce3a7017ef418260",
+            "duration_seconds": 3.279,
+            "agent_runs": 1,
+            "model_calls": 4,
+            "failed_model_calls": 0,
+            "model_calls_without_input": 0,
+            "consecutive_pairs": 3,
+            "comparable_pairs": 3,
+            "uncompared_pairs": 0,
+            "retry_repeats_excluded": 0,
+            "sampling_repeats_excluded": 0,
+            "max_consecutive_identical": null
+          }
+        ]
+      }
+    }
+  ]
+}

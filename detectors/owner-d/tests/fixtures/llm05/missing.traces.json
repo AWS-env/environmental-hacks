@@ -1,0 +1,66 @@
+{
+ "_comment": "SYNTHETIC fixture for LLM-05 tests: hand-built BatchGetTraces response shaped on the AWS X-Ray segment document spec and real Lambda traces (service + function segment), with OpenTelemetry GenAI attributes as the ADOT awsxrayexporter writes them. Not production telemetry.",
+ "Traces": [
+  {
+   "Id": "1-6ad0001f-d916878550c53d6ecb433f7d",
+   "Duration": 2.841,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "3907701d3862b65f",
+     "Document": "{\"id\": \"3907701d3862b65f\", \"name\": \"notes-agent\", \"start_time\": 1791603100.04, \"trace_id\": \"1-6ad0001f-d916878550c53d6ecb433f7d\", \"end_time\": 1791603102.842, \"parent_id\": \"db7cd01f3176ca25\", \"aws\": {\"cloudwatch_logs\": [{\"log_group\": \"/aws/lambda/notes-agent\"}], \"resource_names\": [\"notes-agent\"]}, \"origin\": \"AWS::Lambda::Function\", \"subsegments\": [{\"id\": \"ccd493430cae2dec\", \"name\": \"invoke_agent notes_agent\", \"start_time\": 1791603100.057, \"end_time\": 1791603102.833, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"invoke_agent\", \"gen_ai.agent.name\": \"notes_agent\"}}, \"subsegments\": [{\"id\": \"49c03fce3bb4d6bf\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603100.06, \"end_time\": 1791603100.86, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"5f3eddddea14b159\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603100.862, \"end_time\": 1791603100.982, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}, {\"id\": \"1cc475fc09a16ec2\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603100.984, \"end_time\": 1791603101.784, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"2773efd5e212e07d\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603101.786, \"end_time\": 1791603101.906, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}, {\"id\": \"8cea4e8719bd44b4\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603101.908, \"end_time\": 1791603102.708, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"636b842c8855ff37\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603102.71, \"end_time\": 1791603102.83, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}]}]}"
+    },
+    {
+     "Id": "db7cd01f3176ca25",
+     "Document": "{\"id\": \"db7cd01f3176ca25\", \"name\": \"notes-agent\", \"start_time\": 1791603100.001, \"trace_id\": \"1-6ad0001f-d916878550c53d6ecb433f7d\", \"end_time\": 1791603102.844, \"http\": {\"response\": {\"status\": 200}}, \"aws\": {\"request_id\": \"1aab31e38c78ace32853a9bd20de2ef7\"}, \"origin\": \"AWS::Lambda\"}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ad00020-a484bb958af1d2d40830c13a",
+   "Duration": 2.841,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "cc59f0fc99d2ce3b",
+     "Document": "{\"id\": \"cc59f0fc99d2ce3b\", \"name\": \"notes-agent\", \"start_time\": 1791603200.04, \"trace_id\": \"1-6ad00020-a484bb958af1d2d40830c13a\", \"end_time\": 1791603202.842, \"parent_id\": \"0286d8d1399860ef\", \"aws\": {\"cloudwatch_logs\": [{\"log_group\": \"/aws/lambda/notes-agent\"}], \"resource_names\": [\"notes-agent\"]}, \"origin\": \"AWS::Lambda::Function\", \"subsegments\": [{\"id\": \"c92de6af67a05db7\", \"name\": \"invoke_agent notes_agent\", \"start_time\": 1791603200.057, \"end_time\": 1791603202.833, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"invoke_agent\", \"gen_ai.agent.name\": \"notes_agent\"}}, \"subsegments\": [{\"id\": \"b53adc70cb51650c\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603200.06, \"end_time\": 1791603200.86, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"3fb01b61479b63ab\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603200.862, \"end_time\": 1791603200.982, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}, {\"id\": \"8153bcb61c735f09\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603200.984, \"end_time\": 1791603201.784, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"84bc527ed65d8501\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603201.786, \"end_time\": 1791603201.906, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}, {\"id\": \"16a0b6c35a41e011\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603201.908, \"end_time\": 1791603202.708, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"3cf8aa174de2e67d\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603202.71, \"end_time\": 1791603202.83, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}]}]}"
+    },
+    {
+     "Id": "0286d8d1399860ef",
+     "Document": "{\"id\": \"0286d8d1399860ef\", \"name\": \"notes-agent\", \"start_time\": 1791603200.001, \"trace_id\": \"1-6ad00020-a484bb958af1d2d40830c13a\", \"end_time\": 1791603202.844, \"http\": {\"response\": {\"status\": 200}}, \"aws\": {\"request_id\": \"093e270457cda0fd7fb12d2efc7f3927\"}, \"origin\": \"AWS::Lambda\"}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ad00021-936dedba85916509a78491f0",
+   "Duration": 2.841,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "50a4a78a963b5b9c",
+     "Document": "{\"id\": \"50a4a78a963b5b9c\", \"name\": \"notes-agent\", \"start_time\": 1791603300.04, \"trace_id\": \"1-6ad00021-936dedba85916509a78491f0\", \"end_time\": 1791603302.842, \"parent_id\": \"139e82df02ed0a35\", \"aws\": {\"cloudwatch_logs\": [{\"log_group\": \"/aws/lambda/notes-agent\"}], \"resource_names\": [\"notes-agent\"]}, \"origin\": \"AWS::Lambda::Function\", \"subsegments\": [{\"id\": \"ceb7dcde1377054e\", \"name\": \"invoke_agent notes_agent\", \"start_time\": 1791603300.057, \"end_time\": 1791603302.833, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"invoke_agent\", \"gen_ai.agent.name\": \"notes_agent\"}}, \"subsegments\": [{\"id\": \"1f74832f6072fc77\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603300.06, \"end_time\": 1791603300.86, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"6e4af1d1493bd0f4\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603300.862, \"end_time\": 1791603300.982, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}, {\"id\": \"728f989fbb882f9b\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603300.984, \"end_time\": 1791603301.784, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"2c98a28efc1f5dd2\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603301.786, \"end_time\": 1791603301.906, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}, {\"id\": \"50480a47258d3bea\", \"name\": \"chat us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"start_time\": 1791603301.908, \"end_time\": 1791603302.708, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"chat\", \"gen_ai.request.model\": \"us.anthropic.claude-3-5-haiku-20241022-v1:0\", \"gen_ai.provider.name\": \"aws.bedrock\", \"gen_ai.usage.input_tokens\": 1200, \"gen_ai.usage.output_tokens\": 90}}}, {\"id\": \"da03caeaf378eb4e\", \"name\": \"execute_tool get_order_status\", \"start_time\": 1791603302.71, \"end_time\": 1791603302.83, \"metadata\": {\"default\": {\"gen_ai.operation.name\": \"execute_tool\", \"gen_ai.tool.name\": \"get_order_status\", \"gen_ai.tool.type\": \"function\", \"gen_ai.tool.call.arguments\": \"{\\\"order_id\\\": \\\"ord-1\\\"}\"}}}]}]}"
+    },
+    {
+     "Id": "139e82df02ed0a35",
+     "Document": "{\"id\": \"139e82df02ed0a35\", \"name\": \"notes-agent\", \"start_time\": 1791603300.001, \"trace_id\": \"1-6ad00021-936dedba85916509a78491f0\", \"end_time\": 1791603302.844, \"http\": {\"response\": {\"status\": 200}}, \"aws\": {\"request_id\": \"6929d464ac83def6b54cd2f3688f095c\"}, \"origin\": \"AWS::Lambda\"}"
+    }
+   ]
+  },
+  {
+   "Id": "1-6ad00022-6b885254b997454226f6a299",
+   "Duration": 0.121,
+   "LimitExceeded": false,
+   "Segments": [
+    {
+     "Id": "b97e54f9b2ae83b5",
+     "Document": "{\"id\": \"b97e54f9b2ae83b5\", \"name\": \"notes-agent\", \"start_time\": 1791603400.04, \"trace_id\": \"1-6ad00022-6b885254b997454226f6a299\", \"end_time\": 1791603400.122, \"parent_id\": \"cf7e994825cd1977\", \"aws\": {\"cloudwatch_logs\": [{\"log_group\": \"/aws/lambda/notes-agent\"}], \"resource_names\": [\"notes-agent\"]}, \"origin\": \"AWS::Lambda::Function\", \"subsegments\": [{\"id\": \"969edd838e1f37ea\", \"name\": \"DynamoDB\", \"start_time\": 1791603400.06, \"end_time\": 1791603400.11, \"namespace\": \"aws\"}]}"
+    },
+    {
+     "Id": "cf7e994825cd1977",
+     "Document": "{\"id\": \"cf7e994825cd1977\", \"name\": \"notes-agent\", \"start_time\": 1791603400.001, \"trace_id\": \"1-6ad00022-6b885254b997454226f6a299\", \"end_time\": 1791603400.124, \"http\": {\"response\": {\"status\": 200}}, \"aws\": {\"request_id\": \"2d362cdd6cd0b5231c5d68c105287ced\"}, \"origin\": \"AWS::Lambda\"}"
+    }
+   ]
+  }
+ ],
+ "UnprocessedTraceIds": []
+}

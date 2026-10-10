@@ -13,10 +13,13 @@ a ``waste`` path and a clean ``control`` path, and every emitted item is labeled
 * LLM-10  X-Ray subsegments with OpenTelemetry GenAI attributes: an agent run that calls the same tool with
           byte-identical arguments until its iteration cap stops it, vs a bounded run that stops once it has
           an answer. No LLM is called; the model name is a placeholder
+* LLM-05  (opt-in, not part of ``all``) a two-step pipeline whose second ``chat`` call sends the same model the
+          same request (identical ``gen_ai.input.messages.hash``), vs a chain whose second request carries the
+          first step's output. No LLM is called
 
-The event selects what to emit: ``{"scenario": "all" | "OBS-11" | "OBS-17" | "OBS-04" | "OBS-06" | "LLM-10"}``.
-Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series`` (OBS-06 request ids), ``tool_calls``
-(LLM-10 iterations); ``path`` (LLM-10 only: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
+The event selects what to emit: ``{"scenario": "all" | "OBS-11" | "OBS-17" | "OBS-04" | "OBS-06" | "LLM-10"}``,
+or ``{"scenario": "LLM-05"}``. Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series`` (OBS-06
+request ids), ``tool_calls`` (LLM-10 iterations); ``path`` (LLM-10 and LLM-05: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
 no dependency beyond the Python runtime (boto3 is used only for PutMetricData).
 """
 
@@ -31,7 +34,8 @@ import uuid
 
 NAMESPACE = "OwnerD/Demo"
 METRIC_NAME = "RequestLatencyMs"
-SCENARIOS = ("OBS-11", "OBS-17", "OBS-04", "OBS-06", "LLM-10")
+SCENARIOS = ("OBS-11", "OBS-17", "OBS-04", "OBS-06", "LLM-10")  # what "all" runs
+OPT_IN_SCENARIOS = ("LLM-05",)  # selected by name only, so "all" keeps its output
 
 # OBS-06 series bound: request_id values come from a fixed pool, endpoint from a fixed list.
 REQUEST_ID_POOL = 40
@@ -277,6 +281,64 @@ def llm10(emit, tool_calls, path="both"):
     return summary
 
 
+# ---- LLM-05: redundant chained model calls -------------------------------------------------------------
+
+# Two-step pipeline: step 1 extracts facts, step 2 should build on them. Instead of recording prompt content
+# (gen_ai.input.messages is Opt-In), each chat span carries gen_ai.input.messages.hash, a digest of the canonical
+# request, which owner D's LLM-05 normalizer (llm05.normalize_xray_traces) compares within one agent run.
+
+PIPELINE_QUESTION = "Extract the order id, status and carrier from ticket T-1007."
+STEP_ONE_OUTPUT = "order_id=ord-demo-0005 status=delayed carrier=demo-post"
+
+
+def _digest(messages):
+    return hashlib.sha256(json.dumps(messages, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
+
+
+def _pipeline_chat(messages, path, step):
+    start = _now()
+    time.sleep(SPAN_SECONDS)
+    return {"id": _segment_id(), "name": f"chat {DEMO_MODEL}", "start_time": start, "end_time": _now(),
+            "annotations": {"synthetic": True, "check": "LLM-05", "path": path, "step": step},
+            "metadata": {"default": {"gen_ai.operation.name": "chat", "gen_ai.request.model": DEMO_MODEL,
+                                     "gen_ai.provider.name": "synthetic",
+                                     "gen_ai.input.messages.hash": _digest(messages)}}}
+
+
+def _pipeline_run(path, agent, second_request):
+    start = _now()
+    first = [{"role": "user", "content": PIPELINE_QUESTION}]
+    children = [_pipeline_chat(first, path, 1), _pipeline_chat(second_request(first), path, 2)]
+    return {"id": _segment_id(), "name": f"invoke_agent {agent}", "start_time": start, "end_time": _now(),
+            "annotations": {"synthetic": True, "check": "LLM-05", "path": path, "llm_calls": len(children)},
+            "metadata": {"default": {"gen_ai.operation.name": "invoke_agent", "gen_ai.agent.name": agent}},
+            "subsegments": children}
+
+
+def llm05(emit, path="both"):
+    if path not in LLM10_PATHS:
+        raise ValueError(f"path must be one of {', '.join(LLM10_PATHS)}")
+    runs = []
+    if path in ("both", "waste"):
+        # Step 2 re-sends step 1's request unchanged, so step 1's output is discarded and recomputed.
+        runs.append(("waste", _pipeline_run("waste", "demo_redundant_pipeline", list)))
+    if path in ("both", "control"):
+        # Step 2 carries step 1's output forward with a new instruction.
+        runs.append(("control", _pipeline_run("control", "demo_chained_pipeline", lambda first: first + [
+            {"role": "assistant", "content": STEP_ONE_OUTPUT},
+            {"role": "user", "content": "Draft a one-line customer update from these facts."}])))
+    summary = {}
+    for label, doc in runs:
+        summary["xray"] = emit.subsegment(doc)
+        hashes = [child["metadata"]["default"]["gen_ai.input.messages.hash"] for child in doc["subsegments"]]
+        emit.json("LLM-05", label, level="INFO", message="pipeline run finished",
+                  agent=doc["metadata"]["default"]["gen_ai.agent.name"], llm_calls=len(hashes),
+                  distinct_requests=len(set(hashes)))
+        summary[f"{label}_llm_calls"] = len(hashes)
+        summary[f"{label}_distinct_requests"] = len(set(hashes))
+    return summary
+
+
 # ---- entry points ---------------------------------------------------------------------------------------
 
 def _scenarios(value):
@@ -285,8 +347,8 @@ def _scenarios(value):
     key = str(value).upper().replace("_", "-")
     if "-" not in key and len(key) > 3:
         key = f"{key[:3]}-{key[3:]}"
-    if key not in SCENARIOS:
-        raise ValueError(f"unknown scenario {value!r}; use 'all' or one of {', '.join(SCENARIOS)}")
+    if key not in SCENARIOS + OPT_IN_SCENARIOS:
+        raise ValueError(f"unknown scenario {value!r}; use 'all' or one of {', '.join(SCENARIOS + OPT_IN_SCENARIOS)}")
     return (key,)
 
 
@@ -308,6 +370,7 @@ def run(event=None, write=None, cloudwatch=None, xray=None):
         "OBS-04": lambda: obs04(emit),
         "OBS-06": lambda: obs06(emit, _knob(event, "series")),
         "LLM-10": lambda: llm10(emit, _knob(event, "tool_calls"), event.get("path", "both")),
+        "LLM-05": lambda: llm05(emit, event.get("path", "both")),
     }
     emitted = {check: steps[check]() for check in selected}
     return {"synthetic": True, "run_id": emit.run_id, "scenarios": list(selected), "emitted": emitted}
