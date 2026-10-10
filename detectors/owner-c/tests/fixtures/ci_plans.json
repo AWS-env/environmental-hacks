@@ -68,5 +68,15 @@
     "context": "`min_oversized_cores` (default 8, > 0).",
     "unsupported": "CI-15 (runner utilization) is not implemented. Actual CPU use is not measured. Self-hosted runner sizing.",
     "challenge": "A lint job on a 16-core runner may be the repo's only runner group with GPU/network access."
+  },
+  "CI-16": {
+    "issue": 30,
+    "formats": "GitHub Actions workflow YAML.",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the cache step.",
+    "rule": "An `actions/cache` (save-capable) step on PACKAGE-MANAGER content (npm/pnpm/yarn/pip/poetry/Maven/Gradle/cargo registry/go modules/NuGet stores, `node_modules`, venv) whose key (a) has nothing that changes with its content (`hashFiles`, `github.sha`, run ids, steps/env/input outputs) and no version number: constant per OS, so the first saved cache is never refreshed; or (b) lacks `runner.os`/`matrix.*` while the job runs an OS matrix and the content is platform-specific (`node_modules`, venv, `target`, `build`). Exceptions: `actions/cache/restore`, per-run keys, tool and data caches (Sonar's documented snippet, Android AVD, fonts, installed binaries), versioned keys (`npm-v2.1`), portable stores such as `~/.m2`. Confidence medium. On 336 real files the first rule version flagged 34 caches, almost all legitimate; this version keeps the one real positive (a pnpm store under a constant key). Release, publish and deploy workflows and tag-triggered workflows are not evaluated (release workflows should not read caches: zizmor `cache-poisoning`).",
+    "identity": "`job:<job id>:cache:<first path>:static-key`, `job:<job id>:cache:<first path>:no-os-in-key`.",
+    "context": "None.",
+    "unsupported": "Cache hit rate (not exposed by run/job objects); keys longer than 512 characters; `restore-keys` specificity.",
+    "challenge": "A constant key on a package store that is rebuilt by a nightly job and restored read-only elsewhere is valid."
   }
 }

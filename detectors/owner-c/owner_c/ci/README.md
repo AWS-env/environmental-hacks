@@ -79,6 +79,9 @@ python -m shared.contracts.verify
 - **CI-13** duplicate matrix axis values and no-op `include` entries. Wide matrices are deliberately not reported.
 - **CI-14** larger runner (`-N-cores`, macOS `-large`/`-xlarge`) on a light job (lint/format/docs...; a job named with test/build/clippy is not light). Low confidence:
   larger-runner labels are user-defined.
+- **CI-16** a package-manager cache (npm/pnpm/pip/Maven/Gradle/cargo/go stores, node_modules) whose `actions/cache` key never
+  changes (no `hashFiles`, sha, run id, version number), or that lacks an OS part in an OS matrix for platform-specific
+  content. Tool and data caches (Sonar, AVD, fonts, binaries) and portable stores (`~/.m2`) are not judged.
 
 ## History checks
 
