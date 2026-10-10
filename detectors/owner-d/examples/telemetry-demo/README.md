@@ -23,8 +23,10 @@ X-Ray subsegments. Owner D's telemetry analyzers then have real evidence to read
 | `LLM-10` | `invoke_agent demo_unbounded_agent` runs `tool_calls` turns (default 12, max 25). Each turn is a `chat` span followed by `execute_tool get_order_status` with byte-identical arguments. It ends with `stop_reason=max_iterations`. | `invoke_agent demo_bounded_agent`: 3 `chat` turns and 2 different tools (`get_order_status`, then `draft_reply`), ending with `stop_reason=answer_ready`. | Owner D's LLM-10 detector flags the waste run for `identical-tool-calls` (12 > 3) and `iteration-budget` (12 > 10). The control run stays under both limits. |
 | `LLM-05` (opt-in) | `invoke_agent demo_redundant_pipeline`: 2 `chat` calls with the same model and the same `gen_ai.input.messages.hash`; step 2 re-sends step 1's request unchanged. | `invoke_agent demo_chained_pipeline`: the same first call, then a second request that carries step 1's output (2 distinct digests). | Owner D's LLM-05 detector flags the waste run for `consecutive-identical-calls` (2 > 1) and leaves the control run alone. |
 | `LLM-12` (opt-in) | `agents` agents (default 5, from 2 to 8) each answer the same 8 questions `rounds` times (default 3, at most 5), each through its own in-process dict. Every agent misses every question once. Lines carry `cache_name=demo-agent-local` and `cache_backend=memory`. | The same agents through one shared dict: only the first agent misses each question. Lines carry `cache_name=demo-fleet-shared` and `cache_backend=demo-shared`. | Owner D's LLM-12 detector flags `demo-agent-local` for `isolated-agent-caches` (32 of 40 misses in 120 lookups would have been hits in a shared cache) and leaves `demo-fleet-shared` alone (8 misses, one per question). |
+| `LLM-17` (opt-in) | `AgentWorkerUtilization` (percent, `path=waste`) for a fixed pool of 4 agent workers, backfilled hourly for 8 days. It is 2-5% busy most hours, with one 72% (max 98%) burst a day at 13:00 UTC. | The same metric with `path=control`: a pool sized for its steady 55-63% load. | Owner D's LLM-17 detector flags the waste pool for `bursty-fixed-capacity` (median 4.0% < 10%, peak 98%, about 15x the mean) and leaves the control pool alone. |
 
-Shared dimensions on every metric: `synthetic`, `check=OBS-06` and `path`.
+Shared dimensions on every OBS-06 metric: `synthetic`, `check=OBS-06` and `path`. The LLM-17 series carry
+`synthetic=true`, `check=LLM-17` and `path`.
 
 ### LLM-10 trace shape
 
@@ -79,10 +81,10 @@ Run it once, then invoke `owner-d-log-analyzer` with `"checks": ["LLM-12"]` over
 
 `scenario` takes `all` (the default) or one of `OBS-11`, `OBS-17`, `OBS-04`, `OBS-06` or `LLM-10`. Short
 forms such as `obs11` are also accepted. Each numeric knob is optional and is clamped to its maximum.
-`LLM-05` (or `llm05`) and `LLM-12` (or `llm12`) are opt-in: `all` does not run them, so the output of `all` is
-unchanged. `agents` and `rounds` apply to LLM-12 only.
+`LLM-05` (or `llm05`), `LLM-12` (or `llm12`) and `LLM-17` (or `llm17`) are opt-in: `all` does not run
+them, so the output of `all` is unchanged. `agents` and `rounds` apply to LLM-12 only.
 
-`path` applies to LLM-10, LLM-05 and LLM-12 and takes `both` (the default), `waste` or `control`. The LLM-10
+`path` applies to LLM-10, LLM-05, LLM-12 and LLM-17 and takes `both` (the default), `waste` or `control`. The LLM-10
 and LLM-05 runs share one entrypoint, so a clean-only result needs a time window that contains only
 `"path": "control"` traces. The LLM-12 paths use separate cache names, so one run gives both results.
 
@@ -133,6 +135,34 @@ The `llm10` scenario sends no custom metrics. Ten runs cost almost nothing: 10 X
 within the 100,000 free traces each month, and a few log lines. Re-run any call that reports
 `"xray": "not_sampled"`.
 
+LLM-17 needs at least 7 days of utilization history, so one `llm17` run backfills 8 days of hourly statistic
+sets (2 × 192 datapoints in one PutMetricData request). CloudWatch accepts timestamps up to two weeks old, but
+datapoints older than 24 hours can take up to 48 hours to appear in `GetMetricData`. Until they do, LLM-17
+reports the pool as `unavailable` (window too short or no datapoints), never as clean. One run is enough;
+running it again puts the same values at the same hours.
+
+```bash
+aws lambda invoke --function-name owner-d-telemetry-demo --cli-binary-format raw-in-base64-out \
+  --payload '{"scenario":"llm17"}' --profile aws-agent --region ap-south-1 /tmp/telemetry-demo-llm17.json
+```
+
+About two days later, evaluate it with the telemetry analyzer. This is a dry run, so nothing is published.
+The on-demand demo Lambda is listed too, to show that it stays `unavailable`:
+
+```bash
+aws lambda invoke --function-name owner-d-telemetry-analyzer --cli-binary-format raw-in-base64-out \
+  --payload '{"repository_id": "github:AWS-env/environmental-hacks", "commit_sha": "<40 hex>", "checks": ["LLM-17"],
+    "role_arn": "<ReadOnlyRoleArn output>", "dry_run": true, "agent_capacity": [
+    {"type": "custom", "name": "demo-agent-pool-waste", "namespace": "OwnerD/Demo", "metric_name": "AgentWorkerUtilization",
+     "dimensions": {"synthetic": "true", "check": "LLM-17", "path": "waste"}, "provisioned_capacity": 4,
+     "capacity_unit": "worker", "autoscaling": false},
+    {"type": "custom", "name": "demo-agent-pool-control", "namespace": "OwnerD/Demo", "metric_name": "AgentWorkerUtilization",
+     "dimensions": {"synthetic": "true", "check": "LLM-17", "path": "control"}, "provisioned_capacity": 4,
+     "capacity_unit": "worker", "autoscaling": false},
+    {"type": "lambda", "name": "owner-d-telemetry-demo"}]}' \
+  --profile aws-agent --region ap-south-1 /tmp/llm17.json
+```
+
 Read-only checks that the evidence landed. Metrics can take a few minutes to appear, and traces about a
 minute:
 
@@ -152,11 +182,14 @@ fall within free tiers or plan credits.
 - **Custom metrics** dominate. Each distinct metric name plus dimension set is billed as one custom
   metric, at $0.30 per metric-month for the first 10,000. The charge is prorated by the hour and accrues only
   in hours that receive data.
-  - The `request_id` and `endpoint` values come from fixed pools, so at most **42 series** ever exist, however
-    often the demo runs. A unit test enforces this bound.
+  - The `request_id` and `endpoint` values come from fixed pools, so OBS-06 creates at most **42 series**,
+    however often the demo runs. A unit test enforces this bound.
   - One `all` or `OBS-06` invocation is 42 series for 1 hour, about **$0.02**. Five such invocations in
     different hours cost about $0.09.
-  - Other scenarios, including the 10 `llm10` runs, send no metrics.
+  - Other scenarios, including the 10 `llm10` runs, send no metrics, except the opt-in `llm17` run.
+  - One `llm17` run creates 2 series (`path=waste` and `path=control`), and never more, however often it runs. A
+    unit test enforces this bound. Billed for the hour it is sent, that is about $0.001. Even if every backfilled
+    hour were billed, it would be 2 × 192 h / 730 h × $0.30 ≈ **$0.16**.
   - With the optional daily schedule: 42 × 30 h / 730 h × $0.30 ≈ **$0.52/month**.
   - Do not schedule it hourly. That keeps all 42 series active all month, about $12.60/month.
 - **PutMetricData**: 1 request per run, at $0.01 per 1,000 requests.

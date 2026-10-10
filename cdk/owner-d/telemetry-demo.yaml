@@ -2,8 +2,9 @@ AWSTemplateFormatVersion: "2010-09-09"
 Description: >-
   Owner D telemetry demo workload (simulated client): one Lambda that, when invoked, emits labeled synthetic
   CloudWatch Logs lines, OwnerD/Demo custom metrics and X-Ray subsegments for OBS-11, OBS-17, OBS-04, OBS-06
-  and LLM-10, so owner D's telemetry analyzers have real evidence to read. No VPC, no always-on compute; the
-  optional schedule is created DISABLED. See detectors/owner-d/examples/telemetry-demo/README.md.
+  and LLM-10 (plus opt-in LLM-05 and LLM-17), so owner D's telemetry analyzers have real evidence to read. No
+  VPC, no always-on compute; the optional schedule is created DISABLED. See
+  detectors/owner-d/examples/telemetry-demo/README.md.
 
 Metadata:
   com.aws.cloudformation.Context:
@@ -11,7 +12,7 @@ Metadata:
     must:
       - "all resources named owner-d-telemetry-demo* and tagged owner=D"
       - "project Region ap-south-1 only; no cross-region calls"
-      - "metric series bounded (<= 42 in OwnerD/Demo); every emitted item labeled synthetic=true"
+      - "metric series bounded (<= 44 in OwnerD/Demo: 42 OBS-06 + 2 LLM-17); every emitted item labeled synthetic=true"
       - "no real LLM/Bedrock calls; demo data only"
     ref:
       - detectors/owner-d/examples/telemetry-demo/README.md

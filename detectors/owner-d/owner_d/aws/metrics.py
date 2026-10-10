@@ -1,12 +1,15 @@
 """CloudWatch metrics collection (read-only) and the INF-01 normalizer.
 
 Collectors (owner-d-telemetry-analyzer):
-  collect_cpu_metrics   explicit resources and/or ListMetrics discovery, then GetMetricData Average and
-                        Maximum CPUUtilization series per resource over a bounded window (source cpu_metrics)
-  collect_list_metrics  bounded ListMetrics pages for metric-inventory checks such as OBS-06 (source metrics)
+  collect_cpu_metrics       explicit resources and/or ListMetrics discovery, then GetMetricData Average and
+                            Maximum CPUUtilization series per resource over a bounded window (source cpu_metrics)
+  collect_list_metrics      bounded ListMetrics pages for metric-inventory checks such as OBS-06 (source metrics)
+  collect_capacity_metrics  GetMetricData Average and Maximum utilization series for the fixed agent/inference
+                            capacity declared in the event's `agent_capacity` (source capacity_metrics, LLM-17)
 
 normalize_cpu_metrics turns the cpu_metrics raw dict into the normalized CloudWatch CPU summary INF-01
-expects (detectors/owner-d/README.md, INF-01 > Input). It is pure, so it is tested without AWS.
+expects (detectors/owner-d/README.md, INF-01 > Input); normalize_capacity_metrics does the same for LLM-17's
+utilization distribution (mean, median, peak). Both are pure, so they are tested without AWS.
 """
 from __future__ import annotations
 
@@ -115,29 +118,37 @@ def discover(cloudwatch, cfg: dict):
 
 # ---- GetMetricData --------------------------------------------------------------------------------
 
-def _query(qid, resource, stat, period):
+def _query(qid, metric, stat, period):
+    return {"Id": qid, "ReturnData": True, "MetricStat": {"Metric": metric, "Period": period, "Stat": stat}}
+
+
+def _cpu_metric(resource):
     spec = RESOURCE_TYPES[resource["type"]]
-    return {"Id": qid, "ReturnData": True, "MetricStat": {
-        "Metric": {"Namespace": spec.namespace, "MetricName": spec.metric, "Dimensions": resource["dimensions"]},
-        "Period": period, "Stat": stat}}
+    return {"Namespace": spec.namespace, "MetricName": spec.metric, "Dimensions": resource["dimensions"]}
 
 
 def fetch_cpu_series(cloudwatch, resources, start, end, period, max_pages=MAX_METRIC_DATA_PAGES):
     """Average and Maximum series per CPU resource: {id: {"average": {...}, "maximum": {...}, "complete", "messages"}}."""
-    cpu = [r for r in resources if RESOURCE_TYPES[r["type"]].cpu]
+    cpu = [(r["id"], _cpu_metric(r)) for r in resources if RESOURCE_TYPES[r["type"]].cpu]
+    return fetch_series(cloudwatch, cpu, start, end, period, max_pages)
+
+
+def fetch_series(cloudwatch, metrics, start, end, period, max_pages=MAX_METRIC_DATA_PAGES):
+    """Average and Maximum series per (series id, CloudWatch metric) pair, at most RESOURCES_PER_CALL pairs per
+    GetMetricData request and max_pages pages each: {id: {"average", "maximum", "complete", "messages"}}."""
     series = {}
-    for offset in range(0, len(cpu), RESOURCES_PER_CALL):
-        batch = cpu[offset:offset + RESOURCES_PER_CALL]
+    for offset in range(0, len(metrics), RESOURCES_PER_CALL):
+        batch = metrics[offset:offset + RESOURCES_PER_CALL]
         ids = {}
         queries = []
-        for i, resource in enumerate(batch):
+        for i, (series_id, metric) in enumerate(batch):
             for stat, prefix in (("Average", "avg"), ("Maximum", "max")):
                 qid = f"{prefix}{i}"
-                ids[qid] = (resource["id"], stat.lower())
-                queries.append(_query(qid, resource, stat, period))
-            series[resource["id"]] = {"average": {"timestamps": [], "values": []},
-                                      "maximum": {"timestamps": [], "values": []},
-                                      "complete": True, "messages": []}
+                ids[qid] = (series_id, stat.lower())
+                queries.append(_query(qid, metric, stat, period))
+            series[series_id] = {"average": {"timestamps": [], "values": []},
+                                 "maximum": {"timestamps": [], "values": []},
+                                 "complete": True, "messages": []}
         pages, more = common.paginate(cloudwatch.get_metric_data, items_key="MetricDataResults",
                                       max_pages=max_pages, MetricDataQueries=queries, StartTime=start,
                                       EndTime=end, ScanBy="TimestampAscending")
@@ -155,7 +166,8 @@ def fetch_cpu_series(cloudwatch, resources, start, end, period, max_pages=MAX_ME
     return series
 
 
-def collect_cpu_metrics(event, readers, *, module=None, deadline=None):
+def _metric_window(event):
+    """(start, end, period) from the event's `window`, aligned to the period."""
     cfg = event.get("window") or {}
     if not isinstance(cfg, dict):
         raise ValueError("window must be an object")
@@ -166,6 +178,11 @@ def collect_cpu_metrics(event, readers, *, module=None, deadline=None):
                                     maximum=dt.timedelta(days=MAX_LOOKBACK_DAYS), unit=dt.timedelta(days=1))
     end = dt.datetime.fromtimestamp(int(end.timestamp()) // period * period, dt.timezone.utc)
     start = dt.datetime.fromtimestamp(int(start.timestamp()) // period * period, dt.timezone.utc)
+    return start, end, period
+
+
+def collect_cpu_metrics(event, readers, *, module=None, deadline=None):
+    start, end, period = _metric_window(event)
     explicit = event.get("resources") or []
     if not isinstance(explicit, list) or len(explicit) > MAX_RESOURCES:
         raise ValueError(f"resources must be a list of at most {MAX_RESOURCES} items")
@@ -319,3 +336,201 @@ def collect_list_metrics(event, readers, *, module=None, deadline=None):
         "counts": {"metrics": len(metrics)},
         "limitations": notes,
     }
+
+
+# ---- capacity_metrics: fixed agent/inference capacity (LLM-17) ---------------------------------------
+
+@dataclass(frozen=True)
+class CapacityType:
+    namespace: str | None  # None: the event names it (custom)
+    metric_name: str | None
+    resource_type: str
+    metric: str  # normalized metric name in LLM-17's input
+    scale: float  # divide CloudWatch values by this to get a fraction of capacity
+    capacity_unit: str
+
+
+CAPACITY_TYPES = {
+    "ec2": CapacityType("AWS/EC2", "CPUUtilization", "aws_ec2_instance", "cpu_utilization", 100.0, "instance"),
+    "ecs": CapacityType("AWS/ECS", "CPUUtilization", "aws_ecs_service", "cpu_utilization", 100.0, "service"),
+    # Lambda reports provisioned-concurrency use per alias/version as a fraction (0.5 = 50% in use).
+    "lambda": CapacityType("AWS/Lambda", "ProvisionedConcurrencyUtilization", "aws_lambda_function",
+                           "provisioned_concurrency_utilization", 1.0, "provisioned_concurrency"),
+    # A utilization metric the workload publishes itself, e.g. busy agent workers / pool size.
+    "custom": CapacityType(None, None, "custom_capacity_pool", "capacity_utilization", 100.0, "unit"),
+}
+CAPACITY_UNITS = {"percent": 100.0, "fraction": 1.0}
+WORKLOADS = ("agent", "inference")
+MAX_CAPACITY_RESOURCES = 50
+MAX_CUSTOM_DIMENSIONS = 30
+QUALIFIER = re.compile(r"[A-Za-z0-9_-]{1,128}")
+LAMBDA_ON_DEMAND_NOTE = ("on-demand Lambda (no provisioned-concurrency alias or version given) has no fixed capacity "
+                         "and publishes no utilization metric; LLM-17 reads ProvisionedConcurrencyUtilization only "
+                         "for a `qualifier`")
+NO_CAPACITY_NOTE = ("no `agent_capacity` in the event; LLM-17 reads only capacity that the event declares as an "
+                    "agent/inference workload")
+
+
+def _text_field(spec, key):
+    value = spec.get(key)
+    if not isinstance(value, str) or not NAME.fullmatch(value):
+        raise ValueError(f"agent_capacity {spec.get('type')} needs a valid {key}")
+    return value
+
+
+def parse_capacity(spec: dict) -> dict:
+    """One `agent_capacity` entry: {"type": "ec2", "id"} | {"type": "ecs", "cluster", "service"} |
+    {"type": "lambda", "name", "qualifier"?} | {"type": "custom", "name", "namespace", "metric_name",
+    "dimensions": {}, "unit": "percent" | "fraction"}, each with optional provisioned_capacity, capacity_unit,
+    autoscaling (true / false / null = unknown) and workload ("agent" by default, or "inference")."""
+    if not isinstance(spec, dict) or spec.get("type") not in CAPACITY_TYPES:
+        raise ValueError(f"agent_capacity type must be one of {sorted(CAPACITY_TYPES)}")
+    kind = spec["type"]
+    kspec = CAPACITY_TYPES[kind]
+    namespace, metric_name, dims, scale = kspec.namespace, kspec.metric_name, None, kspec.scale
+    if kind in ("ec2", "ecs"):
+        base = parse_resource({k: v for k, v in spec.items() if k in ("type", "id", "cluster", "service")})
+        rid, dims = base["id"], base["dimensions"]
+    elif kind == "lambda":
+        name = _text_field(spec, "name")
+        qualifier = spec.get("qualifier")
+        if qualifier is None:
+            rid = f"lambda/{name}"
+        else:
+            if not isinstance(qualifier, str) or not QUALIFIER.fullmatch(qualifier):
+                raise ValueError("agent_capacity lambda qualifier must be an alias or version ($LATEST has no "
+                                 "provisioned concurrency)")
+            rid = f"lambda/{name}:{qualifier}"
+            dims = [{"Name": "FunctionName", "Value": name}, {"Name": "Resource", "Value": f"{name}:{qualifier}"}]
+    else:
+        name = _text_field(spec, "name")
+        namespace = _text_field(spec, "namespace")
+        metric_name = _text_field(spec, "metric_name")
+        raw_dims = spec.get("dimensions") or {}
+        if (not isinstance(raw_dims, dict) or len(raw_dims) > MAX_CUSTOM_DIMENSIONS
+                or not all(isinstance(k, str) and NAME.fullmatch(k) and isinstance(v, str) and NAME.fullmatch(v)
+                           for k, v in raw_dims.items())):
+            raise ValueError(f"agent_capacity custom dimensions must map at most {MAX_CUSTOM_DIMENSIONS} names to "
+                             "string values")
+        unit = spec.get("unit", "percent")
+        if unit not in CAPACITY_UNITS:
+            raise ValueError(f"agent_capacity custom unit must be one of {sorted(CAPACITY_UNITS)}")
+        rid, scale = f"metric/{name}", CAPACITY_UNITS[unit]
+        dims = [{"Name": k, "Value": v} for k, v in sorted(raw_dims.items())]
+    capacity = spec.get("provisioned_capacity", 1)
+    if isinstance(capacity, bool) or not isinstance(capacity, (int, float)) or not 0 < capacity < 1e6:
+        raise ValueError(f"{rid}: provisioned_capacity must be a positive number")
+    unit_name = spec.get("capacity_unit", kspec.capacity_unit)
+    if not isinstance(unit_name, str) or not unit_name.strip():
+        raise ValueError(f"{rid}: capacity_unit must be a nonempty string")
+    autoscaling = spec.get("autoscaling")
+    if autoscaling is not None and not isinstance(autoscaling, bool):
+        raise ValueError(f"{rid}: autoscaling must be true, false or null")
+    workload = spec.get("workload", "agent")
+    if workload not in WORKLOADS:
+        raise ValueError(f"{rid}: workload must be one of {list(WORKLOADS)}")
+    metric = None if dims is None else {"Namespace": namespace, "MetricName": metric_name, "Dimensions": dims}
+    return {"type": kind, "id": rid, "metric": metric, "scale": scale, "resource_type": kspec.resource_type,
+            "utilization_metric": kspec.metric, "provisioned_capacity": capacity, "capacity_unit": unit_name,
+            "autoscaling": autoscaling, "workload": workload}
+
+
+def collect_capacity_metrics(event, readers, *, module=None, deadline=None):
+    """GetMetricData Average/Maximum per declared agent capacity. Without `agent_capacity` nothing is read."""
+    start, end, period = _metric_window(event)
+    declared = event.get("agent_capacity")
+    raw = {"window": {"start": common.iso(start), "end": common.iso(end)}, "period_seconds": period,
+           "region": common.region(), "resources": [], "series": {}, "truncated": False,
+           "collection": {"source": "cloudwatch-getmetricdata", "period_seconds": period,
+                          "lookback_days": round((end - start).total_seconds() / 86400, 2)},
+           "counts": {"resources": 0, "with_series": 0}, "limitations": []}
+    if declared is None:
+        raw["limitations"].append(NO_CAPACITY_NOTE)
+        return raw
+    if not isinstance(declared, list) or not declared or len(declared) > MAX_CAPACITY_RESOURCES:
+        raise ValueError(f"agent_capacity must be a list of 1-{MAX_CAPACITY_RESOURCES} items")
+    resources = [parse_capacity(spec) for spec in declared]
+    ids = [r["id"] for r in resources]
+    if len(set(ids)) != len(ids):
+        raise ValueError("agent_capacity lists the same resource twice")
+    measured = [(r["id"], r["metric"]) for r in resources if r["metric"] is not None]
+    series = fetch_series(readers.client("cloudwatch"), measured, start, end, period) if measured else {}
+    raw.update(resources=resources, series=series, counts={"resources": len(resources), "with_series": len(series)})
+    return raw
+
+
+def summarize_utilization(average: dict, maximum: dict, period: int, scale: float):
+    """Mean, median (p50) and peak of a utilization series as fractions of capacity, plus the observed window
+    and sample count; None without data. The mean and median are over the period averages, the peak is the
+    highest period maximum. Fractions are clamped to [0, 1]; `capped` records values above 1."""
+    points = [(common.parse_time(t), v) for t, v in zip(average.get("timestamps", []), average.get("values", []))
+              if v in _finite([v])]
+    if not points:
+        return None
+    raw = sorted(v / scale for _, v in points)
+    raw_peak = max([v / scale for v in _finite(maximum.get("values", []))] + [raw[-1]])
+    values = [min(max(v, 0.0), 1.0) for v in raw]
+    middle = len(values) // 2
+    median = values[middle] if len(values) % 2 else (values[middle - 1] + values[middle]) / 2
+    times = [t for t, _ in points]
+    span = (max(times) - min(times)).total_seconds() + period
+    return {
+        "mean_utilization": round(sum(values) / len(values), 4),
+        "median_utilization": round(median, 4),
+        "peak_utilization": round(min(max(raw_peak, 0.0), 1.0), 4),
+        "window_days": round(span / 86400, 2),
+        "sample_count": len(points),
+        "capped": raw_peak > 1.0,
+    }
+
+
+def _capacity_locator(region, metric, period):
+    dims = "&".join(f"{d['Name']}={d['Value']}" for d in metric["Dimensions"])
+    return (f"cloudwatch://{region}/{metric['Namespace']}/{metric['MetricName']}?{dims}&period={period}"
+            "&stat=Average,Maximum")
+
+
+def normalize_capacity_metrics(raw: dict, *, settings: dict | None = None) -> dict:
+    """LLM-17 telemetry sources, one per declared capacity with data. Capacity without a utilization metric
+    (on-demand Lambda) or without usable data stays in scope with no source, so LLM-17 reports it as not
+    evaluated instead of clean."""
+    scope, sources, notes = [], [], []
+    period = raw["period_seconds"]
+    for resource in raw["resources"]:
+        scope_id = f"resource:{resource['id']}"
+        scope.append(scope_id)
+        metric = resource["metric"]
+        if metric is None:
+            notes.append(f"{scope_id}: {LAMBDA_ON_DEMAND_NOTE}")
+            continue
+        name = f"{metric['Namespace']} {metric['MetricName']}"
+        series = raw["series"].get(resource["id"])
+        if series is None or not series["complete"]:
+            notes.append(f"{scope_id}: CloudWatch returned incomplete {name} data for the window; not evaluated")
+            continue
+        summary = summarize_utilization(series["average"], series["maximum"], period, resource["scale"])
+        if summary is None:
+            notes.append(f"{scope_id}: no {name} datapoints in {raw['window']['start']}..{raw['window']['end']}")
+            continue
+        if summary.pop("capped"):
+            notes.append(f"{scope_id}: utilization exceeded 100% of the declared capacity; values were capped at 1.0")
+        sources.append({
+            "source_id": f"cloudwatch:{resource['id']}",
+            "scope_id": scope_id,
+            "kind": "telemetry",
+            "locator": _capacity_locator(raw.get("region", "ap-south-1"), metric, period),
+            "data": {
+                "resource_id": resource["id"],
+                "resource_type": resource["resource_type"],
+                "workload": resource["workload"],
+                "metric": resource["utilization_metric"],
+                "provisioned_capacity": resource["provisioned_capacity"],
+                "capacity_unit": resource["capacity_unit"],
+                "autoscaling": resource["autoscaling"],
+                **summary,
+                "period_seconds": period,
+                "window_start": raw["window"]["start"],
+                "window_end": raw["window"]["end"],
+            },
+        })
+    return {"scope": scope, "sources": sources, "limitations": notes}

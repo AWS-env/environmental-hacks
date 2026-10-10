@@ -343,6 +343,102 @@ class Llm05Detector(unittest.TestCase):
         self.assertIn("recorded no comparable input", json.dumps(result["coverage"]["limitations"]))
 
 
+class Llm17(unittest.TestCase):
+    """Opt-in LLM-17 scenario: a fixed agent pool that idles with one burst a day (waste) vs a steady pool."""
+
+    NOW = 1_791_633_600 + 1_234  # 2026-10-10T12:20:34Z, inside an hour
+
+    def run_llm17(self, **event):
+        with mock.patch.object(demo, "_now", return_value=self.NOW):
+            return run(scenario="LLM-17", **event)
+
+    def test_backfills_hourly_statistic_sets_for_both_paths(self):
+        result, lines, cloudwatch, xray = self.run_llm17()
+        (call,) = cloudwatch.calls
+        self.assertEqual(call["Namespace"], "OwnerD/Demo")
+        data = call["MetricData"]
+        hours = demo.LLM17_DAYS * 24
+        self.assertEqual(len(data), 2 * hours)
+        end = self.NOW // 3600 * 3600
+        for datum in data:
+            self.assertEqual((datum["MetricName"], datum["Unit"]), (demo.LLM17_METRIC, "Percent"))
+            self.assertIn({"Name": "synthetic", "Value": "true"}, datum["Dimensions"])
+            self.assertIn({"Name": "check", "Value": "LLM-17"}, datum["Dimensions"])
+            stamp = datum["Timestamp"].timestamp()
+            self.assertTrue(end - 14 * 86400 < stamp < end and stamp % 3600 == 0)  # completed hours, < 2 weeks
+            stats = datum["StatisticValues"]
+            self.assertLessEqual(stats["Minimum"], stats["Sum"] / stats["SampleCount"])
+            self.assertLessEqual(stats["Sum"] / stats["SampleCount"], stats["Maximum"])
+            self.assertLessEqual(stats["Maximum"], 100)
+        self.assertEqual(len({series_key(d) for d in data}), demo.LLM17_SERIES)
+        self.assertEqual(xray.documents, [])
+        self.assertEqual([(r["path"], r["hours"]) for r in records(lines)], [("waste", hours), ("control", hours)])
+        self.assertEqual(result["emitted"]["LLM-17"], {"waste_datapoints": hours, "control_datapoints": hours,
+                                                       "days": demo.LLM17_DAYS})
+
+    def test_opt_in_only_and_path_selection(self):
+        self.assertNotIn("LLM-17", demo.SCENARIOS)
+        self.assertEqual(self.run_llm17()[0]["scenarios"], ["LLM-17"])
+        with mock.patch.object(demo, "_now", return_value=self.NOW):
+            self.assertEqual(run(scenario="llm17")[0]["scenarios"], ["LLM-17"])
+        _, _, cloudwatch, _ = self.run_llm17(path="control")
+        paths = {dict((d["Name"], d["Value"]) for d in datum["Dimensions"])["path"]
+                 for datum in cloudwatch.calls[0]["MetricData"]}
+        self.assertEqual(paths, {"control"})
+        with self.assertRaises(ValueError):
+            self.run_llm17(path="sometimes")
+
+    def test_series_stay_bounded_and_values_repeat_across_runs(self):
+        first = self.run_llm17()[2].calls[0]["MetricData"]
+        again = self.run_llm17()[2].calls[0]["MetricData"]
+        self.assertEqual(first, again)
+        self.assertEqual(len({series_key(d) for d in first + again}), demo.LLM17_SERIES)
+
+
+try:
+    from owner_d import llm17
+    from owner_d.aws import metrics as owner_d_metrics
+except ImportError:
+    llm17 = None
+
+
+@unittest.skipIf(llm17 is None, "owner_d.llm17 not on this branch")
+class Llm17Detector(unittest.TestCase):
+    """The demo series, read back as GetMetricData would return them, through owner D's LLM-17."""
+
+    def evaluate(self, path):
+        with mock.patch.object(demo, "_now", return_value=Llm17.NOW):
+            _, _, cloudwatch, _ = run(scenario="LLM-17", path=path)
+        data = cloudwatch.calls[0]["MetricData"]
+        stamps = [d["Timestamp"].strftime("%Y-%m-%dT%H:%M:%SZ") for d in data]
+        series = {"average": {"timestamps": stamps,
+                              "values": [d["StatisticValues"]["Sum"] / d["StatisticValues"]["SampleCount"]
+                                         for d in data]},
+                  "maximum": {"timestamps": stamps, "values": [d["StatisticValues"]["Maximum"] for d in data]},
+                  "complete": True, "messages": []}
+        spec = {"type": "custom", "name": f"demo-agent-pool-{path}", "namespace": demo.NAMESPACE,
+                "metric_name": demo.LLM17_METRIC, "dimensions": {"synthetic": "true", "check": "LLM-17", "path": path},
+                "provisioned_capacity": demo.LLM17_WORKERS, "capacity_unit": "worker", "autoscaling": False}
+        resource = owner_d_metrics.parse_capacity(spec)
+        normalized = owner_d_metrics.normalize_capacity_metrics({
+            "window": {"start": stamps[0], "end": stamps[-1]}, "period_seconds": 3600, "region": "ap-south-1",
+            "resources": [resource], "series": {resource["id"]: series}})
+        payload = {
+            "schema_version": "1.0", "kind": "input", "repository_id": "github:AWS-env/telemetry-demo",
+            "scan_id": "scan-telemetry-demo", "commit_sha": "0" * 40, "check_id": "LLM-17",
+            "detector_version": llm17.DETECTOR_VERSION, "context": dict(llm17.REFERENCE_SETTINGS),
+            "scope": normalized["scope"], "sources": normalized["sources"]}
+        return llm17.evaluate(payload)
+
+    def test_waste_is_flagged_and_control_is_clean(self):
+        waste = self.evaluate("waste")
+        self.assertEqual([f["identity"] for f in waste["findings"]], ["bursty-fixed-capacity"])
+        self.assertEqual(waste["findings"][0]["confidence"], "high")
+        self.assertIn("holds 4 worker of fixed capacity (no autoscaling)", waste["findings"][0]["summary"])
+        control = self.evaluate("control")
+        self.assertEqual((control["status"], control["findings"]), ("completed", []))
+
+
 class XRayDaemon(unittest.TestCase):
     HEADER = "Root=1-5f84c7a1-0123456789abcdef01234567;Parent=0123456789abcdef;Sampled=1;Lineage=a:0"
 
