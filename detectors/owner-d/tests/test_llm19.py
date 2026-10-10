@@ -1,6 +1,6 @@
 """Behavioral tests for the LLM-19 detector (issue #212, OQ-10).
 
-Static mode (LLM-19-S01..S10) reads vLLM/TGI serving configs and Python engine constructors; artifact mode
+Static mode (LLM-19-S01..S10, plus the PR #485 attribution and marker cases) reads vLLM/TGI serving configs and Python engine constructors; artifact mode
 (LLM-19-A01..A09) reads a normalized inference-metrics summary. Every result is checked with `validate_pair`.
 All inputs are synthetic.
 """
@@ -210,6 +210,89 @@ class StaticPositiveTests(unittest.TestCase):
             llm19.parse(".env", dotenv)
 
 
+class StaticAttributionTests(unittest.TestCase):
+    """Review fixes (#485): flags belong to their own service/container/stage; markers are image references only."""
+
+    def test_compose_flag_stays_with_its_service_when_another_engine_follows(self):
+        content = ("services:\n  llm:\n    image: vllm/vllm-openai:v0.11.0\n    ports:\n      - \"8000:8000\"\n"
+                   "    volumes:\n      - models:/models\n    command: --model x --enforce-eager\n"
+                   "  ollama:\n    image: ollama/ollama:latest\n    command: --dtype float32\n")
+        _, result = run(static_source("docker-compose.yml", content))
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual([(f["identity"], f["evidence"][0]["line_start"]) for f in result["findings"]],
+                         [("vllm:eager-mode", 8)])
+
+    def test_kubernetes_sidecar_does_not_steal_flags(self):
+        content = ("spec:\n  containers:\n    - name: vllm\n      image: vllm/vllm-openai:v0.11.0\n      args:\n"
+                   "        - --dtype\n        - float32\n        - --enforce-eager\n"
+                   "    - name: ollama\n      image: ollama/ollama\n      args: [--dtype, float32]\n")
+        _, result = run(static_source("k8s/vllm.yaml", content))
+        self.assertEqual(identities(result), ["vllm:eager-mode", "vllm:fp32-dtype"])
+
+    def test_ecs_json_dockerfile_stages_shell_and_toml_blocks(self):
+        files = [
+            ("ecs/task.json", '{"containerDefinitions": [\n  {\n    "image": "vllm/vllm-openai:latest",\n'
+                              '    "command": ["--enforce-eager"]\n  },\n  {\n    "command": ["--dtype", "float32"],\n'
+                              '    "image": "ollama/ollama"\n  }\n]}\n'),
+            ("ecs/minified.json", '{"containerDefinitions":[{"image":"vllm/vllm-openai:latest","command":'
+                                  '["--enforce-eager"]},{"image":"ollama/ollama","command":["--dtype","float32"]}]}\n'),
+            ("Dockerfile", 'FROM vllm/vllm-openai:v0.11 AS base\nFROM base\nCMD ["--enforce-eager"]\n'
+                           'FROM ollama/ollama AS side\nCMD ["--dtype", "float32"]\n'),
+            ("bin/start.sh", "ollama serve --dtype float32 &\nvllm serve x \\\n--enforce-eager\n"),
+            ("serve.toml", '[vllm]\ncmd = "vllm serve x"\nargs = ["--enforce-eager"]\n[ollama]\ncmd = "ollama serve"\n'
+                           'args = ["--dtype", "float32"]\n'),
+        ]
+        for locator, content in files:
+            with self.subTest(locator):
+                _, result = run(static_source(locator, content))
+                self.assertEqual((result["status"], identities(result)), ("completed", ["vllm:eager-mode"]))
+
+    def test_single_launcher_file_keeps_file_level_attribution(self):
+        content = "image:\n  repository: vllm/vllm-openai\n  tag: v0.11.0\nextraArgs:\n  - --enforce-eager\n"
+        _, result = run(static_source("helm/values.yaml", content))
+        self.assertEqual(identities(result), ["vllm:eager-mode"])
+
+    def test_flag_in_a_block_shared_by_two_engines_is_not_judged(self):
+        content = "images:\n  - vllm/vllm-openai\n  - ollama/ollama\nextraArgs:\n  - --enforce-eager\n"
+        _, result = run(static_source("helm/values.yaml", content))
+        self.assertEqual((result["status"], result["findings"]), ("completed", []))
+
+    def test_client_urls_are_not_self_hosting_markers(self):
+        for content in ("services:\n  app:\n    image: example/app:1\n    environment:\n"
+                        "      OPENAI_BASE_URL: http://vllm-openai:8000/v1\n    command: python app.py --enforce-eager\n",
+                        "VLLM_HOST: vllm-openai:8000\nurl: https://github.com/huggingface/text-generation-inference\n",
+                        "docs: https://hub.docker.com/r/vllm/vllm-openai\n"):
+            with self.subTest(content):
+                with self.assertRaises(llm19.Unsupported):
+                    llm19.parse("docker-compose.yml", content)
+                _, result = run(static_source("docker-compose.yml", content))
+                self.assertEqual((result["status"], result["findings"]), ("unavailable", []))
+
+    def test_image_references_are_markers(self):
+        for content in ("containers:\n- image: registry.local:5000/mirror/vllm-openai:v1\n  args: [--enforce-eager]\n",
+                        "containers:\n- image: vllm-openai:latest\n  args: [--enforce-eager]\n",
+                        'image = "${var.registry}/vllm-openai:1"\ncommand = ["--enforce-eager"]\n'):
+            with self.subTest(content):
+                _, result = run(static_source("deploy/serve.yaml", content))
+                self.assertEqual(identities(result), ["vllm:eager-mode"])
+
+    def test_sagemaker_tgi_image_is_a_tgi_marker(self):
+        content = ('resource "aws_sagemaker_model" "tgi" {\n  primary_container {\n'
+                   '    image = "${local.ecr}.dkr.ecr.ap-south-1.amazonaws.com/huggingface-pytorch-tgi-inference:'
+                   '2.4.0-tgi2.3.1-gpu-py311-cu124-ubuntu22.04"\n    environment = {\n      CUDA_GRAPHS = "0"\n'
+                   '    }\n  }\n}\n')
+        _, result = run(static_source("infra/sagemaker.tf", content))
+        self.assertEqual([(f["identity"], f["evidence"][0]["line_start"]) for f in result["findings"]],
+                         [("tgi:eager-mode", 5)])
+
+    def test_one_finding_per_launcher_rule_and_line(self):
+        content = ("FROM ghcr.io/huggingface/text-generation-inference:3.0\n"
+                   "CMD CUDA_GRAPHS=0 text-generation-launcher --cuda-graphs 0\n")
+        _, result = run(static_source("Dockerfile", content))
+        self.assertEqual([(f["identity"], f["evidence"][0]["line_start"]) for f in result["findings"]],
+                         [("tgi:eager-mode", 2)])
+
+
 class StaticNegativeTests(unittest.TestCase):
     def test_s06_clean_vllm_launch_completes_without_findings(self):
         _, result = run(static_source("deploy/serve.sh", VLLM_CLEAN))
@@ -400,6 +483,34 @@ class ArtifactTests(unittest.TestCase):
         self.assertIn(LIMITATION, result["coverage"]["limitations"])
         self.assertIn(llm19.ARTIFACT_LIMITATION, result["coverage"]["limitations"])
 
+    def test_huge_numbers_are_per_server_unavailable_not_an_exception(self):
+        huge = 10 ** 400  # a valid JSON integer that overflows float conversion
+        for name in ("window_seconds", "requests", "preemptions", "max_model_len", "max_request_tokens"):
+            data = dict(ARTIFACT, **{name: huge})
+            if name == "max_request_tokens":
+                data["max_model_len"] = huge
+            with self.subTest(name):
+                _, result = run(artifact_source(data))
+                self.assertEqual((result["status"], result["findings"]), ("unavailable", []))
+                self.assertIn(f"{name} must be a", result["coverage"]["limitations"][0])
+                self.assertIn("at most 1e15", result["coverage"]["limitations"][0])
+        _, result = run(artifact_source(dict(ARTIFACT, window_seconds=1e300)))
+        self.assertEqual(result["status"], "unavailable")
+        _, result = run(artifact_source(ARTIFACT), context=dict(REFERENCE_SETTINGS, max_context_headroom_ratio=huge))
+        self.assertEqual(result["status"], "unavailable")
+        self.assertIn("max_context_headroom_ratio must be a number", result["coverage"]["limitations"][0])
+
+    def test_low_prefix_cache_message_does_not_assume_caching_is_on(self):
+        _, result = run(artifact_source(dict(ARTIFACT, prefix_cache_hit_rate=0)))
+        finding = next(f for f in result["findings"] if f["identity"] == "low-prefix-cache-hit-rate")
+        self.assertIn("served no prompt tokens from a prefix cache", finding["summary"])
+        self.assertIn("prefix caching is disabled or no prefix was reused", finding["summary"])
+        self.assertNotIn("is on", finding["recommendation"])
+        self.assertIn("If prefix caching is disabled", finding["recommendation"])
+        _, result = run(artifact_source(ARTIFACT))
+        finding = next(f for f in result["findings"] if f["identity"] == "low-prefix-cache-hit-rate")
+        self.assertIn("reused only 2.0% of prompt tokens", finding["summary"])
+
 
 class ArtifactInputsTests(unittest.TestCase):
     def test_builds_one_scope_per_server_with_reference_settings(self):
@@ -419,6 +530,9 @@ class ArtifactInputsTests(unittest.TestCase):
                              ({"servers": [ARTIFACT], "extra": 1}, "unknown"),
                              ({"servers": [ARTIFACT], "settings": {"max_cpu": 1}}, "settings may only contain"),
                              ({"servers": [ARTIFACT], "settings": {"max_kv_cache_usage": 5}}, "invalid settings"),
+                             ({"servers": [ARTIFACT], "settings": {"max_context_headroom_ratio": 10 ** 400}},
+                              "invalid settings"),
+                             ({"servers": [ARTIFACT], "settings": {"min_requests": 10 ** 400}}, "invalid settings"),
                              ({"servers": [{"engine": "vllm"}]}, "no usable servers")]:
             with self.subTest(reason):
                 with self.assertRaisesRegex(llm19.ArtifactRejected, reason):

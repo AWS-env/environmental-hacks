@@ -81,6 +81,30 @@ class Llm19ArtifactRoutingTests(AwsTestCase):
                 self.fakes["events"].entries.clear()
                 self.assert_refused(self.run_key("llm-19.json", body), reason)
 
+    def test_llm19_huge_integers_never_raise_or_lose_the_upload(self):
+        # A ~400-digit JSON integer overflowed float math, failed the payload and sent the event to the DLQ.
+        huge = 10 ** 400
+        body = metrics(SATURATED | {"window_seconds": huge}, HEALTHY | {"preemptions": huge},
+                       HEALTHY | {"server_id": "ctx", "max_model_len": huge, "max_request_tokens": 6000},
+                       SATURATED | {"server_id": "ok"})
+        out = self.run_key("llm-19.json", body)
+        self.assertEqual(out["outcome"], "evaluated")
+        self.assertEqual((out["published"], out["refused"], out["errors"]), (1, [], []))
+        self.assertEqual(out["results"], [{"check_id": "LLM-19", "status": "partial", "scope": 4, "evaluated": 1,
+                                           "findings": 2}])
+        result = json.loads(self.fakes["events"].entries[0]["Detail"])
+        validate(result)
+        limitations = " ".join(result["coverage"]["limitations"])
+        for reason in ("window_seconds must be a positive number of at most 1e15",
+                       "preemptions must be a nonnegative integer of at most 1e15",
+                       "max_model_len must be a positive integer of at most 1e15"):
+            self.assertIn(reason, limitations)
+        for settings in ({"max_context_headroom_ratio": huge}, {"min_requests": huge}):
+            with self.subTest(settings=settings):
+                self.fakes["events"].entries.clear()
+                self.assert_refused(self.run_key("llm-19.json", metrics(SATURATED, settings=settings)),
+                                    "invalid settings")
+
     def test_tst12_route_is_unchanged(self):
         self.assertIs(artifact_handler.ROUTES["tst-12.json"], artifact_handler.tst12_inputs)
         self.assertIs(artifact_handler.ROUTES["llm-19.json"], artifact_handler.llm19_inputs)

@@ -94,7 +94,7 @@ A pair that fails is refused: it is not published and is listed under
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py`, `activity.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06, LLM-17, INF-04 (telemetry mode) |
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-12 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
-| `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12, LLM-19 (artifact mode) |
+| `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12, LLM-16, LLM-19 (artifact mode) |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
 (plain CloudFormation). Build: `scripts/build-owner-d-telemetry.sh`. The zip
@@ -5740,10 +5740,14 @@ limitation.
 Static mode reads Dockerfiles, `*.sh`/`*.bash`, `*.yaml`/`*.yml`, `*.json`,
 `*.tf`/`*.hcl`, `*.toml`, `.env`, Procfile, Makefile and systemd `*.service`
 files. It reads only those that launch a server: `vllm serve`,
-`python -m vllm.entrypoints...`, the `vllm/vllm-openai` image,
-`text-generation-launcher` or the
-`ghcr.io/huggingface/text-generation-inference` image, outside comments. It
-also reads Python files that import `vllm`. Every other file is `Unsupported`
+`python -m vllm.entrypoints...`, a `.../vllm-openai` image reference (or a
+bare `vllm-openai` as the value of an `image` key),
+`text-generation-launcher`, the
+`ghcr.io/huggingface/text-generation-inference` image or the SageMaker TGI
+image (`.../huggingface-pytorch-tgi-inference:<tag>`), outside comments. Image
+markers must start an image reference, so a client URL such as
+`http://vllm-openai:8000/v1` or a GitHub link does not count as self-hosting.
+It also reads Python files that import `vllm`. Every other file is `Unsupported`
 and out of scope, so a repository that hosts no model gets `not_applicable`
 from the scanner. Files under development, test, example, demo, benchmark or
 CI paths (`dev/`, `tests/`, `examples/`, `.github/workflows/`,
@@ -5770,10 +5774,16 @@ judgment. They are deliberately loose, so only clear waste is flagged.
 
 ### Static detection rule
 
-Only explicit settings are flagged. Each flag is attributed to the nearest
-vLLM/TGI launch marker in the same file (a preceding marker wins a tie). Flags
-nearest to another engine (SGLang, llama.cpp, LMDeploy, TensorRT-LLM, Triton,
-Ollama) are ignored.
+Only explicit settings are flagged. Each flag is attributed to the launcher
+of the innermost enclosing block that contains a launch marker: a compose
+service, a Kubernetes or ECS container, a Dockerfile build stage (a stage
+built `FROM` an earlier stage inherits its launcher), a TOML table or a
+logical shell line (`\` continuations included). Blocks come from YAML/JSON/HCL
+indentation, so minified JSON is resolved per line (the closest marker before
+the flag wins). When no enclosing block has a marker, a flag counts only if
+the file has a single launcher. A flag whose block holds launchers of several
+engines is not judged, and flags of another engine (SGLang, llama.cpp,
+LMDeploy, TensorRT-LLM, Triton, Ollama) are ignored.
 
 | Identity | Engine | Explicit setting | Confidence | Documentation |
 | --- | --- | --- | --- | --- |
@@ -5794,7 +5804,8 @@ called with constant keyword arguments. Not flagged:
 `# noqa` or `# noqa: LLM-19` on the line, or directly above the block,
 suppresses a hit. Evidence is the exact flag line(s), including the value
 line of a YAML list. Identities are `<engine>:<rule>`; repeats in one file
-become `#2`, ...
+become `#2`, ... A setting stated twice on one line
+(`CUDA_GRAPHS=0 text-generation-launcher --cuda-graphs 0`) is one finding.
 
 ### LLM-19 artifact (`llm-19.json`)
 
@@ -5805,7 +5816,10 @@ source. Fields can come from a vLLM `/metrics` scrape (`vllm:num_preemptions`,
 `vllm:request_prompt_tokens` + `vllm:request_generation_tokens` histograms,
 see [metrics](https://docs.vllm.ai/en/latest/usage/metrics.html)) or from
 TGI's Prometheus endpoint. Validation is strict: unknown fields, wrong types
-and inconsistent values make that scope `unavailable` with the reason.
+and inconsistent values make that scope `unavailable` with the reason. Every
+number, in a server or in `settings`, must lie within ±1e15 (JSON integers are
+unbounded, and a huge one would overflow float math): a server outside that
+range is `unavailable`, and such a `settings` value refuses the file.
 
 ```json
 {"settings": {"max_preemption_ratio": 0.02},
@@ -5852,7 +5866,21 @@ The parser handles an upload like this:
 LLM-19 static mode proves a setting, not its runtime cost. Artifact mode
 trusts the client's numbers and does not re-measure them. Neither mode
 estimates energy or cost. A low prefix-cache hit rate is not waste for a
-workload whose prompts share nothing, so that rule has `low` confidence.
+workload whose prompts share nothing, so that rule has `low` confidence. A
+`0` hit rate is worded as "disabled or no prefix reused", because the
+artifact does not say whether prefix caching is on.
+
+Static gaps in v1.1 (not flagged, not reported clean for those settings):
+
+- vLLM `--config <file>.yaml`: the referenced YAML (`enforce-eager: true`,
+  `dtype: float32`, ...) has no launch marker of its own, and the detector
+  does not follow file references.
+- SageMaker LMI (`djl-inference` images) configures vLLM through `OPTION_*`
+  environment variables or `serving.properties`; those names are not mapped.
+  The SageMaker TGI image is a marker, so its `CUDA_GRAPHS=0` is flagged.
+- SageMaker images chosen in Python (`get_huggingface_llm_image_uri`, the
+  `HuggingFaceModel` class) are not read: Python mode covers vLLM constructors
+  only.
 
 ### Run
 

@@ -5,7 +5,7 @@
   "scan_id": "synthetic-llm19-01",
   "commit_sha": "1919191919191919191919191919191919191919",
   "check_id": "LLM-19",
-  "detector_version": "1.0.0",
+  "detector_version": "1.1.0",
   "context": {
     "min_requests": 100,
     "max_preemption_ratio": 0.01,

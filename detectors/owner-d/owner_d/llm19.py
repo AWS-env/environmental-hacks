@@ -1,16 +1,17 @@
 """LLM-19: inference-engine inefficiencies (KV-cache growth, attention, quantization) in self-hosted serving.
 
-Detector semantics version 1.0.0. Only relevant when the repository hosts models, so it looks at
+Detector semantics version 1.1.0. Only relevant when the repository hosts models, so it looks at
 self-hosted vLLM and Hugging Face TGI servers only. Two evidence modes, dispatched on source kind
 (like TST-12):
 
 - static (primary, repository scans): `file:<path>` with one `static` source. Launch commands and
-  serving configs (`vllm serve`, `python -m vllm.entrypoints...`, the `vllm/vllm-openai` and TGI
-  images, `text-generation-launcher`) in Dockerfiles, shell scripts, compose/Kubernetes/ECS YAML or
+  serving configs (`vllm serve`, `python -m vllm.entrypoints...`, the `vllm/vllm-openai`, TGI and
+  SageMaker TGI image references, `text-generation-launcher`) in Dockerfiles, shell scripts, compose/Kubernetes/ECS YAML or
   JSON, Terraform/HCL, TOML, .env/Procfile/Makefile files, and Python that builds a vLLM `LLM`/
   `EngineArgs`/`AsyncEngineArgs`. Only explicit settings are flagged: prefix caching disabled
   (vLLM), an fp32 serving dtype (vLLM) and eager mode / CUDA graphs disabled (vLLM
-  `--enforce-eager`, TGI `--cuda-graphs 0` / `CUDA_GRAPHS=0`). Text is read, never executed.
+  `--enforce-eager`, TGI `--cuda-graphs 0` / `CUDA_GRAPHS=0`). Each flag belongs to the launcher of
+  its enclosing service/container/stage block, or to the file's only launcher. Text is read, never executed.
   Files that do not launch vLLM/TGI are out of scope (`Unsupported`), so a repository that hosts
   no model reports the check not applicable.
 - artifact (optional): `inference:<server_id>` with one `artifact` source, a normalized
@@ -35,7 +36,7 @@ from .static import IDENTITY_FIELDS, SCHEMA_VERSION, EvaluationError, _require, 
 from .textstatic import NotEvaluated, ParseError, TextHit, Unsupported  # noqa: F401  (scanner reads these names)
 
 CHECK_ID = "LLM-19"
-DETECTOR_VERSION = "1.0.0"
+DETECTOR_VERSION = "1.1.0"
 NOQA = ("LLM-19", "LLM19")
 STATIC_KIND = "static"
 ARTIFACT_KIND = "artifact"
@@ -104,9 +105,9 @@ RECOMMENDATIONS = {
         "max_model_len / --max-total-tokens to what traffic needs, quantize the weights to free memory, or scale out."
     ),
     "low-prefix-cache-hit-rate": (
-        "Prefix caching is on but almost nothing is reused: put stable content (system prompt, tool definitions, "
-        "documents) first and variable content last, and route a conversation to the same replica (sticky "
-        "sessions) so its cached prefix is found."
+        "Almost no prompt tokens are served from the prefix cache. If prefix caching is disabled on this server, "
+        "enable it; otherwise put stable content (system prompt, tool definitions, documents) first and variable "
+        "content last, and route a conversation to the same replica (sticky sessions) so its cached prefix is found."
     ),
     "oversized-context": (
         "Lower max_model_len (vLLM) or --max-total-tokens (TGI) towards the largest request the server actually "
@@ -118,11 +119,13 @@ LIMITATION = (
     "LLM-19 static mode proves explicit serving settings only: vLLM --no-enable-prefix-caching / "
     "enable_prefix_caching=False, an fp32 --dtype / dtype, and --enforce-eager / enforce_eager=True, and TGI "
     "--cuda-graphs 0 / CUDA_GRAPHS=0, in launch commands and serving configs, and in vLLM LLM/EngineArgs/"
-    "AsyncEngineArgs constructors with constant keyword arguments in Python. A flag is attributed to the nearest "
-    "vLLM/TGI launch marker in the same file. Defaults, settings built at runtime ($VARS, templating, **kwargs), "
-    "other engines (SGLang, llama.cpp, TensorRT-LLM, Triton) and managed APIs are not judged; model size, "
-    "attention kernels and missing quantization are not flagged. Development, test, example and CI paths are "
-    "not evaluated."
+    "AsyncEngineArgs constructors with constant keyword arguments in Python. A flag is attributed to the launcher "
+    "of its enclosing block (compose service, Kubernetes/ECS container, Dockerfile stage, logical shell line), or "
+    "to the file's only launcher; a flag in a block shared by several engines is not judged. Defaults, settings "
+    "built at runtime ($VARS, templating, **kwargs), vLLM --config YAML files, SageMaker LMI (djl-inference) "
+    "OPTION_* settings, other engines (SGLang, llama.cpp, TensorRT-LLM, Triton) and managed APIs are not judged; "
+    "model size, attention kernels and missing quantization are not flagged. Development, test, example and CI "
+    "paths are not evaluated."
 )
 RUNTIME_UNAVAILABLE = (
     "LLM-19 runtime evidence is unavailable: no inference-metrics artifact (llm-19.json: KV-cache usage, "
@@ -145,9 +148,23 @@ NON_PRODUCTION = {
     "examples", "sample", "samples", "demo", "demos", "fixture", "fixtures", "devcontainer", "github",
     "workflows", "ci", "notebooks", "benchmark", "benchmarks",
 }
+# Image references `[registry[:port]/]namespace/.../name[:tag|@digest]` that start a token (after whitespace, a
+# quote, `=`, `:`, `,`, `[` or a `${...}` interpolation). Path segments cannot be empty or contain `:` other than a
+# registry port, so URLs such as http://vllm-openai:8000/v1 (an API client) or
+# https://github.com/huggingface/text-generation-inference never match. A bare `vllm-openai` counts only as the
+# value of an `image` key.
+_IMAGE_START = r"(?:^|(?<=[\s\"'=:,\[}]))"
+_SEGMENT = r"(?:[\w.-]+(?::\d+)?/|(?<=})/)"
+_IMAGE_END = r"(?=[:@\s\"',\]]|$)"
 ENGINE_MARKERS = (
-    ("vllm", re.compile(r"\bvllm\s+serve\b|\bvllm\.entrypoints\.|\bvllm/vllm-openai\b|\bvllm-openai:")),
-    ("tgi", re.compile(r"\btext-generation-launcher\b|\bhuggingface/text-generation-inference\b")),
+    ("vllm", re.compile(
+        r"\bvllm\s+serve\b|\bvllm\.entrypoints\."
+        rf"|{_IMAGE_START}{_SEGMENT}+vllm-openai{_IMAGE_END}"
+        rf"|\bimage[\"']?\s*[:=]\s*[\"']?vllm-openai{_IMAGE_END}")),
+    ("tgi", re.compile(
+        r"\btext-generation-launcher\b"
+        rf"|{_IMAGE_START}{_SEGMENT}*huggingface/text-generation-inference{_IMAGE_END}"
+        rf"|{_IMAGE_START}{_SEGMENT}+huggingface-pytorch-tgi-inference{_IMAGE_END}")),  # SageMaker TGI DLC
     ("other", re.compile(
         r"\bsglang\b|\bllama-server\b|\blmdeploy\b|\btrtllm-serve\b|\btritonserver\b|\baphrodite\b|\bollama\b",
         re.I)),
@@ -183,17 +200,94 @@ class Context:
     lines: list
     kind: str  # "text" | "python"
     code: list = field(default_factory=list)  # text: lines without comments
-    markers: list = field(default_factory=list)  # text: [(line, engine)]
+    markers: list = field(default_factory=list)  # text: [(line, column, engine)]
     tree: ast.AST | None = None
+    parents: list = field(default_factory=list)  # text: enclosing block line of each line (0 = whole file)
+    inherits: dict = field(default_factory=dict)  # Dockerfile: stage line -> line of the stage it is built FROM
+    engines: dict = field(default_factory=dict)  # text: line -> engines of the markers inside that block
 
 
 def _markers(code):
     found = []
     for number, line in enumerate(code, 1):
         for engine, pattern in ENGINE_MARKERS:
-            if pattern.search(line):
-                found.append((number, engine))
+            for match in pattern.finditer(line):
+                found.append((number, match.start(), engine))
     return found
+
+
+_FROM = re.compile(r"^\s*FROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?", re.I)
+_TOML_TABLE = re.compile(r"^\[")
+
+
+def _heads(code):
+    """1-based line of the first line of each logical line (`\\` continuations join the line above)."""
+    heads = [0]
+    for number, line in enumerate(code, 1):
+        joined = number > 1 and code[number - 2].rstrip().endswith("\\")
+        heads.append(heads[number - 1] if joined else number)
+    return heads
+
+
+def _dockerfile_blocks(code, heads):
+    """Each instruction belongs to its build stage (`FROM` line); a stage built FROM an earlier stage inherits it."""
+    parents, inherits, stages, stage = [0] * (len(code) + 1), {}, {}, 0
+    for number, line in enumerate(code, 1):
+        if heads[number] != number:
+            parents[number] = heads[number]
+            continue
+        match = _FROM.match(line)
+        if match:
+            stage = number
+            base = stages.get(match.group(1).lower())
+            if base:
+                inherits[number] = base
+            if match.group(2):
+                stages[match.group(2).lower()] = number
+            continue
+        parents[number] = stage
+    return parents, inherits
+
+
+def _indent_blocks(code, heads, toml):
+    """Indentation tree (YAML, pretty-printed JSON/HCL, shell, Makefile, ...): a line's block is the nearest less
+    indented line above it. A YAML list item (`- `) nests under a key at its own column; a TOML `[table]` header
+    holds the keys below it; `---` starts a new YAML document."""
+    parents, stack = [0] * (len(code) + 1), []
+    for number, line in enumerate(code, 1):
+        if heads[number] != number:
+            parents[number] = heads[number]
+            continue
+        expanded = line.expandtabs(8)
+        text = expanded.strip()
+        if not text:
+            continue
+        if text == "---":
+            stack = []
+            continue
+        indent = len(expanded) - len(expanded.lstrip())
+        if text == "-" or text.startswith("- "):
+            indent += 0.5
+        elif toml and indent == 0 and _TOML_TABLE.match(text):
+            indent = -1
+        while stack and stack[-1][0] >= indent:
+            stack.pop()
+        parents[number] = stack[-1][1] if stack else 0
+        stack.append((indent, number))
+    return parents
+
+
+def _block_engines(markers, parents):
+    """line -> set of engines whose markers sit on that line or in the block it opens; 0 is the whole file."""
+    engines = {}
+    for number, _, engine in markers:
+        line = number
+        while True:
+            engines.setdefault(line, set()).add(engine)
+            if line == 0:
+                break
+            line = parents[line]
+    return engines
 
 
 def parse(locator, content):
@@ -214,25 +308,54 @@ def parse(locator, content):
     lines = content.splitlines()
     code = [_COMMENT.sub("", line) for line in lines]
     markers = _markers(code)
-    if not any(engine in ENGINES for _, engine in markers):
+    if not any(engine in ENGINES for _, _, engine in markers):
         raise Unsupported(locator)  # no self-hosted vLLM/TGI server launched here
     reason = _non_production(locator)
     if reason:
         raise NotEvaluated(reason + "; LLM-19 v1 evaluates production serving configs only")
-    return Context(locator, lines, "text", code=code, markers=markers)
+    heads = _heads(code)
+    inherits = {}
+    if dockerfile.is_dockerfile(locator):
+        parents, inherits = _dockerfile_blocks(code, heads)
+    else:
+        parents = _indent_blocks(code, heads, locator.lower().endswith(".toml"))
+    return Context(locator, lines, "text", code=code, markers=markers, parents=parents, inherits=inherits,
+                   engines=_block_engines(markers, parents))
 
 
-def _engine_at(ctx, line):
-    """The engine of the launch marker nearest to `line` (a preceding marker wins a tie)."""
-    nearest = min(ctx.markers, key=lambda marker: (abs(marker[0] - line), marker[0] > line))
-    return nearest[1]
+def _engine_at(ctx, line, column=0):
+    """The engine a setting on `line` belongs to: the launcher of the innermost enclosing block (compose service,
+    Kubernetes/ECS container, Dockerfile stage, logical shell line, ...) that holds a launch marker. A file-level
+    match counts only when the file has one launcher; a block with launchers of several engines is ambiguous
+    (None), except on the setting's own line, where the closest marker before it wins."""
+    node, seen = line, set()
+    while node not in seen:
+        seen.add(node)
+        engines = ctx.engines.get(node, set())
+        if len(engines) == 1:
+            return next(iter(engines))
+        if len(engines) > 1:
+            own = sorted((col, engine) for number, col, engine in ctx.markers if number == line)
+            if node == line and own:
+                before = [engine for col, engine in own if col <= column]
+                return before[-1] if before else own[0][1]
+            return None
+        if node == 0:
+            return None
+        base = ctx.inherits.get(node)
+        while base and base not in seen and not ctx.engines.get(base):
+            seen.add(base)
+            base = ctx.inherits.get(base)
+        node = base if base and ctx.engines.get(base) else ctx.parents[node]
+    return None
 
 
 def _tokens(ctx):
     tokens = []
     for number, line in enumerate(ctx.code, 1):
         text = line.replace('"', " ").replace("'", " ").rstrip().rstrip("\\")
-        tokens.extend((match.group(0), number) for match in _TOKEN.finditer(text) if match.group(0) != "-")
+        tokens.extend((match.group(0), number, match.start()) for match in _TOKEN.finditer(text)
+                      if match.group(0) != "-")
     return tokens
 
 
@@ -242,7 +365,7 @@ def _flag_value(tokens, index, inline):
     if inline is not None:
         return inline, flag_line
     if index + 1 < len(tokens):
-        value, line = tokens[index + 1]
+        value, line, _ = tokens[index + 1]
         if line - flag_line <= 2 and not value.startswith("-") and not value.endswith(":"):
             return value, line
     return None, flag_line
@@ -269,10 +392,10 @@ def _summary(rule, engine, setting):
 def _text_hits(ctx):
     hits = []
     tokens = _tokens(ctx)
-    for index, (token, line) in enumerate(tokens):
+    for index, (token, line, column) in enumerate(tokens):
         if not token.startswith("--") or len(token) < 3:
             continue
-        engine = _engine_at(ctx, line)
+        engine = _engine_at(ctx, line, column)
         if engine not in ENGINES:
             continue
         raw, _, inline = token[2:].partition("=")
@@ -295,15 +418,20 @@ def _text_hits(ctx):
                 hits.append(_hit("eager-mode", engine, line, end, _summary("eager-mode", "tgi", "--cuda-graphs 0"),
                                  "high"))
     for number, line in enumerate(ctx.code, 1):
-        if _engine_at(ctx, number) != "tgi":
-            continue
-        if _TGI_CUDA_GRAPHS_ENV.search(line):
+        env = _TGI_CUDA_GRAPHS_ENV.search(line)
+        if env and _engine_at(ctx, number, env.start()) == "tgi":
             hits.append(_hit("eager-mode", "tgi", number, number, _summary("eager-mode", "tgi", "CUDA_GRAPHS=0"),
                              "high"))
-        elif _ENV_NAME.match(line) and number < len(ctx.code) and _ENV_VALUE_ZERO.match(ctx.code[number]):
+        elif (_ENV_NAME.match(line) and number < len(ctx.code) and _ENV_VALUE_ZERO.match(ctx.code[number])
+              and _engine_at(ctx, number) == "tgi"):
             hits.append(_hit("eager-mode", "tgi", number, number + 1,
                              _summary("eager-mode", "tgi", "CUDA_GRAPHS=0"), "high"))
-    return hits
+    # One finding per (launcher, rule, line): `CUDA_GRAPHS=0 text-generation-launcher --cuda-graphs 0` is one
+    # setting stated twice, not two findings.
+    unique = {}
+    for hit in hits:
+        unique.setdefault((hit.anchor, hit.line), hit)
+    return list(unique.values())
 
 
 def _dotted(node):
@@ -384,12 +512,21 @@ FRACTIONS = ("kv_cache_usage_max", "prefix_cache_hit_rate")
 COUNTS = ("requests", "preemptions")
 
 
-def _is_number(value):
-    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+# Largest magnitude accepted for any number. JSON integers are unbounded in Python, and a 400-digit one overflows
+# float conversion (math.isfinite, division); bounding before any float math keeps a hostile or broken upload a
+# per-server `unavailable` (or an ArtifactRejected for `settings`), never an exception that fails the whole upload.
+MAX_MAGNITUDE = 10**15
+_MAX_TEXT = "1e15"
 
 
 def _is_int(value):
-    return isinstance(value, int) and not isinstance(value, bool)
+    return isinstance(value, int) and not isinstance(value, bool) and -MAX_MAGNITUDE <= value <= MAX_MAGNITUDE
+
+
+def _is_number(value):
+    if _is_int(value):
+        return True
+    return isinstance(value, float) and math.isfinite(value) and -MAX_MAGNITUDE <= value <= MAX_MAGNITUDE
 
 
 def _fmt(value):
@@ -411,10 +548,10 @@ def artifact_problems(data):
         if name in data and (not isinstance(data[name], str) or not data[name].strip() or len(data[name]) > 200):
             problems.append(f"{name} must be a nonempty string of at most 200 characters")
     if "window_seconds" in data and (not _is_number(data["window_seconds"]) or data["window_seconds"] <= 0):
-        problems.append("window_seconds must be a positive number")
+        problems.append(f"window_seconds must be a positive number of at most {_MAX_TEXT}")
     for name in COUNTS:
         if name in data and (not _is_int(data[name]) or data[name] < 0):
-            problems.append(f"{name} must be a nonnegative integer")
+            problems.append(f"{name} must be a nonnegative integer of at most {_MAX_TEXT}")
     for name in FRACTIONS:
         if name in data and data[name] is not None and (not _is_number(data[name]) or not 0 <= data[name] <= 1):
             problems.append(f"{name} must be a fraction between 0 and 1")
@@ -423,7 +560,7 @@ def artifact_problems(data):
     lengths = [name for name in ("max_model_len", "max_request_tokens") if data.get(name) is not None]
     for name in lengths:
         if not _is_int(data[name]) or data[name] < 1:
-            problems.append(f"{name} must be a positive integer")
+            problems.append(f"{name} must be a positive integer of at most {_MAX_TEXT}")
     if len(lengths) == 1:
         problems.append("max_model_len and max_request_tokens must be supplied together")
     elif (len(lengths) == 2 and _is_int(data["max_model_len"]) and _is_int(data["max_request_tokens"])
@@ -440,12 +577,12 @@ def read_artifact_settings(context):
         return None, "missing required context settings: " + ", ".join(missing)
     settings = {key: context[key] for key in ARTIFACT_SETTING_KEYS}
     if not _is_int(settings["min_requests"]) or settings["min_requests"] < 1:
-        return None, "context.min_requests must be a positive integer"
+        return None, f"context.min_requests must be a positive integer of at most {_MAX_TEXT}"
     for key in ("max_preemption_ratio", "max_kv_cache_usage", "min_prefix_cache_hit_rate"):
         if not _is_number(settings[key]) or not 0 <= settings[key] <= 1:
             return None, f"context.{key} must be a fraction between 0 and 1"
     if not _is_number(settings["max_context_headroom_ratio"]) or settings["max_context_headroom_ratio"] < 1:
-        return None, "context.max_context_headroom_ratio must be a number of at least 1"
+        return None, f"context.max_context_headroom_ratio must be a number of at least 1 and at most {_MAX_TEXT}"
     return settings, None
 
 
@@ -475,9 +612,12 @@ def artifact_items(source, settings):
                       f"KV-cache growth limits batching and leads to queueing or preemption."))
     hit_rate = data.get("prefix_cache_hit_rate")
     if hit_rate is not None and hit_rate < settings["min_prefix_cache_hit_rate"]:
+        reuse = (f"served no prompt tokens from a prefix cache {window} (prefix caching is disabled or no prefix "
+                 f"was reused)" if hit_rate == 0 else
+                 f"reused only {hit_rate:.1%} of prompt tokens from its prefix cache {window}")
         items.append(("low-prefix-cache-hit-rate", "low", ["prefix_cache_hit_rate"],
-                      f"{label} reused only {hit_rate:.1%} of prompt tokens from its prefix cache {window} (below "
-                      f"{settings['min_prefix_cache_hit_rate']:.1%}): almost every prefill is computed from scratch."))
+                      f"{label} {reuse} (below {settings['min_prefix_cache_hit_rate']:.1%}): almost every prefill "
+                      f"is computed from scratch."))
     if data.get("max_model_len") is not None:
         limit, largest = data["max_model_len"], data["max_request_tokens"]
         if limit > settings["max_context_headroom_ratio"] * largest:
@@ -507,7 +647,10 @@ def _evaluate_artifact(scope_id, source, context):
     if data["requests"] < settings["min_requests"]:
         return None, (f"{scope_id}: {data['requests']} completed requests is below min_requests "
                       f"{settings['min_requests']}; too few to judge, not evaluated")
-    return artifact_items(source, settings), None
+    try:
+        return artifact_items(source, settings), None
+    except (ArithmeticError, ValueError) as error:  # bounded above; a slip must stay per-server, not fail the upload
+        return None, f"{scope_id}: metrics could not be evaluated ({type(error).__name__}); not evaluated"
 
 
 # ---- dispatch -----------------------------------------------------------------------------------
