@@ -2867,3 +2867,77 @@ transfer to Python, so no measurements are emitted.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst03/tst03-01-positive-input.json
 ```
+
+## TST-11 — General Fixture
+
+Flags test-fixture fields that some of the tests running the fixture never
+read, following PyNose's
+[General Fixture](https://github.com/JetBrains-Research/PyNose/blob/ASE2021/src/main/java/pynose/GeneralFixtureTestSmellDetector.java)
+rule, adopted from tsDetect ("not all fields instantiated within the setUp
+method of a test class are utilized by all test methods"; Meszaros:
+[General Fixture](http://xunitpatterns.com/General%20Fixture.html)). Each test
+pays for setup it does not need. It is static (`ast` only) and uses the same
+input, test recognition and per-file "nothing to flag" note as TST-06. No
+context settings.
+
+### Detection rule
+
+- **Fixtures.** unittest `setUp`/`asyncSetUp` (before every test) and
+  `setUpClass` (once per class); pytest test-class `setup_method`,
+  `setup_class` and `@pytest.fixture(autouse=True)` methods. Module-level and
+  requested pytest fixtures are not judged: a test that does not request one
+  does not pay for it.
+- **Fields.** Attributes assigned on the fixture's first parameter (or the
+  class name) directly in the fixture body.
+- **Tests that run the fixture.** Every test class in the file whose
+  same-file bases (mixins included) reach the fixture, following `super()` /
+  `Base.setUp(self)` chains; an override without `super()` stops it. A
+  class's tests are its own and inherited `test*` methods, minus
+  unconditionally skipped ones.
+- **Use.** Reading `self.<field>` (or `cls.`, `ClassName.`, `type(self).`) in
+  the test or in any same-file method or property it reaches through `self`.
+  `tearDown` reads are not test use.
+- **Flag.** A field that at least one of at least 2 tests running the fixture
+  never reads. One finding per fixture field, evidence at its first
+  assignment.
+
+Not flagged, to avoid false positives:
+
+- fields the fixture chain reads (to build another field, or to pass to
+  something); reading `self.x.close` in an `addCleanup(...)` argument is
+  cleanup, not use;
+- saved state that teardown passes back (`os.chdir(self.old_cwd)`); a
+  resource teardown only closes (`self.conn.close()`) is still flagged;
+- fields whose every assignment is call-free (literals, names, attribute
+  reads), unittest attributes such as `maxDiff`, and side-effect handles from
+  `.start()`, `enterContext()`, `enter_context()` or `__enter__()`;
+- dynamic access: a test or helper that passes `self` out, uses
+  `getattr`/`vars`/`__dict__`, or calls a `self` method that is neither in the
+  file nor a `TestCase` method counts as using every field. The same in the
+  fixture after the assignment counts as the fixture using it;
+- classes that define `__init__`, `run`, `__call__`, `__getattr__` or similar
+  run machinery (for example CPython's `ThreadableTest`, which swaps `setUp`).
+
+Confidence:
+
+- `medium` for a per-test fixture in a class hierarchy defined in the file
+  (only unittest's `TestCase` is imported) when at least half of the tests
+  skip the field;
+- `low` otherwise (fewer skip it, a per-class fixture paid once, or an
+  imported base class whose code may read the field).
+
+`# noqa: TST-11` on the assignment line suppresses that field; on the
+fixture's `def` line it suppresses the whole fixture. The identity is
+`<DefiningClass>.<fixture>:<field>` (e.g. `OrderTest.setUp:cache`), with `#n`
+for a redefined class.
+
+The rule does not estimate what a field costs to build; many flagged fields
+are cheap. The taxonomy has no General Fixture energy figure, so no
+measurements are emitted.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst11/tst11-01-positive-input.json
+```

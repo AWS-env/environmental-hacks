@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst11-001",
+  "commit_sha": "1111111111111111111111111111111111111111",
+  "check_id": "TST-11",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:tests/test_orders.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_orders.py",
+      "kind": "static",
+      "locator": "tests/test_orders.py",
+      "content": "# Synthetic TST-11 fixture: fixtures that build fields some tests never read. Never executed.\nimport unittest\n\nimport pytest\n\nfrom shop import Cache, Client, Database, Mailer, Order, load_templates, render\n\n\nclass OrderTest(unittest.TestCase):\n    def setUp(self):\n        self.db = Database(\"sqlite://\")\n        self.client = Client(self.db)\n        self.mailer = Mailer()\n        self.cache = Cache(size=1024)\n        self.currency = \"EUR\"\n\n    @property\n    def warm_cache(self):\n        return self.cache\n\n    def test_total(self):\n        order = Order(self.client, currency=self.currency, cache=self.warm_cache)\n        self.assertEqual(order.total(), 0)\n\n    def test_email(self):\n        self._send()\n        self.assertTrue(self.client.connected)\n\n    def test_render(self):\n        self.assertIn(\"EUR\", render(self.client, self.cache))\n\n    def _send(self):\n        self.mailer.send(\"hi\")\n\n\nclass ReportTest(unittest.TestCase):\n    @classmethod\n    def setUpClass(cls):\n        cls.engine = Database(\"postgres://reports\")\n        cls.templates = load_templates()\n\n    def test_summary(self):\n        self.assertTrue(render(self.engine, self.templates))\n\n    def test_schema(self):\n        self.assertEqual(self.engine.tables(), [])\n\n\nclass TestInvoice:\n    def setup_method(self, method):\n        self.order = Order(Client(Database(\"sqlite://\")))\n        self.pdf = render(self.order)\n\n    def test_pdf(self):\n        assert self.pdf\n\n    def test_number(self):\n        assert Order.next_number() > 0\n\n\nclass TestShipping:\n    @pytest.fixture(autouse=True)\n    def carrier(self):\n        self.carrier_api = Client(Database(\"sqlite://\"))\n        yield\n\n    def test_rate(self):\n        assert self.carrier_api.rate(\"DE\")\n\n    def test_free(self):\n        assert Order(None).free_shipping()\n\n    def test_label(self):\n        assert Order(None).label()\n\n\nclass StorageMixin:\n    def setUp(self):\n        self.bucket = Database(\"s3://bucket\")\n        self.archive = Database(\"glacier://vault\")\n\n    def test_put(self):\n        self.bucket.put(\"k\", b\"v\")\n        self.assertTrue(self.bucket.exists(\"k\"))\n\n\nclass LocalStorageTest(StorageMixin, unittest.TestCase):\n    def test_list(self):\n        self.assertEqual(self.bucket.list(), [])\n\n    def test_restore(self):\n        self.assertTrue(Database.restore(\"k\"))\n"
+    }
+  ]
+}
