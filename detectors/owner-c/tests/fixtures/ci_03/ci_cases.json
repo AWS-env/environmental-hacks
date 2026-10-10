@@ -1,0 +1,79 @@
+[
+  {
+    "id": "CI-03-01",
+    "title": "known positive: one matrix job failed then passed on the same commit 3 times",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "fail_then_pass:test (3.11)": 3, "fail_then_pass:lint": 1}}},
+    "expect": {
+      "status": "completed",
+      "evaluated": [".github/workflows/ci.yml"],
+      "findings": [{"identity": "job:test (3.11):fail-then-pass", "field": "fail_then_pass:test (3.11)", "value": 3, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-03-02",
+    "title": "similar negative: every job failed-then-passed fewer than 2 times",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "fail_then_pass:test (3.11)": 1, "fail_then_pass:lint": 1}}},
+    "expect": {"status": "completed", "evaluated": [".github/workflows/ci.yml"], "findings": []}
+  },
+  {
+    "id": "CI-03-03",
+    "title": "boundary: exactly min_flaky_occurrences (2) is reported",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "fail_then_pass:integration": 2}}},
+    "expect": {
+      "status": "completed",
+      "findings": [{"identity": "job:integration:fail-then-pass", "field": "fail_then_pass:integration", "value": 2, "confidence": "medium"}]
+    }
+  },
+  {
+    "id": "CI-03-04",
+    "title": "two flaky jobs give two findings with separate identities; 6 or more is high confidence",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "fail_then_pass:unit": 6, "fail_then_pass:e2e": 2}}},
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {"identity": "job:e2e:fail-then-pass", "field": "fail_then_pass:e2e", "value": 2, "confidence": "medium"},
+        {"identity": "job:unit:fail-then-pass", "field": "fail_then_pass:unit", "value": 6, "confidence": "high"}
+      ]
+    }
+  },
+  {
+    "id": "CI-03-05",
+    "title": "missing evidence: only 2 runs recorded, below min_runs (5), nothing evaluated",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 2, "fail_then_pass:unit": 5}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["too few runs"]}
+  },
+  {
+    "id": "CI-03-06",
+    "title": "unsupported input: invalid threshold setting makes the check unavailable",
+    "files": {},
+    "context": {"min_flaky_occurrences": 0},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "fail_then_pass:unit": 5}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["context.min_flaky_occurrences"]}
+  },
+  {
+    "id": "CI-03-07",
+    "title": "malformed input: a fail_then_pass count that is not an integer, not evaluated",
+    "files": {},
+    "artifacts": {"github-actions": {".github/workflows/ci.yml": {
+      "profiler": "github-actions", "workflow_path": ".github/workflows/ci.yml",
+      "runs_total": 40, "fail_then_pass:unit": "often"}}},
+    "expect": {"status": "unavailable", "evaluated": [], "findings": [], "limitations_contain": ["malformed"]}
+  }
+]

@@ -21,6 +21,17 @@
     "challenge": "A commit that fails twice because of a still-broken external service is counted as blind rechecking.",
     "history": true
   },
+  "CI-03": {
+    "issue": 19,
+    "formats": "Same normalized GitHub Actions history artifact as CI-01.",
+    "evidence": "Scope `file:<workflow path>`. One cited field per job: `fail_then_pass:<job name>` (number of commits where an earlier attempt of that job failed and a later attempt of the same job, same matrix leg, passed).",
+    "rule": "One finding per job with count `>= min_flaky_occurrences`, when `runs_total >= min_runs`. A job counts once per run when an attempt failed and a later attempt RE-EXECUTED the same job and it passed (a success carried over from an earlier attempt is not a pass). Confidence medium; high at 3x the threshold or more. Matrix legs are separate jobs (the leg is part of the job name); a pass in a different leg is not recovery. Job-level only: test-level flakiness needs test reports and is not claimed.",
+    "identity": "`job:<job name>:fail-then-pass`.",
+    "context": "`min_flaky_occurrences` (default 2), `min_runs` (default 5).",
+    "unsupported": "Test-level results, infrastructure-vs-code failure classification, cross-run variance on the same commit.",
+    "challenge": "A job that fails then passes because of a transient network error (not a flaky test) is reported as flaky.",
+    "history": true
+  },
   "CI-06": {
     "issue": 21,
     "formats": "GitHub Actions workflow files `.github/workflows/*.yml|yaml` (parsed with PyYAML, never executed).",
