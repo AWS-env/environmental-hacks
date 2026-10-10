@@ -23,6 +23,7 @@ const network={
 };
 const orm={
   'DB-13':require('../checks/db-13'),
+  'DB-14':require('../checks/db-14'),
   'DB-23':require('../checks/db-23'),
   'DB-39':require('../checks/db-39'),
 };
