@@ -1,0 +1,249 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Owner A detectors (skeleton): a static-scan Lambda, a client-artifact path (private S3 bucket, regional
+  presign Lambda, profile-parser Lambda) and a DLQ with an alarm. Results are published to the existing
+  findings-hub bus as detector.result.v1 for the owner-d writer.
+
+Metadata:
+  com.aws.cloudformation.Context:
+    arch: >-
+      contract v1 input -> owner-a-static-scan -> PutEvents findings-hub;
+      client CI -> owner-a-presign (regional SigV4 PUT url) -> S3 artifacts/ (parser Lambda arrives with the first artifact check);
+      async failures -> owner-a-dlq (+ alarm)
+    must:
+      - "all resources prefixed owner-a- and tagged owner=A (docs/aws_service_mapping_v1.6.md guardrails)"
+      - "ap-south-1 only (project selected Region); no cross-Region calls"
+      - "findings-hub bus already exists (created outside CloudFormation); this stack references it by name"
+      - "we never execute client code: the scan parses source text, the parser only reads and hashes bytes"
+      - "private S3 (block public access, SSE, TLS-only, 7-day lifecycle); 7-day log retention; arm64 Lambdas; DLQ with alarm"
+
+Parameters:
+  CodeBucket:
+    Type: String
+    Description: S3 bucket holding the zip built by scripts/build-owner-a-lambda.sh.
+  CodeKey:
+    Type: String
+    Description: S3 key of the owner-a-static-scan-<sha>.zip (content-hashed so changes redeploy).
+  FindingsBusName:
+    Type: String
+    Default: findings-hub
+  LogRetentionDays:
+    Type: Number
+    Default: 7
+    AllowedValues: [1, 3, 5, 7, 14, 30]
+
+Resources:
+  Dlq:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: owner-a-dlq
+      SqsManagedSseEnabled: true
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - { Key: owner, Value: A }
+        - { Key: project, Value: environmental-hacks }
+
+  DlqNotEmptyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: owner-a-dlq-not-empty
+      AlarmDescription: An owner-a invocation failed after retries; inspect owner-a-dlq and the function logs.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - { Name: QueueName, Value: !GetAtt Dlq.QueueName }
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      Tags:
+        - { Key: owner, Value: A }
+        - { Key: project, Value: environmental-hacks }
+
+  ArtifactsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Sub "owner-a-artifacts-${AWS::AccountId}-${AWS::Region}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault: { SSEAlgorithm: AES256 }
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      LifecycleConfiguration:
+        Rules:
+          - Id: expire-artifacts
+            Status: Enabled
+            Prefix: artifacts/
+            ExpirationInDays: 7
+            AbortIncompleteMultipartUpload: { DaysAfterInitiation: 1 }
+      Tags:
+        - { Key: owner, Value: A }
+        - { Key: project, Value: environmental-hacks }
+
+  ArtifactsBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ArtifactsBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: "*"
+            Action: "s3:*"
+            Resource:
+              - !GetAtt ArtifactsBucket.Arn
+              - !Sub "${ArtifactsBucket.Arn}/*"
+            Condition:
+              Bool: { "aws:SecureTransport": "false" }
+
+  StaticScanLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-a-static-scan
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: A }
+  PresignLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: /aws/lambda/owner-a-presign
+      RetentionInDays: !Ref LogRetentionDays
+      Tags:
+        - { Key: owner, Value: A }
+
+  StaticScanRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: owner-a-static-scan-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - { Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: "sts:AssumeRole" }
+      Policies:
+        - PolicyName: owner-a-static-scan
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ["logs:CreateLogStream", "logs:PutLogEvents"]
+                Resource: !Sub "${StaticScanLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: ["events:PutEvents"]
+                Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
+              - Effect: Allow
+                Action: ["events:DescribeEventBus"]
+                Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
+              - Effect: Allow
+                Action: ["sqs:SendMessage"]
+                Resource: !GetAtt Dlq.Arn
+      Tags:
+        - { Key: owner, Value: A }
+
+  PresignRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: owner-a-presign-role
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - { Effect: Allow, Principal: { Service: lambda.amazonaws.com }, Action: "sts:AssumeRole" }
+      Policies:
+        - PolicyName: owner-a-presign
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ["logs:CreateLogStream", "logs:PutLogEvents"]
+                Resource: !Sub "${PresignLogGroup.Arn}:*"
+              - Effect: Allow
+                Action: ["s3:PutObject"]
+                Resource: !Sub "arn:${AWS::Partition}:s3:::owner-a-artifacts-${AWS::AccountId}-${AWS::Region}/artifacts/*"
+      Tags:
+        - { Key: owner, Value: A }
+
+  StaticScan:
+    Type: AWS::Lambda::Function
+    DependsOn: StaticScanLogGroup
+    Properties:
+      FunctionName: owner-a-static-scan
+      Description: Contract v1 static scan (tree-sitter, Python sources). Parses text only; publishes detector.result.v1.
+      Runtime: nodejs22.x
+      Architectures: [arm64]
+      Handler: dist/aws/handler.handler
+      Role: !GetAtt StaticScanRole.Arn
+      MemorySize: 512
+      Timeout: 60
+      Code:
+        S3Bucket: !Ref CodeBucket
+        S3Key: !Ref CodeKey
+      DeadLetterConfig:
+        TargetArn: !GetAtt Dlq.Arn
+      Environment:
+        Variables:
+          FINDINGS_BUS_NAME: !Ref FindingsBusName
+          PUBLISH_RESULTS: "true"
+      Tags:
+        - { Key: owner, Value: A }
+        - { Key: project, Value: environmental-hacks }
+
+  Presign:
+    Type: AWS::Lambda::Function
+    DependsOn: PresignLogGroup
+    Properties:
+      FunctionName: owner-a-presign
+      Description: Returns a regional SigV4 presigned PUT url for artifacts/<repo>/<scan>/<sha>/<name> (15 min max). The url is a credential.
+      Runtime: python3.13
+      Architectures: [arm64]
+      Handler: index.handler
+      Role: !GetAtt PresignRole.Arn
+      MemorySize: 128
+      Timeout: 10
+      Environment:
+        Variables:
+          ARTIFACT_BUCKET: !Sub "owner-a-artifacts-${AWS::AccountId}-${AWS::Region}"
+      Code:
+        ZipFile: |
+          import os, re, urllib.parse
+          import boto3
+          from botocore.config import Config
+
+          # Regional virtual-hosted endpoint: the default client can sign the global host and a PUT then gets a 307.
+          _s3 = boto3.client("s3", region_name=os.environ["AWS_REGION"],
+                             config=Config(signature_version="s3v4", s3={"addressing_style": "virtual"}))
+          MAX_EXPIRES = 900
+
+          def handler(event, context):
+              repo, scan, sha, name = (event.get(k) for k in ("repository_id", "scan_id", "commit_sha", "name"))
+              if not all(isinstance(v, str) and v for v in (repo, scan, sha, name)):
+                  raise ValueError("repository_id, scan_id, commit_sha and name are required strings")
+              if not re.fullmatch(r"[0-9a-f]{40}", sha):
+                  raise ValueError("commit_sha must be a full lowercase 40-hex sha")
+              for part in (scan, name):
+                  if "/" in part or part in (".", ".."):
+                      raise ValueError("scan_id and name must not contain '/'")
+              expires = min(int(event.get("expires_in", MAX_EXPIRES)), MAX_EXPIRES)
+              key = "artifacts/%s/%s/%s/%s" % (urllib.parse.quote(repo, safe=""), scan, sha, name)
+              url = _s3.generate_presigned_url("put_object",
+                  Params={"Bucket": os.environ["ARTIFACT_BUCKET"], "Key": key}, ExpiresIn=expires)
+              # The url is a bearer credential: never log it.
+              return {"key": key, "expires_in": expires, "url": url}
+      Tags:
+        - { Key: owner, Value: A }
+        - { Key: project, Value: environmental-hacks }
+
+Outputs:
+  StaticScanFunction: { Value: !Ref StaticScan }
+  PresignFunction: { Value: !Ref Presign }
+  ArtifactsBucketName: { Value: !Ref ArtifactsBucket }
+  DlqUrl: { Value: !Ref Dlq }

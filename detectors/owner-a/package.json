@@ -17,6 +17,8 @@
     "tree-sitter-python": "^0.25.0"
   },
   "devDependencies": {
+    "@aws-sdk/client-eventbridge": "^3.1149.0",
+    "@aws-sdk/client-s3": "^3.1149.0",
     "@types/node": "^22.13.0",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"

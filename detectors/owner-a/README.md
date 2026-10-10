@@ -67,3 +67,20 @@ cd detectors/owner-a
 npm install
 npm test
 ```
+
+## AWS deployment (ap-south-1)
+
+`src/aws/handler.ts` is the Lambda entry point (`owner-a-static-scan`, Node 22, arm64): it takes a contract v1 `input` (or `{ "input": ..., "dry_run": true }`),
+runs `evaluate`, and publishes the result to the `findings-hub` bus as `detector.result.v1` (it describes the bus first and fails the invocation on any publish problem).
+The template is `cdk/owner-a/owner-a-detectors.yaml` (names `owner-a-*`, tag `owner=A`, private S3, 7-day logs, DLQ with an alarm).
+
+```bash
+./scripts/build-owner-a-lambda.sh      # prints cdk/owner-a/build/owner-a-static-scan-<sha>.zip (linux-arm64 tree-sitter prebuilds)
+aws s3 cp <zip> s3://owner-a-deploy-<account>-ap-south-1/
+aws cloudformation deploy --stack-name owner-a-detectors --template-file cdk/owner-a/owner-a-detectors.yaml \
+  --capabilities CAPABILITY_NAMED_IAM --tags owner=A project=environmental-hacks \
+  --parameter-overrides CodeBucket=owner-a-deploy-<account>-ap-south-1 CodeKey=<zip name>
+```
+
+Inline `detector.result.v1` events are stored by the owner-d writer with evidence level `unverified` (no input travels with the event); pointer events
+(`DetectorResultPointer.v1`) need the results bucket on the writer's allow-list.
