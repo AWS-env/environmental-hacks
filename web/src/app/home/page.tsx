@@ -4,10 +4,13 @@ import React, { useState } from "react";
 import { Bell, ChevronDown } from "lucide-react";
 import LiquidGlassInput from "@/components/LiquidGlassInput";
 import ParticleTerrain from "@/components/ParticleTerrain";
+import ScanPipeline from "@/components/ScanPipeline";
 
 export default function HomePage() {
   const [repoUrl, setRepoUrl] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [scanStep, setScanStep] = useState(-1);
+  const [previewRepository, setPreviewRepository] = useState("");
 
   const sampleRepos = [
     { name: "vercel/next.js", url: "https://github.com/vercel/next.js" },
@@ -17,17 +20,16 @@ export default function HomePage() {
   ];
 
   const startAnalysis = (urlToAnalyze?: string) => {
-    const target = urlToAnalyze || repoUrl;
-    if (!target) return;
+    const target = (urlToAnalyze || repoUrl).trim();
+    if (!target || isAnalyzing) return;
+    setPreviewRepository(target);
+    setScanStep(-1);
     setIsAnalyzing(true);
-    setTimeout(() => {
-      setIsAnalyzing(false);
-    }, 3300);
   };
 
   return (
     <>
-    <ParticleTerrain />
+    <ParticleTerrain analyzing={isAnalyzing} onStageChange={setScanStep} />
     <div className="relative z-10 h-screen max-h-screen overflow-y-auto flex flex-col py-4 px-4 md:px-8 text-white">
       {/* Top Header Bar */}
       <header className="flex items-center justify-between pb-2 shrink-0 border-b border-white/[0.04]">
@@ -60,7 +62,7 @@ export default function HomePage() {
       </header>
 
       {/* Main Content Area strictly budgeted vertically */}
-      <main className="home-hero flex-1">
+      <main className={`home-hero flex-1 ${isAnalyzing ? "is-departing" : ""}`} aria-hidden={isAnalyzing} inert={isAnalyzing}>
         {/* Hero Title & Subtitle */}
         <div className="home-copy text-center">
           <h1 className="hero-title font-medium tracking-tight text-white">
@@ -87,6 +89,7 @@ export default function HomePage() {
 
         <div aria-hidden="true" />
       </main>
+      {isAnalyzing && <ScanPipeline step={scanStep} repository={previewRepository} onBack={() => setIsAnalyzing(false)} />}
     </div>
     </>
   );
