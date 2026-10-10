@@ -94,6 +94,7 @@ A pair that fails is refused: it is not published and is listed under
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
+| `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12 (artifact mode) |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
 (plain CloudFormation). Build: `scripts/build-owner-d-telemetry.sh`. The zip
@@ -102,6 +103,36 @@ jsonschema with its dependencies as python3.12 arm64 wheels. They are pure
 Python except `rpds-py`, a compiled manylinux wheel. boto3 comes from the
 runtime. If `shared.contracts` cannot be imported, an analyzer fails before it
 reads anything; it never publishes unvalidated results.
+
+### Artifact route
+
+Client CI uploads files through the presign endpoint in [`hub/`](../../hub/README.md#artifact-upload-endpoint).
+Each upload lands at `uploads/<github:owner/repo>/<sha>/<run_id>-<attempt>/<name>` in
+`owner-d-artifacts-<account>-ap-south-1`. The endpoint built that key from verified GitHub OIDC claims, so
+the parser takes the repository, commit and scan ID (`gha-<run_id>-<attempt>`) from the key.
+
+The EventBridge rule `owner-d-artifact-uploaded` on the default bus matches S3 `Object Created` events under
+`uploads/` and invokes `owner-d-artifact-parser` ([`cdk/owner-d/artifact-parser.yaml`](../../cdk/owner-d/artifact-parser.yaml),
+same zip as the telemetry analyzers). The parser reads at most 5 MiB with a ranged GET and parses the file
+as JSON. It never executes it. The file name picks the check:
+
+| Name | Check | Content |
+| --- | --- | --- |
+| `tst-12.json` | TST-12 artifact mode | `{"framework": "pytest", "settings": {...optional TST-12 maxima}, "tests": [{"test_id", "duration_seconds", "sleep_seconds", "network_call_count", "fixture_bytes", "setup_seconds"}]}` |
+
+Each test becomes one `test:<test_id>` scope item. The reference settings apply unless `settings` overrides
+them. Results go through `validate_pair` and are published to `findings-hub` with source
+`owner-d.artifact-parser`.
+
+- Other names are logged as `ignored`.
+- An unusable artifact is logged as `refused` and publishes nothing. That covers an empty file, one over
+  5 MiB, a file that isn't JSON, or one with no usable tests. The invocation still succeeds, so a bad
+  upload never fills the DLQ.
+- AWS errors (`GetObject`, `PutEvents`) fail the invocation. Lambda retries twice, then the event goes to
+  `owner-d-artifact-parser-dlq` and the `owner-d-artifact-parser-dlq-not-empty` alarm fires.
+
+To replay an upload, invoke the function directly with
+`{"bucket": "owner-d-artifacts-<account>-ap-south-1", "key": "uploads/...", "dry_run": true}`.
 
 ### Event formats
 

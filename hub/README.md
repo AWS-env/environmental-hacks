@@ -161,6 +161,8 @@ Client CI uploads artifacts such as profiler output, test timings, coverage and 
 4. The job uploads each file directly to the private `owner-d-artifacts-<account>-ap-south-1` bucket. Uploads
    are kept for `ArtifactRetentionDays` (default 90). S3 sends `Object Created` events to the default
    EventBridge bus, so a parser subscribes with its own rule on `detail.bucket.name`.
+   Owner D's `owner-d-artifact-parser` already does this for `tst-12.json`; see
+   [the artifact route](../detectors/owner-d/README.md#artifact-route).
 
 ```yaml
 # client workflow
