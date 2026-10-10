@@ -17,8 +17,9 @@ Every test becomes one `test:<test_id>` scope item with one `artifact` source (T
 chunked, evaluated, checked with shared.contracts validate_pair and published as detector.result.v1 events, like
 the telemetry analyzers (common.py). Names with no route are ignored. An artifact that cannot be used (too
 large, not JSON, wrong shape) is refused: logged, nothing published, and the invocation still succeeds, so a
-client's bad upload never lands in the DLQ. AWS failures (GetObject, PutEvents) raise, so EventBridge retries
-and then sends the event to the DLQ.
+client's bad upload never lands in the DLQ. For the same reason a result too large for one event is re-split
+into smaller chunks, and a one-item result that is still too large is refused and reported (evaluate). AWS
+failures (GetObject, PutEvents) raise, so EventBridge retries and then sends the event to the DLQ.
 
 Direct invoke for replays: {"bucket": "...", "key": "uploads/...", "dry_run": true}.
 """
@@ -35,6 +36,7 @@ ANALYZER = "owner-d-artifact-parser"
 SOURCE = "owner-d.artifact-parser"
 MAX_OBJECT_BYTES = 5 * 1024 * 1024
 MAX_TESTS = 2000
+MAX_NOTES_BYTES = 20_000  # artifact notes, which every result repeats in coverage.limitations
 KEY = re.compile(r"uploads/(?P<repo>[^/]+)/(?P<sha>[0-9a-f]{40})/(?P<run>[0-9]{1,20})-(?P<attempt>[0-9]{1,20})/"
                  r"(?P<name>[A-Za-z0-9][A-Za-z0-9._-]{0,99})")
 REPOSITORY_ID = re.compile(r"github:[A-Za-z0-9-]{1,39}/[A-Za-z0-9._-]{1,100}")
@@ -180,20 +182,62 @@ ROUTES["llm-19.json"] = llm19_inputs
 
 # ---- handler -----------------------------------------------------------------------------------
 
+def bounded_notes(notes, budget=None):
+    """The artifact notes that fit `budget` UTF-8 bytes, plus one line counting the rest. Every result repeats
+    them in coverage.limitations, so unbounded notes could push even a one-item result past the event limit."""
+    budget = MAX_NOTES_BYTES if budget is None else budget
+    kept, used = [], 0
+    for index, note in enumerate(notes):
+        used += len(note.encode("utf-8"))
+        if used > budget:
+            return kept + [f"{len(notes) - index} more artifact note(s) omitted to keep each result within the "
+                           f"{common.MAX_DETAIL_BYTES}-byte event limit"]
+        kept.append(note)
+    return kept
+
+
+def _halves(payload):
+    """`payload` split into two contract inputs, each with half of its scope and those items' sources."""
+    middle = len(payload["scope"]) // 2
+    halves = []
+    for part in (payload["scope"][:middle], payload["scope"][middle:]):
+        wanted = set(part)
+        halves.append(payload | {"scope": part,
+                                 "sources": [s for s in payload["sources"] if s.get("scope_id") in wanted]})
+    return halves
+
+
 def evaluate(identity, data, *, chunk=common.DEFAULT_SCOPE_PER_PAYLOAD):
-    """Contract results for one artifact plus refused/errors lists (same rules as common.run_analyzer)."""
+    """Contract results for one artifact plus refused/errors lists (same rules as common.run_analyzer).
+
+    A result too large for one EventBridge entry is never published (publishing would raise and DLQ the
+    upload): its chunk is halved and re-evaluated, down to one scope item, and a one-item result that is
+    still too large is refused and reported."""
     module, context, scope, sources, notes = ROUTES[identity["name"]](data, identity)
     if not scope:
         raise Refused("no usable tests in the artifact: " + "; ".join(notes[:5]))
+    notes = bounded_notes(notes)
     validate_pair = common._validator()
     results, refused, errors = [], [], []
-    for payload in common.build_inputs(repository_id=identity["repository_id"], commit_sha=identity["commit_sha"],
+    pending = list(common.build_inputs(repository_id=identity["repository_id"], commit_sha=identity["commit_sha"],
                                        scan_id=identity["scan_id"], module=module, context=context, scope=scope,
-                                       sources=sources, chunk=chunk):
+                                       sources=sources, chunk=chunk))
+    pending.reverse()  # a stack, so results stay in upload order
+    while pending:
+        payload = pending.pop()
         try:
             result = common.add_limitations(module.evaluate(payload), notes)
         except Exception as exc:  # detector failure: never publish, report it
             errors.append({"check_id": module.CHECK_ID, "error": f"{type(exc).__name__}: {exc}"})
+            continue
+        if not common.fits_one_event(result):
+            if len(payload["scope"]) > 1:
+                pending.extend(reversed(_halves(payload)))
+                continue
+            refused.append({"check_id": module.CHECK_ID, "scope": 1, "status": result.get("status"),
+                            "error": (f"result is too large for one event (more than {common.MAX_DETAIL_BYTES} "
+                                      f"bytes) even for one scope item; not published: "
+                                      f"{payload['scope'][0]}")[:common.MAX_ERROR_CHARS]})
             continue
         try:
             validate_pair(payload, result)

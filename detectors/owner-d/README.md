@@ -131,6 +131,11 @@ Each test becomes one `test:<test_id>` scope item; each OBS-19 profile becomes `
 - An unusable artifact is logged as `refused` and publishes nothing. That covers an empty file, one over
   5 MiB, a file that isn't JSON, or one with no usable tests. The invocation still succeeds, so a bad
   upload never fills the DLQ.
+- A result too large for one EventBridge entry (240,000 bytes, e.g. 50 flagged tests with 500-character
+  ids) is not published as-is. Its chunk is halved and re-evaluated, down to one scope item. A one-item
+  result that is still too large is reported under `refused` and the rest is published. Artifact notes
+  (duplicate or unusable entries) go into every result's limitations, so they are capped at 20,000 bytes
+  plus one line counting what was left out.
 - AWS errors (`GetObject`, `PutEvents`) fail the invocation. Lambda retries twice, then the event goes to
   `owner-d-artifact-parser-dlq` and the `owner-d-artifact-parser-dlq-not-empty` alarm fires.
 
