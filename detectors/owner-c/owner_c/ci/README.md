@@ -93,6 +93,7 @@ rules rely on were measured in a controlled lab, because the docs do not state t
 that was not re-executed keeps the earlier attempt's timestamps (`started_at < created_at`); `action_required` is the
 first-time-contributor approval gate and `cancelled` is a cancellation (neither is a failure).
 
+- **CI-01** `max_rechecks_per_sha >= min_rechecks` (2): a pull request commit was re-run several times after FAILED attempts. Approval-gated (`action_required`) and cancelled attempts are not rechecks. Also `reran_passing_jobs >= min_reran_passing_jobs` (5): passing jobs executed again after a failure (CI-04, absorbed into CI-01 by the taxonomy).
 
 CI-01, CI-02 and CI-05 follow the repeated-build ("recheck") study SRC-14 (arXiv 2308.10078).
 
