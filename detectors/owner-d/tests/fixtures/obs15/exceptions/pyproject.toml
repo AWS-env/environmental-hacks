@@ -1,0 +1,18 @@
+# Synthetic fixture (OBS15-03): OTel API bridge, extras and dev groups are not counted.
+[project]
+name = "exceptions"
+version = "1.0.0"
+keywords = ["newrelic", "elastic-apm"]
+dependencies = [
+    "ddtrace>=2.9",
+    "opentelemetry-api>=1.25",
+]
+
+[project.optional-dependencies]
+newrelic = ["newrelic>=9"]
+
+[dependency-groups]
+dev = ["elastic-apm>=6"]
+
+[tool.uv]
+dev-dependencies = ["aws-xray-sdk>=2"]

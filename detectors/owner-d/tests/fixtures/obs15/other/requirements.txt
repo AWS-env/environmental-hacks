@@ -1,0 +1,2 @@
+# Synthetic fixture (OBS15-02): a different service with a different tracer.
+newrelic==9.11.0

@@ -1,0 +1,8 @@
+{
+  "//": "noqa: OBS-15 (dd-trace stays until the OpenTelemetry migration ends)",
+  "name": "exceptions",
+  "dependencies": {
+    "dd-trace": "^5.17.0",
+    "@opentelemetry/sdk-node": "^0.52.0"
+  }
+}
