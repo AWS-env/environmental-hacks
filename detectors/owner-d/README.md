@@ -3014,3 +3014,67 @@ tests are redundant.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/tst02/tst02-01-positive-input.json
 ```
+
+## TST-08 — Sensitive Equality
+
+Flags equality assertions that check an object through its `str()`/`repr()`
+text, following tsDetect's Sensitive Equality ("test methods verify objects by
+invoking the default toString() method of the object and comparing the output
+against an specific string"; [tsDetect](https://testsmells.org/pages/testsmells.html),
+after van Deursen et al., XP 2001), with Python's `str()`/`repr()` in place of
+`toString()`. PyNose does not implement this smell. The check is static (`ast`
+only), uses the same input, test recognition and per-file "nothing to flag"
+note as TST-06, and needs no context settings.
+
+### Detection rule
+
+An `==`/`!=` assertion or an `assertEqual`/`assertNotEqual`-style method
+(`assertEquals`, `assertMultiLineEqual`, `failUnlessEqual`, ...) in a test is
+flagged when an operand is `str(x)`, `repr(x)`, `x.__str__()` or
+`x.__repr__()` and either:
+
+- the other operand is literal expected text: a string literal, an f-string,
+  `"..." + x` / `"..." % x`, or a local name bound once in the test to one of
+  those (`expected = "<Cart: 2 items>"`); or
+- the other operand is also a representation (`repr(a) == repr(b)`), which
+  compares two objects by their text instead of by equality.
+
+tsDetect counts `toString` anywhere in an assertion's arguments, including the
+failure message. This rule is narrower. These are not flagged:
+
+- tests whose qualified name, module or directory has a word about the text
+  itself: `str`, `repr`, `string*`, `text`, `unicode`, `representation*`,
+  `display`, `print*`, `pprint`, `render*`, `format*`, `serializ*`, `dump*`,
+  `pretty`, `message*`, `descri*` (`test_repr`, `TestStr`, `test_repr.py`,
+  `tests/str/`). Words are matched whole, so `test_stream` is not exempt;
+- exception and warning messages: `str(cm.exception)`, `str(excinfo.value)`,
+  names bound by `except ... as` or by `with ...raises/warns/catch_warnings(...)
+  as`, and exception-like names (`err`, `exc_value`, `last_error`,
+  `recwarn[0].message`);
+- `str()` compared with a non-literal value (`state == str(expected)`), which
+  usually converts an expected value for an actual value that is already text;
+- `str()` of a literal or of `len`/`int`/`round`/... (a number), `str(b, enc)`
+  decoding, and representations used only as a failure message;
+- `in`/`assertIn`/`assertRegex` checks, which tolerate formatting changes, and
+  chained comparisons;
+- `# noqa: TST-08`.
+
+Confidence:
+
+- `medium`: `repr()`/`__repr__()` text against literal text, or two compared
+  representations. `repr` is a debugging aid, so a test that is not about it
+  depends on incidental formatting;
+- `low`: `str()` against literal text. For URLs, paths and rich text the string
+  form is often the intended API.
+
+The identity is `<qualified test>:<assertion callee>`, with `#n` for repeats.
+No measurements are emitted. The taxonomy's energy association (Kendall tau
+0.177, SRC-15) comes from JUnit/Maven projects and is not shown to transfer to
+Python.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/tst08/tst08-01-positive-input.json
+```
