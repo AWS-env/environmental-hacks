@@ -136,6 +136,55 @@ describe("CODE-C1.3 Redundant control flow detector", () => {
     });
   });
 
+  describe("String literals with escape sequences (audit F1)", () => {
+    // tree-sitter gives a string with escapes `string_content` children that are only the escapes,
+    // so the plain text between them must still take part in the comparison.
+    const arms = (a: string, b: string) => `def f(x):\n    if x:\n        print(${a})\n    else:\n        print(${b})\n`;
+
+    it("arms that differ only in text next to an escape are not identical", () => {
+      expect(run(arms(String.raw`"a\n"`, String.raw`"b\n"`))).toEqual([]);
+    });
+
+    it("the rich traceback shape (long messages, only escapes in common) is not identical", () => {
+      const src = String.raw`def f(stack, last):
+    if not last:
+        if stack.is_cause:
+            yield Text.from_markup(
+                "\n[i]The above exception was the direct cause of the following exception:\n",
+            )
+        else:
+            yield Text.from_markup(
+                "\n[i]During handling of the above exception, another exception occurred:\n",
+            )
+`;
+      expect(run(src)).toEqual([]);
+    });
+
+    it("a ternary whose two values differ only around an escape is not identical", () => {
+      expect(run(String.raw`def f(x):
+    return "a\n" if x else "b\n"
+`)).toEqual([]);
+    });
+
+    it("f-strings with escapes compare their literal text too", () => {
+      expect(run(String.raw`def f(x, n):
+    if x:
+        print(f"a\n{n}")
+    else:
+        print(f"b\n{n}")
+`)).toEqual([]);
+    });
+
+    it("arms with the same escaped string are still identical", () => {
+      const f = run(arms(String.raw`"a\n"`, String.raw`"a\n"`));
+      expect(f.map((x) => x.kind)).toEqual(["identical-branches"]);
+    });
+
+    it("arms with the same text and different quoting of an escape-free string stay unflagged", () => {
+      expect(run(arms(`"a"`, `"b"`))).toEqual([]);
+    });
+  });
+
   describe("Robustness (C13-09)", () => {
     it("returns zero findings on invalid Python syntax", () => {
       const content = readFileSync(join(FIXTURES_DIR, "syntax_error.py"), "utf-8");
