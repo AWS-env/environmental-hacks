@@ -1,0 +1,21 @@
+# Synthetic fixture for OBS-10: edge relay in a ConfigMap that forwards all logs to the gateway.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: edge-relay
+data:
+  relay.yaml: |
+    receivers:
+      fluentforward:
+        endpoint: 0.0.0.0:8006
+    processors:
+      batch:
+    exporters:
+      otlp:
+        endpoint: http://otel-gateway:4317
+    service:
+      pipelines:
+        logs:
+          receivers: [fluentforward]
+          processors: [batch]
+          exporters: [otlp]

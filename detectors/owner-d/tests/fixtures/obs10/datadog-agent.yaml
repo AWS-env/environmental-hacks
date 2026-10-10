@@ -1,0 +1,16 @@
+# Synthetic fixture for OBS-10: Datadog Agent DaemonSet that drops debug logs at the source.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: datadog-agent
+spec:
+  template:
+    spec:
+      containers:
+        - name: agent
+          image: gcr.io/datadoghq/agent:7
+          env:
+            - name: DD_LOGS_ENABLED
+              value: "true"
+            - name: DD_LOGS_CONFIG_PROCESSING_RULES
+              value: '[{"type": "exclude_at_match", "name": "drop_debug", "pattern": "level=debug"}]'

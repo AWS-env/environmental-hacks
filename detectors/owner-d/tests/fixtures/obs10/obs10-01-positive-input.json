@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-obs10-001",
+  "commit_sha": "dddddddddddddddddddddddddddddddddddddddd",
+  "check_id": "OBS-10",
+  "detector_version": "1.0.0",
+  "context": {
+    "format": "otel-config+terraform"
+  },
+  "scope": [
+    "file:agent.yaml",
+    "file:gateway.yaml",
+    "file:relay-configmap.yaml",
+    "file:index.tf"
+  ],
+  "sources": [
+    {
+      "source_id": "src:agent.yaml",
+      "scope_id": "file:agent.yaml",
+      "kind": "static",
+      "locator": "agent.yaml",
+      "content": "# Synthetic fixture for OBS-10: node agent that forwards everything to the gateway.\napiVersion: opentelemetry.io/v1beta1\nkind: OpenTelemetryCollector\nmetadata:\n  name: node-agent\nspec:\n  mode: daemonset\n  config:\n    receivers:\n      otlp:\n        protocols:\n          grpc:\n      filelog:\n        include: [/var/log/pods/*/*/*.log]\n      hostmetrics:\n        scrapers:\n          cpu:\n    processors:\n      memory_limiter:\n        check_interval: 1s\n        limit_percentage: 80\n      batch:\n      filter/host:\n        metrics:\n          metric:\n            - 'name == \"system.cpu.time\"'\n    exporters:\n      otlp/gateway:\n        endpoint: otel-gateway-collector.observability.svc.cluster.local:4317\n      debug:\n    service:\n      pipelines:\n        logs:\n          receivers: [filelog, otlp]\n          processors: [memory_limiter, batch]\n          exporters: [otlp/gateway]\n        traces:\n          receivers: [otlp]\n          processors: [memory_limiter, batch]\n          exporters: [otlp/gateway, debug]\n        metrics:\n          receivers: [hostmetrics]\n          processors: [memory_limiter, filter/host, batch]\n          exporters: [otlp/gateway]\n"
+    },
+    {
+      "source_id": "src:gateway.yaml",
+      "scope_id": "file:gateway.yaml",
+      "kind": "static",
+      "locator": "gateway.yaml",
+      "content": "# Synthetic fixture for OBS-10: gateway that drops debug logs and health-check spans.\napiVersion: opentelemetry.io/v1beta1\nkind: OpenTelemetryCollector\nmetadata:\n  name: otel-gateway\n  namespace: observability\nspec:\n  mode: deployment\n  config:\n    receivers:\n      otlp:\n        protocols:\n          grpc:\n            endpoint: 0.0.0.0:4317\n    processors:\n      memory_limiter:\n        check_interval: 1s\n        limit_percentage: 80\n      k8sattributes:\n      batch:\n      filter/debug-logs:\n        error_mode: ignore\n        logs:\n          log_record:\n            - 'severity_number < SEVERITY_NUMBER_INFO'\n      filter/health:\n        error_mode: ignore\n        traces:\n          span:\n            - 'attributes[\"url.path\"] == \"/healthz\"'\n    exporters:\n      otlphttp/backend:\n        endpoint: https://otlp.vendor.example.com\n      debug:\n    service:\n      pipelines:\n        logs:\n          receivers: [otlp]\n          processors: [memory_limiter, k8sattributes, filter/debug-logs, batch]\n          exporters: [otlphttp/backend]\n        logs/debug:\n          receivers: [otlp]\n          processors: []\n          exporters: [debug]\n        traces:\n          receivers: [otlp]\n          processors: [memory_limiter, filter/health, batch]\n          exporters: [otlphttp/backend]\n        metrics:\n          receivers: [otlp]\n          processors: [memory_limiter, batch]\n          exporters: [otlphttp/backend]\n"
+    },
+    {
+      "source_id": "src:relay-configmap.yaml",
+      "scope_id": "file:relay-configmap.yaml",
+      "kind": "static",
+      "locator": "relay-configmap.yaml",
+      "content": "# Synthetic fixture for OBS-10: edge relay in a ConfigMap that forwards all logs to the gateway.\napiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: edge-relay\ndata:\n  relay.yaml: |\n    receivers:\n      fluentforward:\n        endpoint: 0.0.0.0:8006\n    processors:\n      batch:\n    exporters:\n      otlp:\n        endpoint: http://otel-gateway:4317\n    service:\n      pipelines:\n        logs:\n          receivers: [fluentforward]\n          processors: [batch]\n          exporters: [otlp]\n"
+    },
+    {
+      "source_id": "src:index.tf",
+      "scope_id": "file:index.tf",
+      "kind": "static",
+      "locator": "index.tf",
+      "content": "# Synthetic fixture for OBS-10: Datadog log index with exclusion filters.\nresource \"datadog_logs_index\" \"main\" {\n  name = \"main\"\n  filter {\n    query = \"*\"\n  }\n\n  exclusion_filter {\n    name       = \"drop-debug\"\n    is_enabled = true\n    filter {\n      query       = \"status:debug\"\n      sample_rate = 1.0\n    }\n  }\n\n  exclusion_filter {\n    name       = \"sample-info\"\n    is_enabled = true\n    filter {\n      query       = \"status:info service:web\"\n      sample_rate = 0.9\n    }\n  }\n\n  exclusion_filter {\n    name       = \"paused\"\n    is_enabled = false\n    filter {\n      query       = \"service:batch\"\n      sample_rate = 1.0\n    }\n  }\n\n  exclusion_filter {\n    name       = \"health-checks\"\n    is_enabled = true\n    filter { sample_rate = 1 }\n  }\n}\n\nresource \"datadog_logs_index\" \"audit\" {\n  name = \"audit\"\n  filter {\n    query = \"source:audit # not a comment\"\n  }\n  /* exclusion_filter {\n    is_enabled = true\n  } */\n  tags = {\n    team = \"obs\"\n  }\n}\n"
+    }
+  ]
+}

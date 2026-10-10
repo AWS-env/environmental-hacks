@@ -3624,3 +3624,120 @@ successor is offered in the project's Region.
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/inf07/inf07-01-positive-input.json
 ```
+
+## OBS-10 — Filtering after ingestion
+
+Flags telemetry that is shipped in full to a later stage which then drops part
+of it, while the earlier stage declares no filter. Dropping data after it has
+been sent or ingested does not save what was already paid for, such as
+serialization, network and ingest (vendor evidence SRC-18). OBS-10 is an OQ-8
+judgement row. Findings are candidates for reviewer confirmation, and the check
+is pending the OQ-8 decision on what counts as filtering after ingestion.
+
+The check is static. Collector configs are read with `owner_d/miniyaml.py` and
+the shared `owner_d/otelconfig.py`. Terraform is read with a small local HCL
+block reader in `obs10.py` that evaluates no expressions. Nothing is run,
+rendered, planned or resolved. The check proves "dropped downstream, nothing
+dropped upstream", not ingested volume, so no measurements are emitted.
+
+### Input
+
+A contract v1 `input` payload with one `static` source per `file:<path>` scope
+item. The payload is judged **as a whole**: gateways, Agent rules and archives
+are collected from every source first. Supported files:
+
+- **OpenTelemetry Collector** `.yaml`/`.yml` (also ADOT): a plain config, an
+  `OpenTelemetryCollector` resource or a `ConfigMap` `|` entry, as in OBS-09.
+- **Terraform** `.tf` with `datadog_logs_index`, `datadog_logs_archive` or
+  `datadog_logs_metric` resources.
+- **Any text file with a Datadog Agent `exclude_at_match` rule**, such as
+  `datadog.yaml`, `conf.d`, Kubernetes annotations or
+  `DD_LOGS_CONFIG_PROCESSING_RULES`. These files only supply source-side context
+  and never produce findings.
+
+No context settings are required.
+
+### Detection rule
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `[<label>]pipeline/<id>:exporter/<exporter>:filtered-downstream` | A `traces`/`metrics`/`logs` pipeline exports through an OTLP exporter to a gateway collector in the payload, and every pipeline of that gateway for the same signal that is fed by `otlp` and exports somewhere real drops data with a `filter` processor. The agent pipeline has no `filter`, `probabilistic_sampler` or `tail_sampling` processor, and none of its receivers has a stanza `filter` operator. | low |
+| `datadog_logs_index.<name>:exclusion_filter/<filter name or #n>` | An `exclusion_filter` has `is_enabled = true` and `filter { sample_rate = 1.0 }`. Excluded logs are still ingested and billed for ingestion; they are only not indexed. | medium; low when the payload declares a `datadog_logs_metric` (it can still use excluded logs) |
+
+The **gateway** is matched by the first DNS label of the exporter endpoint
+(`<signal>_endpoint`, else `endpoint`):
+
+- `OpenTelemetryCollector/<name>` is reachable as `<name>`, `<name>-collector`
+  and `<name>-collector-headless`, the operator Service names.
+- A ConfigMap name or a plain file stem is reachable as itself, with a
+  `-config`/`-conf`/`-configmap`/`-cm`/`-cfg` suffix stripped, and with
+  `-collector` appended.
+- For generic stems such as `config.yaml`, the parent directory name also
+  matches.
+
+When the gateway filter runs after `k8sattributes`, `resourcedetection`,
+`resource`, `attributes`, `transform` or `groupbyattrs`, the summary asks the
+reviewer to confirm that its conditions do not need attributes that only the
+gateway adds. Evidence is the agent pipeline block or the `exclusion_filter`
+block. The summary names the gateway file, the pipelines and the filters.
+
+Not flagged:
+
+- gateways that keep the full stream: another same-signal pipeline fed by
+  `otlp` with no `filter`, for example an audit, archive or SIEM pipeline.
+  Pipelines that export only to `debug`/`logging`/`nop` do not count.
+- gateways that cannot be judged: a filter that is undefined, empty
+  (`error_mode` only) or has unresolved `${...}` values; unresolved pipeline
+  lists; a pipeline that exports to a connector
+- endpoints that name no collector config in the payload, including vendor,
+  loopback and unresolved endpoints, and pipelines fed by connectors
+- Datadog exclusions with `sample_rate < 1` (OBS-08 downsampling), or with
+  `is_enabled = false`, missing or set by a variable
+- every Datadog exclusion when the payload declares an Agent `exclude_at_match`
+  rule (source-side filtering; queries are not matched, which is conservative)
+  or a `datadog_logs_archive` (excluded logs are still archived for audit). A
+  limitation names the file and the count of filters not flagged.
+- `# noqa` / `# noqa: OBS-10` on the pipeline key or `exclusion_filter` line,
+  or directly above it
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- broken YAML, unbalanced HCL blocks, brackets, heredocs or comments
+- YAML with `exporters:`/`pipelines:` but no collector config, and Helm values
+- context-only files when the payload has no collector config and no index
+  exclusion to judge
+- development/test files (the OBS-09 path tokens)
+
+Other files are out of scope (`Unsupported`), so the scan worker passes only
+these inputs to the check.
+
+### Limitations
+
+Not visible:
+
+- gateways in other repositories, or behind Services, ingresses or load
+  balancers with other names
+- whether an Agent rule covers the same logs as an index exclusion
+- Datadog index JSON/API exports, Observability Pipelines, Vector, Fluent Bit,
+  Fluentd and Splunk stages
+
+The collector signal is a network and serialization hop inside the
+customer's estate, so it is `low`. A gateway is also the documented place for
+some filtering, for example after enrichment.
+
+Out of scope for v1: CloudWatch Logs subscription filters with an empty
+`FilterPattern`. They prove forwarding, not a later drop. CloudWatch metric
+filters and Logs Insights queries are also out of scope: they read ingested
+data but do not show that the rest was unneeded.
+
+Kept distinct from OBS-08 (downsampling), OBS-09 (batching/compression), OBS-11
+(duplicate lines), OBS-13 (probe spans, where a gateway filter counts as
+handling) and OBS-14 (non-production ingestion).
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/obs10/obs10-01-positive-input.json
+```
