@@ -52,6 +52,20 @@ class OrmStaticScanTest(unittest.TestCase):
             self.assertTrue(run.unavailable and not run.result and not run.error)
             self.assertIn("EXPLAIN", run.unavailable)
 
+    def test_db41_is_python_only_and_not_applicable_to_a_javascript_only_repo(self):
+        run = run_check("DB-41", [("src/users.ts", PRISMA)])
+        self.assertTrue(run.not_applicable and not run.result and not run.error)
+
+    def test_db41_reports_a_sync_driver_in_a_coroutine_with_valid_evidence(self):
+        source = "import sqlite3\n\nasync def handler():\n    conn = sqlite3.connect('x.db')\n    return conn.execute('select 1').fetchone()\n"
+        run = run_check("DB-41", [("app/api.py", source), ("src/users.ts", PRISMA)])
+        self.assertIsNone(run.error)
+        self.assertEqual(run.result["status"], "completed")
+        self.assertEqual({f["identity"] for f in run.result["findings"]},
+                         {"handler:sync-driver.connect", "handler:sync-driver.execute", "handler:sync-driver.fetchone"})
+        self.assertEqual(run.result["coverage"]["evaluated_scope"], ["file:app/api.py"])
+        validate_pair(run.payload, run.result)
+
     def test_db23_scan_output_keeps_medium_and_counts_the_filtered_low_findings(self):
         source = ("export const all = () => prisma.country.findMany();\n"
                   "export const scoped = (userId: number) => prisma.membership.findMany({ where: { userId } });\n")

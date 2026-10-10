@@ -29,12 +29,13 @@ ORM_CHECKS = {
     "DB-14": {"select_star_allowed_tables": []},
     "DB-23": {"unique_key_fields": ["id", "pk"]},
     "DB-39": {"min_literal_offset": 100},
+    "DB-41": {"sync_driver_modules": ["psycopg2", "pymysql", "MySQLdb", "sqlite3", "mysql.connector", "pyodbc", "pg8000", "psycopg"]},
 }
 ORM_SUFFIXES = (".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx", ".mts", ".cts")
 # Plan checks (DB-43/45/46) evaluate client-produced EXPLAIN artifacts, never repository source.
 PLAN_CHECKS = set()
 # Checks that apply to fewer languages than the default (DB-41: JS/TS database drivers are Promise based).
-ORM_CHECK_SUFFIXES = {}
+ORM_CHECK_SUFFIXES = {"DB-41": (".py",)}
 # JavaScript/TypeScript test code (shared is_test_path only knows Python and tests/ directories).
 JS_TEST_PATH = re.compile(r"(^|/)(__tests__|__mocks__|__fixtures__|e2e|integration-tests?|cypress)(/|$)|\.(test|spec|stories)\.[cm]?[jt]sx?$", re.I)
 # Lowest confidence a scan reports per check; lower-confidence findings stay out of the scan result (and are counted in its limitations).
