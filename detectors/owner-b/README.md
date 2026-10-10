@@ -81,3 +81,7 @@ Adds retry storm. See checks/net-05/SPEC.md and NETWORK.md for supported evidenc
 ## NET-06 registration (#218)
 
 Adds polling where events would do. See checks/net-06/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
+
+## NET-07 registration (#219)
+
+Adds uncompressed responses. See checks/net-07/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.

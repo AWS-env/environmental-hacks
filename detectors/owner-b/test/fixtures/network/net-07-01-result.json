@@ -1,0 +1,95 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "route:catalog"
+    ],
+    "limitations": [
+      "Bounded read-only evidence analysis. Client metadata/policy assertions require review; no inferred energy, carbon or savings. Sampled observations are not total workload counts."
+    ]
+  },
+  "findings": [
+    {
+      "identity": "catalog:response-compression",
+      "summary": "A material compressible body is sent with identity encoding to a client accepting compression.",
+      "recommendation": "Benchmark a mutually accepted encoding and level within the declared CPU/latency budget. Exclude secret-reflection responses; compare real wire bytes rather than inventing compressed size.",
+      "evidence": [
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "http",
+          "value": {
+            "headers_complete": true,
+            "method": "GET",
+            "status": 200,
+            "encoded_bytes": 10000,
+            "decoded_bytes": 10000,
+            "body_present": true,
+            "range": false,
+            "headers": {
+              "content-type": "application/json"
+            },
+            "request_headers": {
+              "accept-encoding": "gzip, br"
+            }
+          }
+        },
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "compression_policy",
+          "value": {
+            "secret_reflection": false,
+            "cpu_budget_available": true,
+            "streaming": false
+          }
+        }
+      ],
+      "references": [
+        "https://www.rfc-editor.org/rfc/rfc9110.html"
+      ],
+      "confidence": "medium",
+      "scope_id": "route:catalog",
+      "fingerprint": "66231bbc2771968d6915fe1bd6860debabb35a916792d2a00483860ff5625fe7"
+    }
+  ],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-07-1",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-07",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_change_fraction": 0.1,
+    "max_cpu_regression_fraction": 0.1,
+    "max_noise_fraction": 0.1,
+    "max_poll_interval_seconds": 60,
+    "max_small_bytes": 1024,
+    "min_array_elements": 1000,
+    "min_calls": 5,
+    "min_connection_ratio": 0.8,
+    "min_conversion_cpu_ms": 10,
+    "min_duplicate_requests": 2,
+    "min_improvement_fraction": 0.2,
+    "min_payload_bytes": 1024,
+    "min_polls": 100,
+    "min_pressure_fraction": 0.75,
+    "min_repeated_requests": 10,
+    "min_repetitions": 5,
+    "min_response_bytes": 1024,
+    "min_retry_attempts": 3,
+    "min_retry_delay_ms": 100,
+    "min_serial_gap_ms": 0,
+    "min_unused_fraction": 0.5,
+    "mode": "runtime",
+    "objective": "bytes",
+    "rule_version": "network-1"
+  },
+  "scope": [
+    "route:catalog"
+  ]
+}
