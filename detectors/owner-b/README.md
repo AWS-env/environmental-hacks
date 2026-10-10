@@ -89,3 +89,7 @@ Adds uncompressed responses. See checks/net-07/SPEC.md and NETWORK.md for suppor
 ## NET-08 registration (#220)
 
 Adds json versus binary on hot paths. See checks/net-08/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.
+
+## NET-09 registration (#221)
+
+Adds large messages loaded into memory. See checks/net-09/SPEC.md and NETWORK.md for supported evidence and runtime limitations. Six synthetic fixtures validate behavior; customer production confirmation is separate.

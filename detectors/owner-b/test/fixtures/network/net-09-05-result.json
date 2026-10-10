@@ -1,0 +1,48 @@
+{
+  "kind": "result",
+  "status": "unavailable",
+  "coverage": {
+    "evaluated_scope": [],
+    "limitations": [
+      "route:catalog: Attributable allocation timeline required",
+      "Bounded read-only evidence analysis. Client metadata/policy assertions require review; no inferred energy, carbon or savings. Sampled observations are not total workload counts."
+    ]
+  },
+  "findings": [],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-09-5",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-09",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_change_fraction": 0.1,
+    "max_cpu_regression_fraction": 0.1,
+    "max_noise_fraction": 0.1,
+    "max_poll_interval_seconds": 60,
+    "max_small_bytes": 1024,
+    "min_array_elements": 1000,
+    "min_calls": 5,
+    "min_connection_ratio": 0.8,
+    "min_conversion_cpu_ms": 10,
+    "min_duplicate_requests": 2,
+    "min_improvement_fraction": 0.2,
+    "min_payload_bytes": 1024,
+    "min_polls": 100,
+    "min_pressure_fraction": 0.75,
+    "min_repeated_requests": 10,
+    "min_repetitions": 5,
+    "min_response_bytes": 1024,
+    "min_retry_attempts": 3,
+    "min_retry_delay_ms": 100,
+    "min_serial_gap_ms": 0,
+    "min_unused_fraction": 0.5,
+    "mode": "runtime",
+    "objective": "bytes",
+    "rule_version": "network-1"
+  },
+  "scope": [
+    "route:catalog"
+  ]
+}

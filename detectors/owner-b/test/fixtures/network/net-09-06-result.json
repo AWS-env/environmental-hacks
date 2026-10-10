@@ -1,0 +1,102 @@
+{
+  "kind": "result",
+  "status": "completed",
+  "coverage": {
+    "evaluated_scope": [
+      "route:catalog"
+    ],
+    "limitations": [
+      "Bounded read-only evidence analysis. Client metadata/policy assertions require review; no inferred energy, carbon or savings. Sampled observations are not total workload counts."
+    ]
+  },
+  "findings": [
+    {
+      "identity": "catalog:catalog:decode:materialization",
+      "summary": "An attributed allocation timeline shows overlapping whole-message representations under observed memory pressure.",
+      "recommendation": "Evaluate bounded streaming/chunking where consumer semantics permit. Preserve concurrency and capture boundaries; sampled peaks or payload size alone do not prove pressure.",
+      "evidence": [
+        {
+          "source_id": "capture",
+          "kind": "artifact",
+          "locator": "fixture:network-capture.json",
+          "field": "memory_profile",
+          "value": {
+            "format_version": 1,
+            "complete": true,
+            "message_type": "catalog",
+            "operation": "decode",
+            "payload_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "payload_bytes": 4000000,
+            "peak_bytes": 8000000,
+            "limit_bytes": 10000000,
+            "units": "bytes",
+            "capture_kind": "allocation-timeline",
+            "streaming_supported": true,
+            "random_access_required": false,
+            "concurrency": 1,
+            "allocations": [
+              {
+                "id": "a",
+                "payload_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "bytes": 4000000,
+                "start_ms": 0,
+                "end_ms": 100,
+                "representation": "serialized"
+              },
+              {
+                "id": "b",
+                "payload_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                "bytes": 4000000,
+                "start_ms": 50,
+                "end_ms": 150,
+                "representation": "decoded"
+              }
+            ]
+          }
+        }
+      ],
+      "references": [
+        "https://nodejs.org/api/inspector.html"
+      ],
+      "confidence": "medium",
+      "scope_id": "route:catalog",
+      "fingerprint": "531a0d4bdd4a73bdd1cb49d1e95e23646180ff7e9aefb92822191c2e548d466e"
+    }
+  ],
+  "measurements": [],
+  "schema_version": "1.0",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-09-6",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-09",
+  "detector_version": "1.0.0",
+  "context": {
+    "max_change_fraction": 0.1,
+    "max_cpu_regression_fraction": 0.1,
+    "max_noise_fraction": 0.1,
+    "max_poll_interval_seconds": 60,
+    "max_small_bytes": 1024,
+    "min_array_elements": 1000,
+    "min_calls": 5,
+    "min_connection_ratio": 0.8,
+    "min_conversion_cpu_ms": 10,
+    "min_duplicate_requests": 2,
+    "min_improvement_fraction": 0.2,
+    "min_payload_bytes": 1024,
+    "min_polls": 100,
+    "min_pressure_fraction": 0.75,
+    "min_repeated_requests": 10,
+    "min_repetitions": 5,
+    "min_response_bytes": 1024,
+    "min_retry_attempts": 3,
+    "min_retry_delay_ms": 100,
+    "min_serial_gap_ms": 0,
+    "min_unused_fraction": 0.5,
+    "mode": "runtime",
+    "objective": "bytes",
+    "rule_version": "network-1"
+  },
+  "scope": [
+    "route:catalog"
+  ]
+}
