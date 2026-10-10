@@ -8,6 +8,7 @@ Each analyzer collects one or more raw *sources*:
                    owner-d-telemetry-analyzer   declared agent_capacity + GetMetricData Average/Maximum
                                                 utilization series (LLM-17)
     metrics        owner-d-telemetry-analyzer   {"pages": [raw ListMetrics responses], "Metrics": [...], ...}
+    activity_metrics owner-d-telemetry-analyzer resources + daily GetMetricData activity series (INF-04, aws/activity.py)
     log_groups     owner-d-log-analyzer         {"pages": [raw DescribeLogGroups responses],
                                                  "logGroups": [entries, ARNs removed],
                                                  "tags": {logGroupName: {tag: value}} | None, ...}
@@ -34,8 +35,8 @@ by scope or resource) are wired through an ``adapter`` (ADAPTERS below), which b
 sources with account-free locators: ``list_metrics`` (OBS-06), ``describe_log_groups`` (OBS-07) and
 ``xray_traces`` (LLM-10 and LLM-05: ``fn(Traces)`` plus the module's ``telemetry_sources``).
 
-Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07, OBS-11, LLM-10, OBS-17, LLM-05, LLM-12 and
-LLM-17 are registered below).
+Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07, OBS-11, LLM-10, OBS-17, LLM-05, LLM-12,
+LLM-17 and INF-04 are registered below).
 """
 from __future__ import annotations
 
@@ -45,7 +46,7 @@ from dataclasses import dataclass, field
 
 from owner_d.aws.common import accepts_settings
 
-SOURCES = ("cpu_metrics", "metrics", "log_groups", "logs_insights", "traces", "capacity_metrics")
+SOURCES = ("cpu_metrics", "metrics", "log_groups", "logs_insights", "traces", "capacity_metrics", "activity_metrics")
 
 INF01_DEFAULTS = {  # reference values from the INF-01 section of detectors/owner-d/README.md
     "min_window_days": 14,
@@ -85,6 +86,7 @@ LLM17_DEFAULTS = {  # LLM-17 reference values (owner_d.llm17.REFERENCE_SETTINGS,
     "peak_utilization_threshold": 0.50,
     "min_peak_to_mean_ratio": 4,
 }
+INF04_DEFAULTS = {"min_window_days": 14, "max_activity": 0}  # INF-04 reference values (inf04.REFERENCE_SETTINGS)
 
 
 @dataclass(frozen=True)
@@ -113,6 +115,7 @@ CHECKS = (
     TelemetryCheck("LLM-12", "owner_d.llm12", "logs_insights", defaults=LLM12_DEFAULTS),
     TelemetryCheck("LLM-17", "owner_d.llm17", "capacity_metrics",
                    normalizer="owner_d.aws.metrics:normalize_capacity_metrics", defaults=LLM17_DEFAULTS),
+    TelemetryCheck("INF-04", "owner_d.inf04", "activity_metrics", defaults=INF04_DEFAULTS),
 )
 
 

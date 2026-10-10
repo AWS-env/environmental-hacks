@@ -25,7 +25,7 @@ README = DETECTOR_DIR / "README.md"
 SECTION = re.compile(r"^## (?P<check>[A-Z]+-\d+) ")
 ROW = re.compile(r"^\| `(?P<key>[a-z_]+)` \|.*\| (?P<reference>[^|]+) \|$")
 # Checks known to need settings; guards against a README format change silently emptying the test.
-KNOWN = {"INF-01", "INF-02", "LLM-03", "LLM-05", "LLM-10", "LLM-15", "LLM-16", "LLM-17", "OBS-06", "OBS-07", "OBS-18", "TST-03", "TST-07", "TST-12"}
+KNOWN = {"INF-01", "INF-02", "INF-04", "LLM-03", "LLM-05", "LLM-10", "LLM-15", "LLM-16", "LLM-17", "OBS-06", "OBS-07", "OBS-18", "TST-03", "TST-07", "TST-12"}
 
 
 def required_settings():

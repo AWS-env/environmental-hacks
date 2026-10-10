@@ -91,7 +91,7 @@ A pair that fails is refused: it is not published and is listed under
 
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
-| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06, LLM-17 |
+| `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py`, `activity.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06, LLM-17, INF-04 (telemetry mode) |
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-12 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
 | `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12 (artifact mode) |
@@ -226,7 +226,7 @@ minimum.
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
 (`cpu_metrics`), OBS-06 (`metrics`), LLM-17 (`capacity_metrics`), OBS-07
 (`log_groups`), OBS-11, OBS-17 and LLM-12 (`logs_insights`), LLM-10 and LLM-05
-(`traces`). A detector module plugs in through a normalizer, by default
+(`traces`), INF-04 (`activity_metrics`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
 API pages use an adapter. The adapter builds the sources with account-free
@@ -238,11 +238,13 @@ TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:n
                adapter="list_metrics", defaults=OBS06_DEFAULTS),
 ```
 
-Without `checks`, the telemetry analyzer runs INF-01, OBS-06 and LLM-17.
+Without `checks`, the telemetry analyzer runs INF-01, OBS-06, LLM-17 and INF-04.
 OBS-06 needs `list_metrics` (for example `{"namespace": "OwnerD/Demo"}`);
 without it, ListMetrics lists every namespace. LLM-17 needs `agent_capacity`;
 without it, LLM-17 reads nothing and is listed under `skipped`, so the
-scheduled run (`"discover": {}`) costs nothing extra. Pass `"checks": ["INF-01"]` to run only
+scheduled run (`"discover": {}`) costs nothing extra. INF-04 reads nothing unless the event has an
+`activity` block (see [INF-04 telemetry mode](#telemetry-mode)), so it is
+skipped otherwise. Pass `"checks": ["INF-01"]` to run only
 one of them. The log analyzer runs OBS-07, OBS-11, OBS-17 and LLM-12 by
 default. OBS-11, OBS-17 and LLM-12 each run one Logs Insights query over the
 allowlisted groups (billed per GB scanned); pass `"checks": ["OBS-07"]` to skip
@@ -5237,4 +5239,218 @@ those yet, so no `LOGS_INSIGHTS_QUERY` or normalizer is exported.
 ```bash
 PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
   detectors/owner-d/tests/fixtures/llm02/llm02-01-positive-input.json
+```
+
+## INF-04 — Unused/no-use components kept running
+
+Flags deployed components that nothing uses. The taxonomy row also covers
+JOB-08 (unused components kept running). The check has two modes, picked by
+the source kind of each scope item:
+
+- **Static IaC proxy** (`static`, primary). It reads CloudFormation/SAM
+  templates as text and flags components that nothing in the same template
+  references, plus disabled triggers that are the only link to a component
+  that stays deployed. Templates are never deployed, resolved or sent to AWS.
+  It uses the `textstatic.py` runner and `owner_d/miniyaml.py`.
+- **Telemetry** (`telemetry`, optional). It reads CloudWatch activity per
+  deployed resource through `owner-d-telemetry-analyzer` and the simulated
+  client role `owner-d-telemetry-readonly`, and flags compute with no
+  invocations, requests or connections over the lookback window. It uses only
+  CloudWatch `GetMetricData` and `ListMetrics`, which both roles already
+  grant, so no IAM changes are needed.
+
+Both modes prove "no use is visible", not that nothing uses the component.
+Findings are candidates for decommissioning, to confirm with the owning team.
+No measurements are emitted.
+
+### Input
+
+A contract v1 `input` payload. Each scope item has exactly one source:
+
+- `file:<path>` with one `static` source: a CloudFormation/SAM template in
+  `.yaml`/`.yml`, `.json` (including CDK-synthesized
+  `cdk.out/*.template.json`) or `.template`. A file counts as a template when
+  it has a `Resources` mapping.
+- `resource:<type>/<id>` with one `telemetry` source, normalized by
+  `inf04.normalize_activity_metrics`:
+
+| Field | Meaning |
+| --- | --- |
+| `resource_id` | e.g. `lambda/orders`, `rds/orders-db`, `alb/app/web/0123456789abcdef`; must match the scope |
+| `resource_type` | `aws_lambda_function`, `aws_rds_db_instance`, `aws_lb` |
+| `metric` / `statistic` | `invocations`/`Sum`, `request_count`/`Sum` or `database_connections`/`Maximum` |
+| `activity_value` | Sum of the daily sums, or the highest daily maximum; `0` without datapoints |
+| `datapoints` | Number of daily datapoints in the window |
+| `observed_days` | Span of the datapoints in days (`0` without datapoints) |
+| `window_days` | Length of the requested window in days |
+
+A payload may mix both kinds. A scope item with both kinds, or with two
+sources of one kind, is not evaluated.
+
+### Context settings
+
+These settings apply to the telemetry mode. The static mode reads no settings.
+Repository scans pass the reference values, and the telemetry analyzer uses
+the same defaults (`registry.INF04_DEFAULTS`).
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_window_days` | Shortest window (and, for RDS, observed span) over which "no use" is judged | `14` |
+| `max_activity` | Highest activity still treated as unused (total invocations or requests, or peak connections) | `0` |
+
+Missing or invalid settings leave the telemetry scope items unevaluated, with
+the reason. Static scope items in the same payload are still evaluated.
+
+### Detection rule (static)
+
+The judged types are `AWS::Lambda::Function`, `AWS::Serverless::Function`,
+`AWS::SQS::Queue` and `AWS::SNS::Topic`. A reference is a `Ref`/`!Ref`,
+`Fn::GetAtt`/`!GetAtt` or `${X}` in `Fn::Sub`, anywhere in another resource's
+`Properties`, in `Outputs` or in SAM `Globals`. miniyaml drops tags, so a
+plain string equal to a logical ID also counts. Counting too many references
+can only remove findings.
+
+| Identity | Flagged when | Confidence |
+| --- | --- | --- |
+| `<LogicalId>:unreferenced` | No other resource, output or `Globals` entry uses the component. SAM functions also need no `Events` and no `FunctionUrlConfig`, and topics need no inline `Subscription`. The summary says whether a `FunctionName`/`QueueName`/`TopicName` lets callers outside the template reach it, and notes a `Condition`. | low |
+| `<TriggerId>:disabled-trigger` | An `AWS::Events::Rule` or `AWS::Scheduler::Schedule` with a literal `State: DISABLED`, or an `AWS::Lambda::EventSourceMapping` with `Enabled: false`, is the only thing that uses one or more judged components | low |
+| `<LogicalId>:Events.<Name>:disabled` | A SAM function whose only triggers are inline events with `Enabled: false` or `State: DISABLED` | low |
+
+These references do not count as use:
+
+- `AWS::Logs::LogGroup`, `AWS::Logs::MetricFilter` and
+  `AWS::CloudWatch::Dashboard` naming the component.
+- An alarm's `Dimensions`/`Metrics`. Alarm actions do count, as publishers to
+  a topic.
+- `AWS::Lambda::EventInvokeConfig` `FunctionName`. Its `DestinationConfig`
+  does count, for the destination queue or topic.
+- `AWS::Lambda::Version`/`Alias`. They pass on their own use: a permission on
+  an alias counts for the function.
+- IAM roles referenced only by disabled triggers (a schedule's `RoleArn`), and
+  `AWS::Lambda::Permission`s for a disabled trigger.
+
+Everything else counts as use: event source mappings, permissions, function
+URLs, rule and schedule targets, API Gateway and Step Functions definitions,
+subscriptions, custom resources (`ServiceToken`), redrive and dead-letter
+configuration, queue and topic policies, IAM policies, environment variables,
+nested-stack parameters and outputs. So does a component with an active
+trigger next to a disabled one. Evidence is the logical-ID..`Type` lines for
+`unreferenced`, and the `State`/`Enabled` line for disabled triggers.
+
+Legitimate exceptions (not flagged):
+
+- `# noqa` / `# noqa: INF-04` on the cited line or in the comment lines
+  directly above the resource (YAML only). Use it for disaster-recovery
+  standbys, paused or seasonal jobs and manual runbooks.
+- Lambda functions synthesized by the CDK framework (custom-resource
+  providers, `LogRetention`, bucket-notification handlers).
+- Lambda functions in a template whose API, state machine or resolver
+  definition lives outside it (`DefinitionUri`, `BodyS3Location`,
+  `DefinitionS3Location`, `CodeS3Location`, `SchemaUri`). The external file
+  may reference any function. Queues and topics in that template are still
+  judged.
+- A trigger `State` given by `!Ref`/`!If`. That state is a deployment choice,
+  for example the optional schedules in `cdk/owner-d/*.yaml`.
+- `Properties` wrapped in `Fn::If`, which is not resolved.
+
+Not wasteful and not judged (not wasteful when):
+
+- ECS services, Kubernetes Deployments and Auto Scaling groups scaled to zero:
+  nothing runs, and keeping the definition costs nothing.
+- EC2 instances and databases. A static template cannot show whether clients
+  connect; the telemetry mode judges RDS.
+- Components used from outside the template: other stacks, SDK or CLI calls
+  by name or logical ID, test harnesses, consoles, runbooks. That is why every
+  static finding is `low`.
+
+The following are not evaluated. They are listed as limitations, never
+reported clean:
+
+- invalid JSON, or YAML outside the miniyaml subset
+- YAML/JSON files without CloudFormation `Resources`, such as Kubernetes
+  manifests
+- templates with a macro `Transform` other than
+  `AWS::Serverless-2016-10-31`/`AWS::LanguageExtensions`, or with
+  `Fn::Transform`/`AWS::Include` or `Fn::ForEach`
+- Terraform/HCL (`.tf`), CDK source code (synthesize it first), Pulumi and
+  Serverless Framework files
+
+### Telemetry mode
+
+`owner-d-telemetry-analyzer` collects the `activity_metrics` source
+(`owner_d/aws/activity.py`): one daily (`86400` s) GetMetricData series per
+resource over whole UTC days.
+
+| `type` | Metric (statistic) | Dimension | An idle resource publishes |
+| --- | --- | --- | --- |
+| `lambda` (`name`) | `AWS/Lambda` `Invocations` (Sum) | `FunctionName` | nothing |
+| `alb` (`name`, `app/<name>/<id>`) | `AWS/ApplicationELB` `RequestCount` (Sum) | `LoadBalancer` | nothing |
+| `rds` (`id`) | `AWS/RDS` `DatabaseConnections` (Maximum) | `DBInstanceIdentifier` | zeros, every minute while it runs |
+
+```json
+{"repository_id": "github:AWS-env/example", "commit_sha": "<40 hex>", "checks": ["INF-04"],
+ "role_arn": "<ReadOnlyRoleArn stack output>",
+ "activity": {"resources": [{"type": "lambda", "name": "legacy-export"}, {"type": "alb", "name": "app/web/0123456789abcdef"}],
+              "discover": {"types": ["rds"], "max_resources": 50, "max_pages": 5},
+              "lookback_days": 30},
+ "dry_run": true}
+```
+
+- `activity.lookback_days` defaults to 30 and can be at most 90. `start`/`end`
+  are also accepted. At most 200 resources are read.
+- `activity.discover` finds only RDS instances: ListMetrics with
+  `RecentlyActive` lists instances that report now. Lambda and load-balancer
+  metrics exist only while there is traffic, and ListMetrics lists only
+  metrics with data in the last two weeks, so idle functions and load
+  balancers cannot be discovered. List them in `activity.resources`, for
+  example from the static findings or the team's inventory.
+- Without `activity`, nothing is read, and INF-04 is listed under `skipped`.
+  The existing analyzer schedule therefore reads no INF-04 data.
+- `{"probe": ["activity_metrics"], "activity": {...}}` only collects and
+  returns counts.
+
+Rules:
+
+| Resource | Flagged when | Confidence |
+| --- | --- | --- |
+| RDS | Datapoints span at least `min_window_days` and the highest daily maximum of `DatabaseConnections` is at most `max_activity`. The instance ran without clients. | medium |
+| Lambda, ALB | The window is at least `min_window_days` and the total is at most `max_activity`, including no datapoints at all | low |
+
+Not evaluated (listed as limitations, never clean):
+
+- a window shorter than `min_window_days`;
+- an RDS instance without datapoints (stopped, deleted or misnamed) or with
+  datapoints spanning less than `min_window_days` (newer than the window, or
+  stopped part of it);
+- a series CloudWatch returned incomplete (`PartialData`, or the page bound
+  was hit);
+- invalid data.
+
+Missing Lambda/ALB datapoints also match a resource that no longer exists
+under that name, which is why those findings are `low`. The identity is
+`no-observed-use`. Evidence cites `activity_value`, `datapoints`,
+`observed_days` and `window_days` from the source, and locators carry no
+account ID.
+
+Not wasteful when: seasonal, quarterly or yearly jobs outside the window,
+disaster-recovery standbys, resources prepared for a launch, and databases
+used through paths that hold no connection (for example the RDS Data API) or
+only as replication targets. Confirm before decommissioning. EC2 instances,
+ECS services, NAT gateways and queues are not read in v1; low CPU is INF-01.
+
+### Limitations
+
+The static proxy sees only one template at a time. Callers in other stacks or
+outside AWS CloudFormation are invisible. The telemetry mode does not read
+inventory (AWS Config, Resource Explorer) or Compute Optimizer idle
+recommendations. It only sees resources listed in the event or, for RDS,
+discovered through ListMetrics. Neither mode emits measurements.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/inf04/inf04-01-positive-input.json
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/inf04/inf04-02-telemetry-input.json
 ```

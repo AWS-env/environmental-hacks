@@ -1,0 +1,16 @@
+# Synthetic fixture (INF04-05): a Kubernetes Deployment scaled to zero runs nothing and is not judged.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: legacy-worker
+spec:
+  replicas: 0
+  selector:
+    matchLabels: {app: legacy-worker}
+  template:
+    metadata:
+      labels: {app: legacy-worker}
+    spec:
+      containers:
+        - name: worker
+          image: public.ecr.aws/docker/library/python:3.12-slim
