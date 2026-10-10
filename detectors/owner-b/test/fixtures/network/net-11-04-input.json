@@ -1,0 +1,240 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "fixture:owner-b/network",
+  "scan_id": "fixture-net-11-4",
+  "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "check_id": "NET-11",
+  "detector_version": "1.0.0",
+  "context": {
+    "rule_version": "network-1",
+    "mode": "runtime",
+    "min_calls": 5,
+    "max_small_bytes": 1024,
+    "min_payload_bytes": 1024,
+    "min_unused_fraction": 0.5,
+    "min_repeated_requests": 10,
+    "min_connection_ratio": 0.8,
+    "min_retry_attempts": 3,
+    "min_retry_delay_ms": 100,
+    "min_polls": 100,
+    "max_change_fraction": 0.1,
+    "max_poll_interval_seconds": 60,
+    "min_response_bytes": 1024,
+    "min_repetitions": 5,
+    "min_improvement_fraction": 0.2,
+    "max_noise_fraction": 0.1,
+    "max_cpu_regression_fraction": 0.1,
+    "objective": "bytes",
+    "min_pressure_fraction": 0.75,
+    "min_array_elements": 1000,
+    "min_duplicate_requests": 2,
+    "min_serial_gap_ms": 0,
+    "min_conversion_cpu_ms": 10
+  },
+  "scope": [
+    "route:catalog"
+  ],
+  "sources": [
+    {
+      "source_id": "capture",
+      "scope_id": "route:catalog",
+      "kind": "artifact",
+      "locator": "fixture:network-capture.json",
+      "data": {
+        "format": "network-evidence-v1",
+        "repository_id": "fixture:owner-b/network",
+        "commit_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "route": "catalog",
+        "capture": {
+          "tool": "owner-b-synthetic",
+          "version": "1",
+          "origin": "synthetic"
+        },
+        "acquisition": {
+          "status": "complete",
+          "start": "2026-10-10T00:00:00Z",
+          "end": "2026-10-10T00:01:00Z"
+        },
+        "trace": {
+          "complete": true,
+          "sampled": false
+        },
+        "spans": [
+          {
+            "id": "s0",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 0,
+            "end_ms": 90,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s1",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 100,
+            "end_ms": 190,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s2",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 200,
+            "end_ms": 290,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s3",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 300,
+            "end_ms": 390,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s4",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 400,
+            "end_ms": 490,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s5",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 500,
+            "end_ms": 590,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s6",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 600,
+            "end_ms": 690,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          },
+          {
+            "id": "s7",
+            "parent_id": null,
+            "request_group": "r1",
+            "destination": "inventory",
+            "operation": "get-item",
+            "role": "outbound",
+            "start_ms": 700,
+            "end_ms": 790,
+            "bytes": 100,
+            "setup_ms": 20,
+            "dependencies": [],
+            "authorization_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+          }
+        ],
+        "batch_policy": {
+          "supported": true,
+          "required_streaming": false,
+          "documentation": "https://docs.aws.amazon.com/amazondynamodb/latest/APIReference/API_BatchGetItem.html"
+        },
+        "browser": {
+          "format_version": 1,
+          "complete": true,
+          "interaction": "catalog-load",
+          "independence_reviewed": false,
+          "requests": [
+            {
+              "id": "q0",
+              "method": "GET",
+              "destination": "catalog",
+              "request_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "authorization_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "cache_key_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "start_ms": 0,
+              "end_ms": 50,
+              "retry": false,
+              "poll": false,
+              "preflight": false,
+              "redirect": false,
+              "dependencies": []
+            },
+            {
+              "id": "q1",
+              "method": "GET",
+              "destination": "catalog",
+              "request_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "authorization_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "cache_key_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "initiator": "ui.load",
+              "start_ms": 100,
+              "end_ms": 150,
+              "retry": false,
+              "poll": false,
+              "preflight": false,
+              "redirect": false,
+              "dependencies": []
+            },
+            {
+              "id": "q2",
+              "method": "GET",
+              "destination": "catalog",
+              "request_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "authorization_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "cache_key_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+              "initiator": "ui.load",
+              "start_ms": 200,
+              "end_ms": 250,
+              "retry": false,
+              "poll": false,
+              "preflight": false,
+              "redirect": false,
+              "dependencies": []
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
