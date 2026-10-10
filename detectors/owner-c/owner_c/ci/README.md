@@ -70,6 +70,8 @@ python -m shared.contracts.verify
 - **CI-08** a build that runs `clean` right after restoring a build-output cache (target/build/dist/out). Explicit
   `--no-build-cache`/`--rerun-tasks` are not reported (deliberate on every real file checked); a cache keyed per run is a
   hand-off between jobs; `.gradle` is not removed by `clean`; release/deploy jobs and tag workflows are exempt.
+- **CI-10** tests on every pull request (or unfiltered push) with no path filter or test selection. Not flagged:
+  path filters, `--onlyChanged`/`nx affected`, jobs or steps gated by an `if` on changes/outputs, installing a test tool.
 - **CI-11** push+pull_request double runs; pull request workflows with no `concurrency`; `concurrency` without
   `cancel-in-progress`; a cancelling group made only of context expressions without the workflow name (for example
   `${{ github.ref }}`). Not flagged: `workflow_call`, `pull_request_target`, `pull_request` types without
