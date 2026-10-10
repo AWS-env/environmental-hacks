@@ -6,6 +6,7 @@ import {
   Confidence,
 } from "../../core/finding.js";
 import { isLineSuppressed } from "../../core/suppressions.js";
+import { C11_REFERENCES } from "./references.js";
 
 const TERMINAL_NODE_TYPES = new Set([
   "return_statement",
@@ -46,6 +47,15 @@ function unreachableIdentity(
   return `unreachable-code:${qualname}:${reason}:${text}`;
 }
 
+/** `yield`, `yield value` or `yield from x` as a statement. */
+function isGeneratorMarker(node: Parser.SyntaxNode): boolean {
+  return (
+    node.type === "expression_statement" &&
+    node.namedChildCount === 1 &&
+    node.namedChildren[0].type === "yield"
+  );
+}
+
 export function detectUnreachableCode(
   rootNode: Parser.SyntaxNode,
   filePath: string,
@@ -66,6 +76,10 @@ export function detectUnreachableCode(
       if (child.type === "comment") continue;
 
       if (seenTerminal) {
+        // A `yield` after a terminal statement is the idiom that makes the function a generator
+        // (e.g. `raise ...` then `yield`), so it is deliberate rather than dead code.
+        if (isGeneratorMarker(child)) continue;
+
         // Child is unreachable dead code
         const startLine = child.startPosition.row + 1;
         const endLine = child.endPosition.row + 1;
@@ -108,13 +122,7 @@ export function detectUnreachableCode(
               reason:
                 "Unreachable code is compiled but never executed; impact is limited to parsing and bytecode storage overhead.",
             },
-            references: [
-              {
-                id: "SRC-01",
-                title: "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
-                url: "https://arxiv.org/abs/2604.04809",
-              },
-            ],
+            references: C11_REFERENCES.map((r) => ({ ...r })),
             agentPrompt: `In ${filePath}:${startLine}, remove unreachable code ("${snippet}") following '${seenTerminal.type.replace("_statement", "")}' to clean up dead code.`,
             detector: {
               id: "owner-a-static-scan",
@@ -181,13 +189,7 @@ export function detectUnreachableCode(
                 reason:
                   "Unreachable branch is compiled but never executed; impact is limited to parsing and maintenance overhead.",
               },
-              references: [
-                {
-                  id: "SRC-01",
-                  title: "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
-                  url: "https://arxiv.org/abs/2604.04809",
-                },
-              ],
+              references: C11_REFERENCES.map((r) => ({ ...r })),
               agentPrompt: `In ${filePath}:${startLine}, remove dead block guarded by constant false condition '${condition.text.trim()}'.`,
               detector: {
                 id: "owner-a-static-scan",
@@ -245,13 +247,7 @@ export function detectUnreachableCode(
                 reason:
                   "Unreachable loop body is compiled but never executed.",
               },
-              references: [
-                {
-                  id: "SRC-01",
-                  title: "Watts This Smell: A Comprehensive Taxonomy of Software Energy Smells",
-                  url: "https://arxiv.org/abs/2604.04809",
-                },
-              ],
+              references: C11_REFERENCES.map((r) => ({ ...r })),
               agentPrompt: `In ${filePath}:${startLine}, remove dead while loop guarded by constant false condition '${condition.text.trim()}'.`,
               detector: {
                 id: "owner-a-static-scan",
