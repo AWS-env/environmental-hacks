@@ -92,7 +92,7 @@ A pair that fails is refused: it is not published and is listed under
 | Lambda | Code | Reads | Checks |
 | --- | --- | --- | --- |
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
-| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17 |
+| `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17, LLM-12 |
 | `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
 | `owner-d-artifact-parser` | `owner_d/aws/artifact_handler.py` | S3 `GetObject` on client-CI uploads (see [Artifact route](#artifact-route)) | TST-12 (artifact mode) |
 
@@ -218,8 +218,8 @@ minimum.
 ### Registered checks (one line each)
 
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
-(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11 and
-OBS-17 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
+(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11, OBS-17
+and LLM-12 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
 API pages use an adapter. The adapter builds the sources with account-free
@@ -234,9 +234,10 @@ TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:n
 Without `checks`, the telemetry analyzer runs INF-01 and OBS-06. OBS-06 needs
 `list_metrics` (for example `{"namespace": "OwnerD/Demo"}`); without it,
 ListMetrics lists every namespace. Pass `"checks": ["INF-01"]` to run only
-one of them. The log analyzer runs OBS-07, OBS-11 and OBS-17 by default.
-OBS-11 and OBS-17 each run one Logs Insights query over the allowlisted groups
-(billed per GB scanned); pass `"checks": ["OBS-07"]` to skip both.
+one of them. The log analyzer runs OBS-07, OBS-11, OBS-17 and LLM-12 by
+default. OBS-11, OBS-17 and LLM-12 each run one Logs Insights query over the
+allowlisted groups (billed per GB scanned); pass `"checks": ["OBS-07"]` to skip
+them.
 
 Raw shapes:
 
@@ -2263,6 +2264,169 @@ The fixtures under `tests/fixtures/llm05/` are synthetic `BatchGetTraces`
 responses shaped on the X-Ray segment document format, not production traces.
 The telemetry demo's opt-in `LLM-05` scenario emits a matching waste/control
 pair (see `examples/telemetry-demo/README.md`).
+
+
+## LLM-12 — Per-agent isolated caches not shared across the fleet (Logs Insights)
+
+Flags LLM response caches that each agent keeps for itself, so every agent
+re-warms its own copy and one agent never hits what another already computed.
+The AWS agentic AI lens
+[AGENTSUS02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp02.html)
+says that "every duplicate model call ... is work the agent fleet has already
+done once". The check reads the cache-lookup lines agents already write to
+CloudWatch Logs, through the log analyzer (`logs_insights` source). It reports
+counts only: cache keys, prompts and agent names never leave CloudWatch Logs.
+
+The evidence is per key, not per agent. If the cache were shared, a key that one
+agent missed would be a hit for every agent after it. So every additional cache
+holder that misses the same key is a miss that a shared cache would have served.
+A holder is one agent in one log stream, which is one process or one Lambda
+execution environment: the smallest unit that can own an in-memory cache.
+Replicas of one agent in separate execution environments are therefore separate
+holders. When one holder misses the same key again (its own TTL or eviction),
+that miss is not counted.
+
+### Input
+
+Agents log one structured JSON line per cache lookup. The query reads these
+fields; the first one present wins:
+
+| Meaning | Fields | Required |
+| --- | --- | --- |
+| Result, `hit` or `miss` (any case) | `cache_result`, `cache_status` | yes |
+| Cache key: a hash of the normalized request, or the key itself | `cache_key_hash`, `prompt_hash`, `cache_key` | yes |
+| Agent | `agent_id`, `agent_name` | no (holder is then the log stream) |
+| Logical cache | `cache_name` (default `default`, first 64 characters) | no |
+| Cache backend, e.g. `memory`, `redis` | `cache_backend` (first 32 characters, lowercased) | no |
+
+`owner_d.llm12.LOGS_INSIGHTS_QUERY` runs over the allowlisted groups and the
+analyzer's window (24 hours by default):
+
+```text
+fields tolower(coalesce(cache_result, cache_status, "")) as o12_result,
+    coalesce(cache_key_hash, prompt_hash, cache_key, "") as o12_key,
+    substr(coalesce(cache_name, "default"), 0, 64) as o12_cache,
+    substr(tolower(coalesce(cache_backend, "")), 0, 32) as o12_backend,
+    coalesce(agent_id, agent_name, "") as o12_agent
+| filter (o12_result = "hit" or o12_result = "miss") and o12_key != ""
+| fields concat(@log, " ", @logStream, " ", o12_agent) as o12_holder,
+    if(o12_result = "hit", "-", concat(@log, " ", @logStream, " ", o12_agent)) as o12_miss_mark,
+    if(o12_result = "hit", 1, 0) as o12_hit
+| stats count(*) as o12_lookups, sum(o12_hit) as o12_hits, count_distinct(o12_holder) as o12_holders,
+    count_distinct(o12_miss_mark) as o12_marks, count_distinct(o12_agent) as o12_agents
+    by o12_cache, o12_backend, o12_key
+| fields o12_marks - if(o12_hits > 0, 1, 0) as o12_missed_by,
+    least(o12_marks - if(o12_hits > 0, 1, 0), 20) as o12_bucket
+| stats count(*) as keys, sum(o12_lookups) as lookups, sum(o12_hits) as hits, sum(o12_missed_by) as missing_holders,
+    max(o12_holders) as max_holders, max(o12_agents) as max_agents by o12_cache, o12_backend, o12_bucket
+```
+
+- The first `stats` works per cache name, backend and key. A hit line marks
+  itself `-`, and a miss line marks itself with its holder. The distinct marks,
+  minus the `-` mark when the key had a hit, are the holders that missed the key.
+- The second `stats` folds the keys into buckets by the number of holders that
+  missed them. Bucket 20 holds every key missed by 20 or more holders. Each
+  bucket's sums are exact, so the row count stays small and the redundant-miss
+  count does not depend on the cap. Logs Insights allows two `stats` commands,
+  and the query uses both.
+- Agents in different log groups (one Lambda function per agent) are compared
+  when they log the same `cache_name`.
+
+`normalize_logs_insights(raw, *, settings)` builds one `telemetry` source per
+cache name, with scope `resource:llm-cache/<cache_name>`. Data fields:
+`lookups`, `hits`, `keys`, `backends` (per backend: `lookups`, `hits`, `keys`;
+`(unset)` when no backend is logged), `missed_by_histogram` (per bucket:
+`missed_by`, `keys`, `lookups`, `hits`, `missing_holders`),
+`max_holders_per_key`, `max_agents_per_key`, `log_groups`, `window` and
+`problems`. Each row is checked against the query's arithmetic. For example, a
+bucket below 20 must have exactly `missed_by × keys` missing holders, and no
+bucket may have more missing holders than misses. The following go into
+`problems`, which leaves the cache unevaluated:
+
+- the query hit its row limit;
+- a row without a cache name;
+- a non-numeric count;
+- a row that breaks the query's arithmetic.
+
+When no line in the window is a cache lookup, the check has no scope and the
+analyzer lists it under `skipped` with that reason. It is never reported clean.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_lookups` | Caches with fewer lookups in the window are not evaluated | `100` |
+| `min_redundant_misses` | Misses that a shared cache would have served must be more than this | `20` |
+| `min_redundant_share` | Those misses must be more than this share of the cache's lookups | `0.1` |
+| `shared_backends` | Backends (lowercase) that are a shared fleet cache; a cache with lookups against one of them is not flagged | `["redis", "valkey", "elasticache", "memorydb", "memcached", "dynamodb", "momento"]` |
+
+`llm12.REFERENCE_SETTINGS` holds these values, and the registry's
+`LLM12_DEFAULTS` copies them; a test keeps the two equal. All four are team
+choices. The minimums keep a few cold-start misses in a small fleet from being
+reported. Missing or invalid settings make the result `unavailable`.
+
+### Detection rule
+
+For each cache name with at least `min_lookups` lookups and no lookups logged
+against a shared backend:
+
+- `isolated-agent-caches`: the redundant misses are more than
+  `min_redundant_misses` and more than `min_redundant_share` of the lookups.
+  Redundant misses are, for every key missed by two or more holders, the
+  holders that missed it after the first: the sum of `missing_holders - keys`
+  over the buckets from 2 up. The summary gives the observed hit rate and the
+  rate one shared cache could reach, `(hits + redundant) / lookups`.
+  Confidence is `high` when every lookup names an in-process backend
+  (`memory`, `local`, `lru`, `lru_cache`, `dict`, ...), and `medium`
+  otherwise. Evidence: `missed_by_histogram`, `lookups`, `hits`, `backends`.
+
+Not flagged, with a note: a cache that has redundant misses under either
+threshold, and a cache where every key was looked up by a single holder, since
+sharing cannot be judged then. A cache with lookups against a shared backend is
+evaluated and noted as already shared. Fingerprints use the identity per cache
+name, so changing counts keep the finding. Measurements stay absent.
+
+### When it is not wasteful
+
+- Caches kept apart on purpose for tenants, users or permission boundaries,
+  where one agent's answer must not be served to another. The check cannot see
+  this when the key leaves out the tenant. Put the scope in the key, or exempt
+  the cache.
+- Answers that depend on agent-local state or instructions under the same key.
+  Those are different requests, and the key should say so.
+- A shared tier that is not logged, behind a logged in-process first tier.
+  Log the shared tier's lookups with its `cache_backend`, and the cache is
+  treated as shared.
+- Short-lived fleets that warm up once, such as a new deployment. They stay
+  under `min_lookups` or `min_redundant_misses`, or show up only in a window
+  that covers the warm-up.
+
+### Limitations
+
+- Only caches that log lookups with the fields above are seen. The issue's
+  "hit rate per agent" is not reported per agent, because both `stats`
+  commands go to the cross-agent key comparison. The summary gives the
+  fleet's observed hit rate instead.
+- A miss by a second holder after the key would have expired in a shared cache
+  is counted as redundant. Keep the window close to the cache TTL. Concurrent
+  first misses on a new key (a thundering herd) would also miss in a shared
+  cache.
+- `count_distinct` is approximate at high cardinality. It is applied per key,
+  where the holder count is small.
+- The query has not been run against CloudWatch Logs yet. The tests run
+  `insights()`, a Python model of it, over the demo's lines.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm12/llm12-01-demo-input.json
+```
+
+The fixture is synthetic. `tests/test_llm12.py` builds it from the telemetry
+demo's opt-in `LLM-12` lines through the query model: 5 agents, 8 questions,
+3 rounds. The isolated-cache path is flagged (32 redundant of 40 misses in 120
+lookups), and the shared-cache path is clean (8 misses, one per key).
 
 
 ## OBS-04 — Unstructured logs requiring query-time parsing

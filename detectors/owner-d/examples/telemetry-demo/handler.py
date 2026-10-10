@@ -16,10 +16,14 @@ a ``waste`` path and a clean ``control`` path, and every emitted item is labeled
 * LLM-05  (opt-in, not part of ``all``) a two-step pipeline whose second ``chat`` call sends the same model the
           same request (identical ``gen_ai.input.messages.hash``), vs a chain whose second request carries the
           first step's output. No LLM is called
+* LLM-12  (opt-in, not part of ``all``) several agents answer the same questions, each through its own
+          in-process cache (every agent misses every question once), vs the same agents through one shared cache
+          (only the first agent misses). One structured cache-lookup line per lookup; no LLM is called
 
 The event selects what to emit: ``{"scenario": "all" | "OBS-11" | "OBS-17" | "OBS-04" | "OBS-06" | "LLM-10"}``,
-or ``{"scenario": "LLM-05"}``. Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series`` (OBS-06
-request ids), ``tool_calls`` (LLM-10 iterations); ``path`` (LLM-10 and LLM-05: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
+or ``{"scenario": "LLM-05" | "LLM-12"}``. Optional knobs, each clamped: ``repeat`` (OBS-11 lines), ``series``
+(OBS-06 request ids), ``tool_calls`` (LLM-10 iterations), ``agents`` and ``rounds`` (LLM-12); ``path`` (LLM-10,
+LLM-05 and LLM-12: ``both``, ``waste`` or ``control``). Subsegments are sent straight to the Lambda X-Ray daemon over UDP, so the function needs
 no dependency beyond the Python runtime (boto3 is used only for PutMetricData).
 """
 
@@ -35,14 +39,18 @@ import uuid
 NAMESPACE = "OwnerD/Demo"
 METRIC_NAME = "RequestLatencyMs"
 SCENARIOS = ("OBS-11", "OBS-17", "OBS-04", "OBS-06", "LLM-10")  # what "all" runs
-OPT_IN_SCENARIOS = ("LLM-05",)  # selected by name only, so "all" keeps its output
+OPT_IN_SCENARIOS = ("LLM-05", "LLM-12")  # selected by name only, so "all" keeps its output
 
 # OBS-06 series bound: request_id values come from a fixed pool, endpoint from a fixed list.
 REQUEST_ID_POOL = 40
 ENDPOINTS = ("/checkout", "/search")
 MAX_METRIC_SERIES = REQUEST_ID_POOL + len(ENDPOINTS)
 
-LIMITS = {"repeat": (20, 1, 50), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25)}
+# LLM-12 agents, in order; the `agents` knob takes the first N.
+CACHE_AGENTS = ("planner", "researcher", "writer", "reviewer", "support", "triage", "billing", "escalation")
+
+LIMITS = {"repeat": (20, 1, 50), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25),
+          "agents": (5, 2, len(CACHE_AGENTS)), "rounds": (3, 1, 5)}
 SPAN_SECONDS = 0.01
 
 
@@ -339,6 +347,59 @@ def llm05(emit, path="both"):
     return summary
 
 
+# ---- LLM-12: per-agent isolated caches vs one shared cache ---------------------------------------------
+
+# Every agent answers the same support questions `rounds` times. The cache key is a digest of the model and the
+# question, as an LLM response cache would compute it; the run id keeps each run's questions new, so every run
+# re-warms the caches the way new traffic does. Lines carry the fields owner D's LLM-12 query reads: cache_result,
+# cache_key_hash, agent_id, cache_name and cache_backend. No question text is logged.
+
+CACHE_QUESTIONS = (
+    "Where is order ord-demo-0006?", "How do I change my delivery address?", "What is the refund policy?",
+    "Which carriers ship to Pune?", "How do I reset my password?", "Can I split a payment across two cards?",
+    "Why was my card declined?", "How long does a return take?",
+)
+CACHE_NAMES = {"waste": "demo-agent-local", "control": "demo-fleet-shared"}
+CACHE_BACKENDS = {"waste": "memory", "control": "demo-shared"}
+
+
+def _cache_key(run_id, question):
+    return hashlib.sha256(f"{DEMO_MODEL}\n{run_id}\n{question}".encode()).hexdigest()[:16]
+
+
+def _cache_path(emit, path, agents, rounds):
+    """One lookup line per (round, question, agent). Waste: one dict per agent; control: one dict for all."""
+    shared = {}
+    caches = {agent: ({} if path == "waste" else shared) for agent in agents}
+    misses = 0
+    for _ in range(rounds):
+        for question in CACHE_QUESTIONS:
+            key = _cache_key(emit.run_id, question)
+            for agent in agents:
+                cache = caches[agent]
+                hit = key in cache
+                if not hit:
+                    misses += 1
+                    cache[key] = f"synthetic answer {key}"  # stands in for the model's response
+                emit.json("LLM-12", path, level="INFO", message="llm cache lookup", agent_id=agent,
+                          cache_name=CACHE_NAMES[path], cache_backend=CACHE_BACKENDS[path],
+                          cache_result="hit" if hit else "miss", cache_key_hash=key)
+    return len(agents) * rounds * len(CACHE_QUESTIONS), misses
+
+
+def llm12(emit, agents, rounds, path="both"):
+    if path not in LLM10_PATHS:
+        raise ValueError(f"path must be one of {', '.join(LLM10_PATHS)}")
+    names = CACHE_AGENTS[:agents]
+    summary = {}
+    for label in ("waste", "control"):
+        if path in ("both", label):
+            lookups, misses = _cache_path(emit, label, names, rounds)
+            summary[f"{label}_lookups"] = lookups
+            summary[f"{label}_misses"] = misses
+    return summary
+
+
 # ---- entry points ---------------------------------------------------------------------------------------
 
 def _scenarios(value):
@@ -371,6 +432,7 @@ def run(event=None, write=None, cloudwatch=None, xray=None):
         "OBS-06": lambda: obs06(emit, _knob(event, "series")),
         "LLM-10": lambda: llm10(emit, _knob(event, "tool_calls"), event.get("path", "both")),
         "LLM-05": lambda: llm05(emit, event.get("path", "both")),
+        "LLM-12": lambda: llm12(emit, _knob(event, "agents"), _knob(event, "rounds"), event.get("path", "both")),
     }
     emitted = {check: steps[check]() for check in selected}
     return {"synthetic": True, "run_id": emit.run_id, "scenarios": list(selected), "emitted": emitted}

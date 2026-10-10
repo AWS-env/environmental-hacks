@@ -236,7 +236,7 @@ class RegistryTests(unittest.TestCase):
         self.assertEqual(wired, {"INF-01": ("cpu_metrics", None), "OBS-06": ("metrics", "list_metrics"),
                                  "OBS-07": ("log_groups", "describe_log_groups"), "OBS-11": ("logs_insights", None),
                                  "LLM-10": ("traces", "xray_traces"), "OBS-17": ("logs_insights", None),
-                                 "LLM-05": ("traces", "xray_traces")})
+                                 "LLM-05": ("traces", "xray_traces"), "LLM-12": ("logs_insights", None)})
         for check in registry.CHECKS:
             module, normalize = registry.load(check)
             self.assertEqual(module.CHECK_ID, check.check_id)
