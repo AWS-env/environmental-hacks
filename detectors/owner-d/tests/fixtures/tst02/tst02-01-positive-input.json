@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-tst02-001",
+  "commit_sha": "2222222222222222222222222222222222222222",
+  "check_id": "TST-02",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:tests/test_cart.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:tests/test_cart.py",
+      "kind": "static",
+      "locator": "tests/test_cart.py",
+      "content": "# Synthetic TST-02 fixture: tests sharing a production method. Never executed.\nimport unittest\n\nimport shop.pricing as pricing\nfrom shop.cart import Cart, total\n\n\nclass CartTest(unittest.TestCase):\n    def setUp(self):\n        self.cart = Cart()\n\n    def test_add_one(self):\n        self.cart.add(\"apple\")\n        self.assertEqual(self.cart.count(), 1)\n\n    def test_add_two(self):\n        self.cart.add(\"apple\")\n        self.cart.add(\"pear\")\n        self.assertEqual(self.cart.count(), 2)\n\n\nclass TestDiscount:\n    def test_half_price(self):\n        assert pricing.discount(100, 0.5) == 50\n\n    def test_no_discount(self):\n        basket = Cart()\n        basket.add(\"apple\")\n        assert pricing.discount(basket.subtotal(), 0) == basket.subtotal()\n\n\ndef test_total_empty():\n    assert total([]) == 0\n\n\ndef test_total_one():\n    assert total([3]) == 3\n\n\ndef test_total_many():\n    assert total([1, 2, 3]) == 6\n"
+    }
+  ]
+}
