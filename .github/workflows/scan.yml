@@ -1,0 +1,58 @@
+name: Scan
+
+# Scan a repository through the deployed scan-api (infra/scan-api) and publish the result as a job
+# summary and a report.json artifact. Set the repo variable SCAN_API_URL to the stack's ScanApiUrl
+# output; without it the job skips with a notice. A failed or timed-out scan is a warning, not a failure.
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '23 3 * * 1' # Mondays 03:23 UTC
+  workflow_dispatch:
+    inputs:
+      repo_url:
+        description: "Public https://github.com/<owner>/<repo> to scan (default: this repository)"
+        type: string
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+# A started scan is already paid for, so queue the next run instead of cancelling this one.
+# GitHub keeps at most one pending run per group and drops older pending ones.
+concurrency:
+  group: scan-${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: scripts/ci_scan.py
+          sparse-checkout-cone-mode: false
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - name: Scan through scan-api
+        env:
+          SCAN_API_URL: ${{ vars.SCAN_API_URL }}
+          FINDINGS_HUB_URL: ${{ vars.FINDINGS_HUB_URL }}
+          REPO_URL: ${{ inputs.repo_url || format('{0}/{1}', github.server_url, github.repository) }}
+        # Polls for up to 960 s: the worker timeout (900 s) plus the API's 60 s staleness margin.
+        run: python scripts/ci_scan.py --report report.json --timeout 960
+
+      - name: Upload report.json
+        if: always() && hashFiles('report.json') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: scan-report
+          path: report.json
+          retention-days: 14
