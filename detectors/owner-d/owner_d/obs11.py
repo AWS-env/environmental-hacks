@@ -1,19 +1,23 @@
 """OBS-11: duplicate/repeated log lines (retry loops, flapping checks) in CloudWatch Logs.
 
-Detector semantics version 1.0.0. Two parts:
+Detector semantics version 1.1.0. Two parts:
 
 * `LOGS_INSIGHTS_QUERY` and `normalize_logs_insights(raw, *, settings)` run on the `owner-d-log-analyzer`
   route. The query normalises `@message` (UUIDs, ISO timestamps, hex IDs, numbers and whitespace become
-  placeholders), counts events per log group and normalised message, and folds messages seen fewer than
-  `FOLD_THRESHOLD` times into one `<other>` row per log group. The normalizer turns those rows into one
-  `telemetry` source per `resource:log-group/<name>` scope item, with the reported text redacted.
+  placeholders), counts events and distinct slots (log stream + one-second bucket) per log group and
+  normalised message, and folds messages seen fewer than `FOLD_THRESHOLD` times into one `<other>` row per log
+  group. The normalizer turns those rows into one `telemetry` source per `resource:log-group/<name>` scope
+  item, with the reported text redacted.
 * `evaluate(payload)` flags a log group when one normalised message occurs more than `context.min_repeats`
   times in the window and makes up more than `context.min_share` of the group's application events, once the
   group has at least `context.min_events` application events.
 
 Lambda platform lines (START/END/REPORT, INIT_*, RESTORE_*, EXTENSION, TELEMETRY) never count as application
-events; START lines give the invocation count. Heartbeat lines (`context.exempt_message_markers`) and lines
-logged at most once per invocation on average are exceptions. The detector never calls AWS.
+events; START lines give the invocation count and the invocation slots. Heartbeat lines
+(`context.exempt_message_markers`) are exceptions, and so are per-request lines: at most one line per
+invocation, and no more than `CLUSTER_FACTOR` times as clustered (lines per slot) as the START lines. A burst
+logged inside one or a few invocations is clustered, so it is flagged even when the group has more invocations
+than lines (1.0.0 exempted it). The detector never calls AWS.
 """
 
 from __future__ import annotations
@@ -24,7 +28,7 @@ import re
 from .static import IDENTITY_FIELDS, SCHEMA_VERSION, EvaluationError, fingerprint
 
 CHECK_ID = "OBS-11"
-DETECTOR_VERSION = "1.0.0"
+DETECTOR_VERSION = "1.1.0"
 SUPPORTED_KIND = "telemetry"
 SCOPE_PREFIX = "resource:log-group/"
 IDENTITY_PREFIX = "repeated-log-line:"
@@ -33,6 +37,12 @@ OTHER = "<other>"
 MAX_MESSAGES = 20  # application messages kept per log group in the source data
 MAX_MESSAGE_CHARS = 200  # reported (redacted) text length
 NORMALIZED_PREFIX_CHARS = 400  # the query compares the first 400 characters of each message
+# A slot is one log stream (one Lambda execution environment, which runs one invocation at a time) during one
+# second. Lines of a retry burst share a slot; a line logged once per request spreads like the START lines.
+SLOT_PERIOD = "1s"
+# A per-request line may be at most this many times as clustered (lines per slot) as the invocations (START
+# lines per slot). The slack absorbs second-boundary jitter and routes somewhat busier than the group average.
+CLUSTER_FACTOR = 2
 
 SETTING_KEYS = ("min_events", "min_repeats", "min_share", "exempt_message_markers")
 # Reference values (issue #235 verification plan). All four are required judgment calls.
@@ -46,7 +56,9 @@ _PLATFORM_QUERY_REGEX = ("^(START|END|REPORT) RequestId: |^(" + "|".join(_PLATFO
 # CloudWatch Logs Insights (default query language). regexReplace uses RE2 syntax and its patterns avoid
 # backslash escapes. `like /.../` is a different regex dialect: POSIX classes such as [[:space:]] do not match
 # there (checked against the live service), so the platform pattern uses \s. Bytes scanned do not depend on
-# the query text, only on the window and the log groups.
+# the query text, only on the window and the log groups. Application lines written to stdout carry no
+# @requestId (only platform lines and runtime-logger lines do), so invocations are approximated by slots:
+# count_distinct of "<@logStream> <epoch ms of the second>". The `slots` of the <other> row are not used.
 LOGS_INSIGHTS_QUERY = (
     "fields regexReplace(regexReplace(regexReplace(regexReplace(regexReplace(regexReplace("
     f"substr(@message, 0, {NORMALIZED_PREFIX_CHARS}), "
@@ -55,11 +67,13 @@ LOGS_INSIGHTS_QUERY = (
     '"[0-9a-fA-F]{8,}", "<hex>"), '
     '"[0-9]+", "<n>"), '
     '"[[:space:]]+", " "), '
-    '"^ | $", "") as normalized\n'
-    "| stats count(*) as n, min(@timestamp) as first, max(@timestamp) as last by @log, normalized\n"
+    '"^ | $", "") as normalized, '
+    f'concat(@logStream, " ", toMillis(datefloor(@timestamp, {SLOT_PERIOD}))) as slot\n'
+    "| stats count(*) as n, count_distinct(slot) as n_slots, min(@timestamp) as first, max(@timestamp) as last"
+    " by @log, normalized\n"
     f"| fields if(n >= {FOLD_THRESHOLD} or normalized like /{_PLATFORM_QUERY_REGEX}/,"
     f' normalized, "{OTHER}") as message\n'
-    "| stats sum(n) as occurrences, min(first) as first_seen, max(last) as last_seen"
+    "| stats sum(n) as occurrences, sum(n_slots) as slots, min(first) as first_seen, max(last) as last_seen"
     " by @log, message\n"
     "| sort @log asc, occurrences desc"
 )
@@ -73,10 +87,13 @@ REFERENCES = (
 )
 
 GENERAL_LIMITATION = (
-    "OBS-11 v1 counts normalised messages (numbers, UUIDs, hex IDs and timestamps replaced; first "
+    "OBS-11 v1.1 counts normalised messages (numbers, UUIDs, hex IDs and timestamps replaced; first "
     f"{NORMALIZED_PREFIX_CHARS} characters compared) per log group over the query window. Lines that differ "
-    "only in numbers are grouped, bursts within an invocation are not timed, a retry loop that fires on fewer "
-    "lines than there are invocations is not flagged, and ingested bytes are not measured."
+    "only in numbers are grouped. Lines are attributed to invocations by slot (log stream and second), not by "
+    "request ID: a retry loop paced slower than one line per second per log stream spreads like per-request "
+    "lines and is not flagged while it has no more lines than there are invocations, and a once-per-request "
+    f"line from a route more than {CLUSTER_FACTOR} times as clustered as the group's invocations is flagged. "
+    "Ingested bytes are not measured."
 )
 
 _PLATFORM = re.compile(
@@ -166,10 +183,10 @@ def _row_count(value):
 
 def _group_data(name, rows, window):
     events = platform = folded = 0
-    invocations = 0
+    invocations = invocation_slots = 0
     merged = {}
     for row in rows:
-        message, count = row["message"], row["occurrences"]
+        message, count, slots = row["message"], row["occurrences"], row["slots"]
         events += count
         if message == OTHER:
             folded += count
@@ -178,20 +195,24 @@ def _group_data(name, rows, window):
             platform += count
             if _START.search(message):
                 invocations += count
+                invocation_slots += slots
             continue
         text = redact(message)
-        entry = merged.setdefault(text, {"occurrences": 0, "first_seen": None, "last_seen": None})
+        entry = merged.setdefault(text, {"occurrences": 0, "slots": 0, "first_seen": None, "last_seen": None})
         entry["occurrences"] += count
+        entry["slots"] += slots
         for key, pick in (("first_seen", min), ("last_seen", max)):
             value = row.get(key)
             if isinstance(value, str) and value:
                 entry[key] = value if entry[key] is None else pick(entry[key], value)
     application = events - platform
     ranked = sorted(merged.items(), key=lambda item: (-item[1]["occurrences"], item[0]))
+    # count_distinct is approximate at high cardinality; a slot count never exceeds the line count.
     messages = [{
         "message": display(text),
         "message_sha256": message_hash(text),
         "occurrences": entry["occurrences"],
+        "slots": max(1, min(entry["slots"], entry["occurrences"])),
         "share": round(entry["occurrences"] / application, 4) if application else 0.0,
         "first_seen": entry["first_seen"],
         "last_seen": entry["last_seen"],
@@ -203,6 +224,7 @@ def _group_data(name, rows, window):
         "platform_events": platform,
         "application_events": application,
         "invocations": invocations or None,
+        "invocation_slots": max(1, min(invocation_slots, invocations)) if invocations else None,
         "folded_events": folded,
         "fold_threshold": FOLD_THRESHOLD,
         "messages": messages,
@@ -241,10 +263,11 @@ def normalize_logs_insights(raw, *, settings=None):
         if not order or order[-1] != name:
             order.append(name)
         message, count = row.get("message"), _row_count(row.get("occurrences"))
-        if not isinstance(message, str) or count is None:
+        slots = _row_count(row.get("slots"))
+        if not isinstance(message, str) or count is None or slots is None:
             malformed.add(name)
             continue
-        by_group.setdefault(name, []).append({**row, "occurrences": count})
+        by_group.setdefault(name, []).append({**row, "occurrences": count, "slots": slots})
     if unattributed:
         notes.append(f"{unattributed} Logs Insights row(s) had no @log field; no log group can be evaluated "
                      "because their totals are unknown")
@@ -260,7 +283,7 @@ def normalize_logs_insights(raw, *, settings=None):
                          "counts and were not evaluated: " + ", ".join(cut))
     for name in sorted(malformed):
         notes.append(f"{scope_id_for(name)}: Logs Insights rows with a missing message or a non-integer "
-                     "occurrences value; not evaluated")
+                     "occurrences value or slots count; not evaluated")
     scope, sources = [], []
     for name in queried:
         scope.append(scope_id_for(name))
@@ -323,6 +346,9 @@ def _message_problems(index, entry, application):
         problems.append(f"messages[{index}].occurrences must be a positive integer")
     elif _count(application) and occurrences > application:
         problems.append(f"messages[{index}].occurrences exceeds application_events")
+    slots = entry.get("slots")
+    if not _count(slots, 1) or (_count(occurrences, 1) and slots > occurrences):
+        problems.append(f"messages[{index}].slots must be a positive integer no greater than occurrences")
     return problems
 
 
@@ -330,7 +356,7 @@ def _data_problems(data, scope_id):
     if not isinstance(data, dict):
         return ["telemetry data must be an object"]
     required = ("log_group", "window", "events", "platform_events", "application_events", "invocations",
-                "messages")
+                "invocation_slots", "messages")
     missing = [key for key in required if key not in data]
     if missing:
         return ["missing fields: " + ", ".join(missing)]
@@ -348,14 +374,31 @@ def _data_problems(data, scope_id):
             problems.append(f"{key} must be a nonnegative integer")
     if not problems and data["application_events"] != data["events"] - data["platform_events"]:
         problems.append("application_events must equal events - platform_events")
-    if data["invocations"] is not None and not _count(data["invocations"], 1):
+    invocations, invocation_slots = data["invocations"], data["invocation_slots"]
+    if invocations is not None and not _count(invocations, 1):
         problems.append("invocations must be a positive integer or null (unknown)")
+    elif invocations is None and invocation_slots is not None:
+        problems.append("invocation_slots must be null when invocations is null")
+    elif invocations is not None and not (_count(invocation_slots, 1) and invocation_slots <= invocations):
+        problems.append("invocation_slots must be a positive integer no greater than invocations")
     if not isinstance(data["messages"], list):
         problems.append("messages must be a list")
     else:
         for index, entry in enumerate(data["messages"]):
             problems.extend(_message_problems(index, entry, data["application_events"]))
     return problems
+
+
+def is_per_request(entry, data):
+    """A per-request line: no more lines than invocations, and lines per slot at most CLUSTER_FACTOR times the
+    invocations (START lines) per slot. A burst inside one or a few invocations shares a few slots, so it fails
+    the second test however many other invocations the group had. Unknown invocations: never per-request."""
+    invocations, invocation_slots = data["invocations"], data["invocation_slots"]
+    occurrences, slots = entry["occurrences"], entry["slots"]
+    if not invocations or occurrences > invocations:
+        return False
+    # occurrences / slots <= CLUSTER_FACTOR * invocations / invocation_slots, in integers
+    return occurrences * invocation_slots <= CLUSTER_FACTOR * invocations * slots
 
 
 def _plural(count, word):
@@ -365,15 +408,17 @@ def _plural(count, word):
 def _finding(repository_id, scope_id, source, data, entry, share):
     name, occurrences, invocations = data["log_group"], entry["occurrences"], data["invocations"]
     text = display(entry["message"])
-    per_invocation = (f", {occurrences / invocations:.1f} per invocation over {_plural(invocations, 'invocation')}"
-                      if invocations else ", invocation count unknown")
+    per_slot = f"{occurrences / entry['slots']:.1f} per slot (log stream and second)"
+    per_invocation = (f", {occurrences / invocations:.1f} per invocation over {_plural(invocations, 'invocation')}, "
+                      f"{per_slot} against {invocations / data['invocation_slots']:.1f} invocations per slot"
+                      if invocations else f", {per_slot}, invocation count unknown")
     summary = (
         f"Log group {name} logged the same normalised message {occurrences} times between "
         f"{data['window']['start']} and {data['window']['end']}: {share:.0%} of its "
         f"{data['application_events']} application events{per_invocation}. Message: \"{text}\""
     )
     exact = "<n>" not in text
-    fields = ("messages", "application_events", "invocations", "window")
+    fields = ("messages", "application_events", "invocations", "invocation_slots", "window")
     return {
         "fingerprint": fingerprint(repository_id, CHECK_ID, scope_id, IDENTITY_PREFIX + entry["message_sha256"][:16]),
         "scope_id": scope_id,
@@ -422,7 +467,7 @@ def _evaluate_scope(scope_id, sources, settings, repository_id):
             platform.append(entry)
         elif any(marker in entry["message"].casefold() for marker in settings["exempt_message_markers"]):
             heartbeat.append(entry)
-        elif data["invocations"] and occurrences <= data["invocations"]:
+        elif is_per_request(entry, data):
             per_invocation.append(entry)
         else:
             findings.append(_finding(repository_id, scope_id, source, data, entry, share))
@@ -433,10 +478,11 @@ def _evaluate_scope(scope_id, sources, settings, repository_id):
         notes.append(f"{scope_id}: {_plural(len(heartbeat), 'repeated heartbeat line')} exempt by "
                      "exempt_message_markers")
     if per_invocation:
-        quoted = "; ".join(f"\"{display(e['message'])}\" ({e['occurrences']} lines, {data['invocations']} "
-                           "invocations)" for e in per_invocation)
-        notes.append(f"{scope_id}: logged at most once per invocation on average, so treated as per-request "
-                     f"lines, not retry loops: {quoted}")
+        quoted = "; ".join(f"\"{display(e['message'])}\" ({e['occurrences']} lines in {_plural(e['slots'], 'slot')}; "
+                           f"{data['invocations']} invocations in {_plural(data['invocation_slots'], 'slot')})"
+                           for e in per_invocation)
+        notes.append(f"{scope_id}: logged at most once per invocation and spread across slots (log stream and "
+                     f"second) like the invocations, so treated as per-request lines, not retry loops: {quoted}")
     if data.get("omitted_messages"):
         notes.append(f"{scope_id}: {data['omitted_messages']} less frequent messages were not supplied")
     return True, findings, notes, None
