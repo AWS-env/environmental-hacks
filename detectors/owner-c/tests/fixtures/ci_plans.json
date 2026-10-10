@@ -32,6 +32,17 @@
     "challenge": "A job that fails then passes because of a transient network error (not a flaky test) is reported as flaky.",
     "history": true
   },
+  "CI-05": {
+    "issue": 20,
+    "formats": "Same normalized GitHub Actions history artifact as CI-01.",
+    "evidence": "Scope `file:<workflow path>`. Cited field: `fail_then_pass_runs` (runs where an attempt failed and a later attempt of the same run succeeded, judged by each attempt's own conclusion). Workflow level; CI-03 covers the same pattern per job.",
+    "rule": "Report when `fail_then_pass_runs >= min_brown_runs`, `runs_total >= min_runs` and the count is not larger than `runs_total`. Confidence medium; high when the count is at least 25% of runs. `action_required` and `cancelled` attempts are not failures.",
+    "identity": "`workflow:brown-builds`.",
+    "context": "`min_brown_runs` (default 3), `min_runs` (default 5).",
+    "unsupported": "Cause of the failure. Overlaps CI-03 by design (job vs workflow level).",
+    "challenge": "One flaky job in a 20-job matrix makes the whole workflow count as a brown build.",
+    "history": true
+  },
   "CI-06": {
     "issue": 21,
     "formats": "GitHub Actions workflow files `.github/workflows/*.yml|yaml` (parsed with PyYAML, never executed).",
