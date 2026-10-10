@@ -12,6 +12,7 @@ const fixture = name => JSON.parse(fs.readFileSync(path.join(DIR, `pg16-${name}.
 const CONTEXTS = {
   'DB-43': {min_rows_examined: 10000, min_removed_ratio: 0.9},
   'DB-45': {min_sort_space_kb: 0},
+  'DB-46': {min_inner_loops: 100, min_rows_examined: 10000},
 };
 /** Contract-v1 input with one artifact source per query. */
 function build(check, queries, ctx = {}) {
@@ -49,6 +50,18 @@ const CASES = [
   {check: 'DB-45', name: 'boundary: floor one kB above is exempt', q: [{id: 1, data: artifact('sort-spill-serial')}], ctx: {min_sort_space_kb: 8281}, identities: []},
   {check: 'DB-45', name: 'missing: plain EXPLAIN has no Sort Method', q: [{id: 1, data: artifact('plain-seqscan')}], identities: [], status: 'unavailable'},
   {check: 'DB-45', name: 'malformed: empty plan array', q: [{id: 1, data: artifact('sort-spill-serial', {plan: []})}], identities: [], status: 'unavailable'},
+  // DB-46
+  {check: 'DB-46', name: 'positive: inner Seq Scan executed 300 times over 20,000 rows', q: [{id: 1, data: artifact('nestloop-inner-seqscan')}], identities: ['nested-loop-inner-seq-scan:customers_noidx(d)']},
+  {check: 'DB-46', name: 'negative: inner Bitmap Heap Scan (indexed) executed 3 times', q: [{id: 1, data: artifact('nestloop-index')}], identities: []},
+  {check: 'DB-46', name: 'boundary: loops floor equal to 300 is flagged', q: [{id: 1, data: artifact('nestloop-inner-seqscan')}], ctx: {min_inner_loops: 300}, identities: ['nested-loop-inner-seq-scan:customers_noidx(d)']},
+  {check: 'DB-46', name: 'boundary: loops floor 301 is exempt', q: [{id: 1, data: artifact('nestloop-inner-seqscan')}], ctx: {min_inner_loops: 301}, identities: []},
+  {check: 'DB-46', name: 'exception: rows-examined floor above the total', q: [{id: 1, data: artifact('nestloop-inner-seqscan')}], ctx: {min_rows_examined: 6000001}, identities: []},
+  {check: 'DB-46', name: 'missing: plain EXPLAIN has no actual loops', q: [{id: 1, data: artifact('plain-seqscan')}], identities: [], status: 'unavailable'},
+  {check: 'DB-46', name: 'exception (synthetic, derived from the real plan): a Materialize wrapper means the scan below runs once', identities: [], q: [{id: 1, data: (() => {
+    const a = artifact('nestloop-inner-seqscan'), nl = a.plan[0].Plan, inner = nl.Plans[1];
+    nl.Plans[1] = {'Node Type': 'Materialize', 'Parent Relationship': 'Inner', 'Actual Loops': 300, 'Actual Rows': 20000, Plans: [{...inner, 'Parent Relationship': 'Outer', 'Actual Loops': 1}]};
+    return a;
+  })()}]},
 ];
 CASES.forEach((c, i) => {
   test(`${c.check}-${String(i + 1).padStart(2, '0')} ${c.name}`, async () => {
