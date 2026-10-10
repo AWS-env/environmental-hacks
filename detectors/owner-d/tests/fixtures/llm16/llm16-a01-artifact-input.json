@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm16-001",
+  "commit_sha": "ffffffffffffffffffffffffffffffffffffffff",
+  "check_id": "LLM-16",
+  "detector_version": "1.1.0",
+  "context": {
+    "max_buffered_response_bytes": 1048576
+  },
+  "scope": [
+    "artifact:llm-16.json"
+  ],
+  "sources": [
+    {
+      "source_id": "memray-0",
+      "scope_id": "artifact:llm-16.json",
+      "kind": "artifact",
+      "locator": "llm-16.json from GitHub Actions run 4242-1: invoke:/home/runner/work/example/example/positive.py:51",
+      "data": {
+        "profiler": "memray",
+        "location": "invoke:/home/runner/work/example/example/positive.py:51",
+        "function": "invoke",
+        "file": "/home/runner/work/example/example/positive.py",
+        "line": 51,
+        "allocated_bytes": 8388608,
+        "peak_memory": 41943040
+      }
+    },
+    {
+      "source_id": "memray-1",
+      "scope_id": "artifact:llm-16.json",
+      "kind": "artifact",
+      "locator": "llm-16.json from GitHub Actions run 4242-1: _parse:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/anthropic/_response.py:293",
+      "data": {
+        "profiler": "memray",
+        "location": "_parse:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/anthropic/_response.py:293",
+        "function": "_parse",
+        "file": "/home/runner/work/example/example/.venv/lib/python3.12/site-packages/anthropic/_response.py",
+        "line": 293,
+        "allocated_bytes": 6291456,
+        "peak_memory": 41943040
+      }
+    },
+    {
+      "source_id": "memray-2",
+      "scope_id": "artifact:llm-16.json",
+      "kind": "artifact",
+      "locator": "llm-16.json from GitHub Actions run 4242-1: read:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/httpx/_models.py:881",
+      "data": {
+        "profiler": "memray",
+        "location": "read:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/httpx/_models.py:881",
+        "function": "read",
+        "file": "/home/runner/work/example/example/.venv/lib/python3.12/site-packages/httpx/_models.py",
+        "line": 881,
+        "allocated_bytes": 3145728,
+        "peak_memory": 41943040
+      }
+    },
+    {
+      "source_id": "memray-3",
+      "scope_id": "artifact:llm-16.json",
+      "kind": "artifact",
+      "locator": "llm-16.json from GitHub Actions run 4242-1: <module>:/home/runner/work/example/example/positive.py:3",
+      "data": {
+        "profiler": "memray",
+        "location": "<module>:/home/runner/work/example/example/positive.py:3",
+        "function": "<module>",
+        "file": "/home/runner/work/example/example/positive.py",
+        "line": 3,
+        "allocated_bytes": 2097152,
+        "peak_memory": 41943040
+      }
+    },
+    {
+      "source_id": "memray-4",
+      "scope_id": "artifact:llm-16.json",
+      "kind": "artifact",
+      "locator": "llm-16.json from GitHub Actions run 4242-1: read:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/botocore/response.py:99",
+      "data": {
+        "profiler": "memray",
+        "location": "read:/home/runner/work/example/example/.venv/lib/python3.12/site-packages/botocore/response.py:99",
+        "function": "read",
+        "file": "/home/runner/work/example/example/.venv/lib/python3.12/site-packages/botocore/response.py",
+        "line": 99,
+        "allocated_bytes": 1048576,
+        "peak_memory": 41943040
+      }
+    },
+    {
+      "source_id": "memray-5",
+      "scope_id": "artifact:llm-16.json",
+      "kind": "artifact",
+      "locator": "llm-16.json from GitHub Actions run 4242-1: chat:/home/runner/work/example/example/positive.py:24",
+      "data": {
+        "profiler": "memray",
+        "location": "chat:/home/runner/work/example/example/positive.py:24",
+        "function": "chat",
+        "file": "/home/runner/work/example/example/positive.py",
+        "line": 24,
+        "allocated_bytes": 524288,
+        "peak_memory": 41943040
+      }
+    },
+    {
+      "source_id": "memray-6",
+      "scope_id": "artifact:llm-16.json",
+      "kind": "artifact",
+      "locator": "llm-16.json from GitHub Actions run 4242-1: _get_code_from_file:<frozen runpy>:266",
+      "data": {
+        "profiler": "memray",
+        "location": "_get_code_from_file:<frozen runpy>:266",
+        "function": "_get_code_from_file",
+        "file": "<frozen runpy>",
+        "line": 266,
+        "allocated_bytes": 93317,
+        "peak_memory": 41943040
+      }
+    }
+  ]
+}

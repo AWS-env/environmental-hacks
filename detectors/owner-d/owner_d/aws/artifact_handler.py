@@ -141,6 +141,19 @@ def tst12_inputs(data, identity):
 ROUTES = {"tst-12.json": tst12_inputs}
 
 
+def llm16_inputs(data, identity):
+    """LLM-16 artifact mode: raw `memray stats --json` output -> one `artifact:llm-16.json` scope (llm16.memray_inputs)."""
+    from owner_d import llm16
+
+    try:
+        return (llm16, *llm16.memray_inputs(data, identity["name"], identity["run"]))
+    except ValueError as exc:
+        raise Refused(str(exc)) from None
+
+
+ROUTES["llm-16.json"] = llm16_inputs
+
+
 # ---- handler -----------------------------------------------------------------------------------
 
 def evaluate(identity, data, *, chunk=common.DEFAULT_SCOPE_PER_PAYLOAD):
