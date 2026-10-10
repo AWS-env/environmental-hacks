@@ -155,6 +155,42 @@ To ship new code, rebuild, upload under the new key and rerun `cloudformation de
 `ScanCooldownSeconds` (600) and `MaxScansPerDay` (50) tune the [abuse guard](#abuse-guard), for example
 `--parameter-overrides ... MaxScansPerDay=20`.
 
+## CI scan workflow
+
+[`.github/workflows/scan.yml`](../../.github/workflows/scan.yml) scans this repository through the
+deployed API on every push to `main`, weekly (Mondays 03:23 UTC) and on `workflow_dispatch`. A manual
+run takes an optional `repo_url` input, which defaults to this repository. It runs
+[`scripts/ci_scan.py`](../../scripts/ci_scan.py) (stdlib only, tests in `tests/scan_api/test_ci_scan.py`),
+which does the following:
+
+- `POST /scans`, retrying throttling `429`s (API Gateway's `{"message": "Too Many Requests"}`), `5xx` and
+  network errors up to 5 times with backoff (2, 4, 8, 16 s). It does not retry the daily-cap `429`
+  (`daily scan limit reached; try again after 00:00 UTC`): the run is marked `skipped` with a
+  `::warning::`. If a scan of the repository is still in its per-repo cooldown, scan-api answers `200` with
+  `"reused": true` and that scan's `scan_id`. The script polls that scan as usual, and the summary says it
+  was reused.
+- Polls `GET /scans/{scan_id}` every 10 s for up to 960 s (the 900 s worker timeout plus the API's 60 s
+  staleness margin). If the report is too large to return inline, it downloads it from `report_url`.
+- Writes a job summary with the overall status, a per-check table (status and finding count) and a link to
+  the findings hub read API (`GET https://own2fw0jyj.execute-api.ap-south-1.amazonaws.com/repos/<owner>/<repo>/scans/<scan_id>`).
+  The optional repo variable `FINDINGS_HUB_URL` overrides that base URL. The job also uploads `report.json`
+  as the `scan-report` artifact. When this repository is the one scanned and the report's commit differs
+  from `GITHUB_SHA`, the summary notes that the report is for a different commit than the pushed one. This
+  happens with a reused scan, or when `main` moved before the worker downloaded it.
+- A scan error, a timeout, a scan that cannot be started or one skipped by the daily cap gives a `::warning::`,
+  and the job still passes. The job fails only on misconfiguration (scan-api rejects the request with another
+  `4xx`, or `repo_url` is invalid) or on a bug in the script.
+
+The workflow reads the API URL from the repo variable `SCAN_API_URL`. The API is public, so no secret
+is needed. If the variable is unset, the job exits successfully with a `::notice::`. To enable it, run:
+
+```bash
+gh variable set SCAN_API_URL --body "$API"    # the ScanApiUrl stack output
+```
+
+Each run costs one scan (see below). The `concurrency` group queues runs instead of starting them in
+parallel, and keeps at most one run pending.
+
 ## Cost on the Free plan
 
 Per scan: 1 POST, about 30-50 polling GETs, about 5 S3 PUTs and 1-2 GETs, and one worker run of about
