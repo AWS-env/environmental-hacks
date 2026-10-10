@@ -26,6 +26,13 @@ Parameters:
     Type: Number
     Default: 7
     AllowedValues: [1, 3, 5, 7, 14]
+  FindingsBusName:
+    Type: String
+    Default: findings-hub
+    AllowedPattern: "[A-Za-z0-9._-]{0,256}"
+    Description: >-
+      Owner D findings-hub EventBridge bus (same project and Region). The worker publishes each validated
+      result there after saving report.json; empty turns publishing off.
   WorkerReservedConcurrency:
     Type: Number
     Default: 2
@@ -42,6 +49,7 @@ Rules:
 
 Conditions:
   ReserveWorker: !Not [!Equals [!Ref WorkerReservedConcurrency, 0]]
+  PublishToHub: !Not [!Equals [!Ref FindingsBusName, ""]]
 
 Resources:
   ScanBucket:
@@ -128,6 +136,13 @@ Resources:
               - Effect: Allow
                 Action: s3:PutObject
                 Resource: !Sub "${ScanBucket.Arn}/scans/*"
+              - !If
+                - PublishToHub
+                - Sid: PublishToFindingsHub
+                  Effect: Allow
+                  Action: events:PutEvents
+                  Resource: !Sub "arn:${AWS::Partition}:events:${AWS::Region}:${AWS::AccountId}:event-bus/${FindingsBusName}"
+                - !Ref "AWS::NoValue"
       Tags:
         - { Key: component, Value: scan-api }
 
@@ -151,6 +166,7 @@ Resources:
       Environment:
         Variables:
           SCAN_BUCKET: !Ref ScanBucket
+          FINDINGS_BUS_NAME: !Ref FindingsBusName
       LoggingConfig:
         LogGroup: !Ref WorkerLogGroup
       Tags:

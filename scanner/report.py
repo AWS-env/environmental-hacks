@@ -163,8 +163,11 @@ def _check_entry(run):
     return entry, findings, measurements
 
 
-def build_report(target, fileset, adapters=None, scan_id=None, now=None):
-    """Run adapters concurrently (Node checks run in subprocesses) and assemble the report dict."""
+def build_report(target, fileset, adapters=None, scan_id=None, now=None, results=None):
+    """Run adapters concurrently (Node checks run in subprocesses) and assemble the report dict.
+
+    `results`, when given a list, receives (owner, contract result) for every result that passed
+    validate_pair, e.g. for publishing to the findings hub (scan_api.hub)."""
     from scanner.source import content_sha
 
     started = time.monotonic()
@@ -182,6 +185,8 @@ def build_report(target, fileset, adapters=None, scan_id=None, now=None):
         adapter_entries.append(entry)
         for run in runs:
             check, found, measured = _check_entry(run)
+            if results is not None and check["status_source"] == "detector":
+                results.append((run.owner, run.result))
             checks.append(check)
             findings.extend(found)
             measurements.extend(measured)

@@ -111,6 +111,37 @@ aws cloudformation deploy --stack-name owner-d-findings-hub \
 The `findings-hub` bus already exists outside this stack. The stack only
 references it by name.
 
+## Read API (public scans)
+
+Stack `owner-d-hub-api` ([`cdk/owner-d/hub-api.yaml`](../cdk/owner-d/hub-api.yaml), code
+[`findings_hub/api.py`](findings_hub/api.py), deployed from the same zip as the writer) serves persisted scans
+to the website and the dashboard:
+
+```
+GET {HubApiUrl}/repos/<owner>/<repo>/scans/<scan_id>
+200 {"repository_id": "github:<owner>/<repo>", "scan_id", "commit_sha", "results": [...], "findings": [...],
+     "findings_total", "truncated"}
+404 {"error": "scan not found"}
+```
+
+`scan_id` is the UUID that scan-api returned from `POST /scans`. After saving `report.json`, the scan-api
+worker publishes every validated result to `findings-hub` with source `owner-<c|d>.scan-api`, so a finished
+scan becomes readable here a few seconds later and stays after the S3 report expires. Use the repository
+name exactly as it was scanned, because `repository_id` is case-sensitive.
+
+Only results whose source is `owner-<x>.scan-api` are served. Those are scans of public repositories,
+looked up by a random ID, which matches scan-api's own exposure. Client-CI upload results
+(`owner-d.artifact-parser`) and telemetry results (`owner-d.*-analyzer`) are never returned. The function
+can only run `dynamodb:Query` on the findings table. CORS allows `GET` from `AllowedOrigin`.
+
+```bash
+./scripts/build-owner-d-hub.sh               # same zip as the writer; contains findings_hub/api.py
+aws s3 cp <zip> s3://owner-d-deploy-<account>-ap-south-1/
+aws cloudformation deploy --stack-name owner-d-hub-api --template-file cdk/owner-d/hub-api.yaml \
+  --capabilities CAPABILITY_NAMED_IAM --tags owner=D project=environmental-hacks \
+  --parameter-overrides CodeBucket=owner-d-deploy-<account>-ap-south-1 CodeKey=<zip name>
+```
+
 ## Artifact upload endpoint
 
 Client CI uploads artifacts such as profiler output, test timings, coverage and bundle stats through

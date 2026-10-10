@@ -31,6 +31,18 @@ frontend polls `GET` until the scan is `done` or `error`.
 Everything runs in the project Region, **ap-south-1** (the template refuses any other Region). There is
 no VPC, NAT gateway or always-on compute; idle cost is only S3 storage for up to 7 days of reports.
 
+### Findings hub
+
+After writing `report.json`, the worker publishes every result that passed `validate_pair` to the Owner D
+`findings-hub` bus (`FindingsBusName`, default `findings-hub`; empty turns this off). Each result becomes one
+`detector.result.v1` event with source `owner-<c|d>.scan-api`. The hub writer validates the events again and
+stores them, and `GET /repos/<owner>/<repo>/scans/<scan_id>` on the Owner D hub API serves them (see
+[`hub/README.md`](../../hub/README.md#read-api-public-scans)).
+
+Publishing is best-effort. `status.json` records the outcome as
+`"hub": {"bus", "published", "failed", "skipped_too_large"}`, or as `{"bus", "error"}`. A hub failure never
+turns a finished scan into an error. The worker role can only call `events:PutEvents` on that bus.
+
 ## Endpoints
 
 `SCAN_API_URL` is the stack output `ScanApiUrl` (`https://<api-id>.execute-api.ap-south-1.amazonaws.com`).

@@ -7,6 +7,7 @@ Every failure ends in status `error`; the API covers the cases the worker cannot
 """
 from __future__ import annotations
 
+import json
 import shutil
 import tarfile
 import tempfile
@@ -16,7 +17,7 @@ from pathlib import Path, PurePosixPath
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
-from scan_api import store
+from scan_api import hub, store
 from scanner import source
 from scanner.core import AdapterUnavailable
 from scanner.report import build_report, default_adapters
@@ -115,7 +116,7 @@ def safe_extract(tarball: Path, dest: Path) -> tuple[Path, str | None]:
     return root, header_sha if source.SHA.match(header_sha) else None
 
 
-def run_scan(scan_id: str, owner: str, repo: str, workdir: Path) -> dict:
+def run_scan(scan_id: str, owner: str, repo: str, workdir: Path, results: list | None = None) -> dict:
     sha = resolve_sha(owner, repo)
     tarball = workdir / "repo.tar.gz"
     # Download the exact commit the API resolved, so the report's SHA matches the scanned files.
@@ -126,7 +127,21 @@ def run_scan(scan_id: str, owner: str, repo: str, workdir: Path) -> dict:
                              else ("", "content-hash"))
     target = source.Target(f"github:{owner}/{repo}", root, commit, commit_source, f"https://github.com/{owner}/{repo}")
     adapters = [a if a.owner in LAMBDA_OWNERS else NodeOnly(a) for a in default_adapters()]
-    return build_report(target, source.collect(root, source.Limits()), adapters, scan_id=scan_id)
+    return build_report(target, source.collect(root, source.Limits()), adapters, scan_id=scan_id, results=results)
+
+
+def publish_to_hub(scan_id: str, results: list) -> dict | None:
+    """Best-effort: the report is already in S3, so a hub failure is recorded and the scan stays done."""
+    bus = hub.bus_name()
+    if not bus:
+        return None
+    try:
+        summary = hub.publish(results, bus)
+    except Exception as error:  # botocore ClientError etc.
+        print(f"scan {scan_id} hub publish failed: {type(error).__name__}: {error}")
+        return {"bus": bus, "error": f"publish failed ({type(error).__name__})"}
+    print(f"scan {scan_id} hub: {json.dumps(summary)}")
+    return summary
 
 
 def handler(event, context=None):
@@ -143,9 +158,10 @@ def handler(event, context=None):
             raise ScanError(str(error)) from None
         store.put_status(scan_id, "running", repo_url, created_at)
         started = time.monotonic()
-        report = run_scan(scan_id, owner, repo, workdir)
+        results = []
+        report = run_scan(scan_id, owner, repo, workdir, results)
         size = store.put_json(scan_id, "report.json", report)
-        store.put_status(scan_id, "done", repo_url, created_at, report_bytes=size)
+        store.put_status(scan_id, "done", repo_url, created_at, report_bytes=size, hub=publish_to_hub(scan_id, results))
         print(f"scan {scan_id} {owner}/{repo} done in {time.monotonic() - started:.1f}s, report {size} bytes")
     except Exception as error:
         if isinstance(error, ScanError):
