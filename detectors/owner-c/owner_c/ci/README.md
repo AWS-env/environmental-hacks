@@ -76,6 +76,7 @@ python -m shared.contracts.verify
   `cancel-in-progress`; a cancelling group made only of context expressions without the workflow name (for example
   `${{ github.ref }}`). Not flagged: `workflow_call`, `pull_request_target`, `pull_request` types without
   `synchronize`, deployments, explicit `cancel-in-progress: false`, expressions.
+- **CI-13** duplicate matrix axis values and no-op `include` entries. Wide matrices are deliberately not reported.
 
 ## History checks
 
