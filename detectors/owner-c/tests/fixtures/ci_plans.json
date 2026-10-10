@@ -19,6 +19,16 @@
     "unsupported": "Cache configured in the compose file (`cache_from`), the bake file, the builder or the Dockerfile (`RUN --mount=type=cache`); build time is not measured.",
     "challenge": "A BuildKit registry cache configured via buildx environment variables is not seen."
   },
+  "CI-08": {
+    "issue": 23,
+    "formats": "GitHub Actions workflow YAML.",
+    "evidence": "Scope `file:<workflow path>`; static evidence quotes the step that runs the clean build.",
+    "rule": "A non-release job restores a build-output cache (path `target`, `build`, `dist`, `out`, `.next`, `.nx`, `.turbo`; NOT keyed per run) and then runs a clean (`mvn clean`, `gradlew clean`, `make clean`, `cargo clean`, `rm -rf` of the output dir), so the cached result is thrown away. Explicit flags (`--no-build-cache`, `--rerun-tasks`, `--no-incremental`) are NOT reported: on 336 real workflow files they were deliberate every time (CodeQL and Infer need a fresh compile, forced test runs, dependency warm-ups). Exceptions: a cache keyed per run (`github.run_id`, `github.sha`) is a hand-off between jobs; `.gradle` (project task history) is not removed by `clean`; release/publish/deploy jobs and tag workflows. Confidence medium. Static only.",
+    "identity": "`job:<job id>:full-build:<flag | clean-with-build-cache>`.",
+    "context": "None.",
+    "unsupported": "Tools with their own remote caches are not evaluated (Turborepo, Nx Cloud, Bazel). Build duration is not measured.",
+    "challenge": "A clean build before a release-candidate PR check may be required for reproducibility."
+  },
   "CI-11": {
     "issue": 25,
     "formats": "GitHub Actions workflow YAML (`on` as string, list or mapping).",

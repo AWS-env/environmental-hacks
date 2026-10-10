@@ -1,0 +1,128 @@
+[
+  {
+    "id": "CI-08-01",
+    "title": "legitimate exception: an explicit --no-build-cache is a deliberate choice (CodeQL, Infer, forced test runs), not reported",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: ./gradlew build --no-build-cache\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-08-02",
+    "title": "known positive: build-output cache restored, then mvn clean wipes it",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: target\n          key: mvn-${{ hashFiles('**/pom.xml') }}\n      - run: mvn clean package\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:full-build:clean-with-build-cache",
+          "line": 13,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-08-03",
+    "title": "similar negative: mvn clean on a fresh runner with no build-output cache",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: mvn clean package\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-08-04",
+    "title": "similar negative: plain Gradle build",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: ./gradlew build\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-08-05",
+    "title": "legitimate exception: release job on tags builds clean on purpose",
+    "files": {
+      ".github/workflows/release.yml": "name: Release\non:\n  push:\n    tags: ['v*']\njobs:\n  release:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - run: ./gradlew build --rerun-tasks\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-08-06",
+    "title": "boundary: dependency cache (~/.m2) is not a build-output cache, clean is harmless",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ~/.m2\n          key: m2-${{ hashFiles('**/pom.xml') }}\n      - run: mvn clean package\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-08-08",
+    "title": "legitimate exception: a build-output cache keyed per run is a hand-off between jobs, clean after it is expected",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: ./*\n          key: ${{ github.run_id }}\n      - run: ./gradlew clean build\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-08-09",
+    "title": "known positive: a Gradle build directory cached on the lockfile hash, then gradlew clean build (real: SihenZhang/CrockPot)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: build\n          key: ${{ runner.os }}-gradle-build-${{ hashFiles('build.gradle') }}\n      - run: ./gradlew clean build\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": [
+        {
+          "identity": "job:build:full-build:clean-with-build-cache",
+          "line": 13,
+          "confidence": "medium"
+        }
+      ]
+    }
+  },
+  {
+    "id": "CI-08-10",
+    "title": "boundary: Gradle's project .gradle directory is cached, and gradlew clean does not delete it (real: pravega, GDownloader)",
+    "files": {
+      ".github/workflows/ci.yml": "name: CI\non:\n  pull_request:\njobs:\n  build:\n    runs-on: ubuntu-latest\n    steps:\n      - uses: actions/checkout@v4\n      - uses: actions/cache@v4\n        with:\n          path: |\n            ~/.gradle/caches\n            .gradle\n          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*') }}\n      - run: ./gradlew clean build\n"
+    },
+    "expect": {
+      "status": "completed",
+      "findings": []
+    }
+  },
+  {
+    "id": "CI-08-07",
+    "title": "malformed input: unparsable YAML is not evaluated and never reported clean",
+    "files": {
+      ".github/workflows/bad.yml": "on: [push\njobs:\n  x: {\n"
+    },
+    "expect": {
+      "status": "unavailable",
+      "findings": [],
+      "evaluated": [],
+      "limitations_contain": [
+        "could not be parsed"
+      ]
+    }
+  }
+]
