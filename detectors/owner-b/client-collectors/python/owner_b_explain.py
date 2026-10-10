@@ -35,6 +35,7 @@ RULE_VERSION = "plan-1"
 CHECK_CONTEXTS = {  # thresholds are the auditor's configured choices (see shreyas/docs/owner-b-decisions.md)
     "DB-43": {"min_rows_examined": 10000, "min_removed_ratio": 0.9},
     "DB-45": {"min_sort_space_kb": 0},
+    "DB-46": {"min_inner_loops": 100, "min_rows_examined": 10000},
 }
 _READ_ONLY = re.compile(r"^\s*\(?\s*(select|with)\b", re.IGNORECASE)
 _WRITES = re.compile(r"\b(insert|update|delete|merge|alter|create|drop|truncate|grant|revoke|copy|call|do|vacuum|lock|set)\b|\bfor\s+(update|share|no\s+key\s+update|key\s+share)\b|\binto\b\s+\w", re.IGNORECASE)
