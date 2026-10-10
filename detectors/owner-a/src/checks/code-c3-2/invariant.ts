@@ -171,6 +171,14 @@ function chainDepth(node: Parser.SyntaxNode): number {
   return depth;
 }
 
+/** `with <node>:` / `with <node> as x:` (also async): entering and leaving the manager is per-iteration work. */
+function isWithItemExpression(node: Parser.SyntaxNode): boolean {
+  const parent = node.parent;
+  if (!parent) return false;
+  if (parent.type === "with_item") return true;
+  return parent.type === "as_pattern" && parent.parent?.type === "with_item";
+}
+
 /**
  * Check if candidate expression node is invariant with respect to the given loop.
  */
@@ -203,6 +211,10 @@ function checkCandidateInvariance(
     if (parentType === "expression_statement" || parentType === "await") {
       return null;
     }
+
+    // Guard: a context manager has enter/exit effects that belong to each iteration
+    // (`with beat(1):`, `with open_conn(cfg) as c:`); it is not a value to hoist.
+    if (isWithItemExpression(node)) return null;
 
     const calleeText = func.text.trim();
 
