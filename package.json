@@ -23,7 +23,8 @@
     "ajv-formats": "^3.0.1",
     "cron-parser": "5.10.2",
     "node-sql-parser": "^5.4.0",
-    "php-parser": "^3.7.0"
+    "php-parser": "^3.7.0",
+    "web-tree-sitter": "0.20.8"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

@@ -5,6 +5,7 @@
 //   node node_driver.mjs owner-a <detectors/owner-a/dist/index.js> list
 //   node node_driver.mjs owner-a <detectors/owner-a/dist/index.js> evaluate  < {base, sources, checks}
 //   node node_driver.mjs owner-b <detectors/owner-b/index.js> scan           < {files: [{path, content}]}
+//   node node_driver.mjs owner-b <detectors/owner-b/index.js> evaluate       < {inputs: [contract v1 input]}
 import { createRequire } from "node:module";
 import { pathToFileURL } from "node:url";
 
@@ -52,6 +53,18 @@ function ownerB() {
   }
   if (action === "list") {
     return { checks: Object.keys(detector.checks || {}).sort() };
+  }
+  if (action === "evaluate") {
+    // Contract v1 inputs (static ORM checks); evaluate() may return a Promise. A crash is that check's error.
+    return readStdin().then(async ({ inputs }) => ({
+      results: await Promise.all(inputs.map(async (input) => {
+        try {
+          return { check_id: input.check_id, result: await detector.evaluate(input) };
+        } catch (error) {
+          return { check_id: input.check_id, error: message(error) };
+        }
+      })),
+    }));
   }
   // The legacy scanSource() suppresses parse errors, so a strict parse decides whether a file
   // was really evaluated; without it an unparseable file would look clean.
