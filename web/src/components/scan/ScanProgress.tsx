@@ -38,13 +38,14 @@ function formatElapsed(ms: number): string {
  * An in-flight scan: #443's illustrative pipeline over the terrain. Its status bar shows the real scan phase
  * and elapsed time; it is the only status display and the only Back button while a scan runs.
  */
-export default function ScanProgress({ state, step, onBack }: { state: ScanSessionState; step: number; onBack: () => void }) {
+export default function ScanProgress({ state, step, activeSteps = [], onBack }: { state: ScanSessionState; step: number; activeSteps?: number[]; onBack: () => void }) {
   const now = useNow();
   useEscape(onBack);
   const text = PHASE_TEXT[state.phase] ?? { title: "Working", detail: "" };
   return (
     <ScanPipeline
       step={step}
+      activeSteps={activeSteps}
       repository={state.repoUrl}
       status={{
         title: text.title,

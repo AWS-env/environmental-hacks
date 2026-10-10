@@ -2,16 +2,17 @@
 
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
-import { pipelineLayout, PIPELINE_NODES, PIPELINE_STEPS, MORPH_SECONDS, STEP_SECONDS, nodeIndex } from "./pipelineModel";
+import { pipelineLayout, pipelineActivity, PIPELINE_NODES, PIPELINE_ROUTES, MORPH_SECONDS, STEP_SECONDS, nodeIndex } from "./pipelineModel";
 
 const vertexShader = `
   uniform float uTime, uSeed, uLayer, uPixelRatio;
   attribute float aRandom;
   attribute float aNode, aRole;
   attribute vec3 aBox;
-  uniform float uMorph, uSize, uPhase, uMotion, uActive, uCurve;
-  uniform vec2 uViewport, uFrom, uTo;
-  uniform vec2 uCenters[14];
+  uniform float uMorph, uSize, uMotion;
+  uniform float uPhase[${PIPELINE_ROUTES.length}], uActive[${PIPELINE_ROUTES.length}];
+  uniform vec2 uViewport, uFrom[${PIPELINE_ROUTES.length}], uTo[${PIPELINE_ROUTES.length}];
+  uniform vec2 uCenters[${PIPELINE_NODES.length}];
   varying float vAlpha;
   float hash(vec2 p) {
     return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
@@ -30,12 +31,12 @@ const vertexShader = `
     float t = clamp(value, 0.0, 1.0);
     return t*t*t*(t*(t*6.0-15.0)+10.0);
   }
-  vec2 flowPath(float f) {
-    vec2 c1 = vec2(uFrom.x, (uFrom.y+uTo.y)*0.5);
-    vec2 c2 = vec2(uTo.x, (uFrom.y+uTo.y)*0.5);
-    vec2 curved = pow(1.0-f,3.0)*uFrom + 3.0*pow(1.0-f,2.0)*f*c1
-                + 3.0*(1.0-f)*f*f*c2 + f*f*f*uTo;
-    return mix(mix(uFrom,uTo,f),curved,uCurve);
+  vec2 flowPath(float f, vec2 from, vec2 to) {
+    vec2 c1 = vec2(from.x, (from.y+to.y)*0.5);
+    vec2 c2 = vec2(to.x, (from.y+to.y)*0.5);
+    vec2 curved = pow(1.0-f,3.0)*from + 3.0*pow(1.0-f,2.0)*f*c1
+                + 3.0*(1.0-f)*f*f*c2 + f*f*f*to;
+    return mix(mix(from,to,f),curved,step(30.0,abs(from.y-to.y)));
   }
   void main() {
     if (uMorph < 0.999) {
@@ -67,30 +68,37 @@ const vertexShader = `
     float graphAlpha = 0.0;
     float graphSize = aRole < 0.5 ? 1.65 : 1.8;
     if (aRole < 0.5) {
-      graphAlpha = abs(aNode - uActive) < 0.5 ? 1.0 : 0.7;
+      float proximity = 100.0;
+      for (int lane=0; lane<${PIPELINE_ROUTES.length}; lane++) proximity = min(proximity,abs(aNode-uActive[lane]));
+      graphAlpha = proximity < 0.5 ? 1.0 : 0.7;
     } else if (aRole < 1.5) {
       // A bright leading core pulls the remaining particles along the same path.
-      // Followers start later, fan out softly, and all settle before the next stage.
-      float lag = aRandom < 0.22 ? 0.0 : pow((aRandom-0.22)/0.78,1.2)*0.62;
-      float f = fluidEase((uPhase-2.1-lag)/(1.3-lag))*uMotion;
-      float collapse = fluidEase((uPhase-1.4-lag*0.2)/0.7)*uMotion;
-      float refill = fluidEase((uPhase-3.4-lag*0.3)/(0.8-lag*0.3))*uMotion;
+      // Each route has its own clock; each follower has its own departure delay.
+      int stream = int(floor(aRandom*${PIPELINE_ROUTES.length - .001}));
+      float random = fract(aRandom*${PIPELINE_ROUTES.length}.0);
+      float phase = uPhase[stream];
+      vec2 from = uFrom[stream], to = uTo[stream];
+      float lag = random < 0.16 ? 0.0 : pow((random-0.16)/0.84,0.8)*0.95;
+      float f = fluidEase((phase-1.65-lag)/(1.8-lag))*uMotion;
+      float collapse = fluidEase((phase-0.7-lag*0.6)/1.0)*uMotion;
+      float refill = fluidEase((phase-3.45-lag*0.25)/(0.75-lag*0.25))*uMotion;
       float scale = mix(mix(1.0,0.035,collapse),1.0,refill);
-      center = flowPath(f);
-      vec2 direction = flowPath(min(f+0.01,1.0))-flowPath(max(f-0.01,0.0));
+      center = flowPath(f,from,to);
+      vec2 direction = flowPath(min(f+0.01,1.0),from,to)-flowPath(max(f-0.01,0.0),from,to);
       vec2 normal = vec2(-direction.y,direction.x)/max(length(direction),0.001);
       float moving = sin(f*3.14159265);
       float fan = moving*lag*8.0;
       center += normal*(aBox.y*fan + sin(uTime*3.0+aRandom*18.0)*fan*0.24);
       box *= scale;
       box += vec3(sin(uTime*0.9+aRandom*6.28)*0.012*scale);
-      graphAlpha = mix(0.48, mix(0.38,0.09,lag/0.62),moving);
-      graphSize = mix(1.8, aRandom < 0.22 ? 2.6 : 1.35,moving);
+      graphAlpha = mix(0.6, mix(0.45,0.13,lag/0.95),moving)*step(0.0,phase);
+      graphSize = mix(1.8, random < 0.16 ? 2.6 : 1.35,moving);
     }
     vec2 offset = vec2(box.x + box.z*0.42, -box.y - box.z*0.35)*uSize;
     vec2 graph = (center + offset)/uViewport*2.0-1.0;
     graph.y = -graph.y;
-    float gather = fluidEase(clamp((uMorph-aRandom*0.12)/(1.0-aRandom*0.12),0.0,1.0));
+    float gatherDelay = aRandom*0.28 + hash(vec2(aNode,7.3))*0.24;
+    float gather = fluidEase(clamp((uMorph-gatherDelay)/(1.0-gatherDelay),0.0,1.0));
     vec4 terrain = vec4(gl_Position.xyz/gl_Position.w,1.0);
     vec2 arc = vec2(sin(aRandom*6.283),cos(aRandom*6.283))*sin(gather*3.14159265)*0.055;
     gl_Position = mix(terrain,vec4(graph,0.0,1.0),gather);
@@ -110,7 +118,7 @@ const fragmentShader = `
   }
 `;
 
-export default function ParticleTerrain({ analyzing = false, onStageChange }: { analyzing?: boolean; onStageChange?: (step: number) => void }) {
+export default function ParticleTerrain({ analyzing = false, onStageChange }: { analyzing?: boolean; onStageChange?: (step: number, activeSteps: number[]) => void }) {
   const mountRef = useRef<HTMLDivElement>(null);
   const mode = useRef({ analyzing, onStageChange });
   const refresh = useRef<() => void>(() => {});
@@ -125,7 +133,10 @@ export default function ParticleTerrain({ analyzing = false, onStageChange }: { 
       document.documentElement.dataset.particleRenderer = "fallback";
       let step = 0;
       const timer = setInterval(() => {
-        if (mode.current.analyzing && !document.hidden) mode.current.onStageChange?.(step++ % PIPELINE_STEPS.length);
+        if (mode.current.analyzing && !document.hidden) {
+          const flows = pipelineActivity(step++ * STEP_SECONDS);
+          mode.current.onStageChange?.((flows.find(flow => flow.phase >= 0) || flows[0]).step, flows.filter(flow => flow.phase >= 0).map(flow => flow.step));
+        }
         else step = 0;
       }, STEP_SECONDS * 1000);
       return () => { clearInterval(timer); delete document.documentElement.dataset.particleRenderer; };
@@ -172,8 +183,8 @@ export default function ParticleTerrain({ analyzing = false, onStageChange }: { 
         vertexShader, fragmentShader,
         uniforms: {
           uTime: { value: 0 }, uSeed: { value: seed }, uLayer: { value: layer }, uPixelRatio: { value: 1 },
-          uMorph: { value: 0 }, uSize: { value: 68 }, uPhase: { value: 0 }, uMotion: { value: 1 }, uActive: { value: 0 }, uCurve: { value: 0 },
-          uViewport: { value: new THREE.Vector2(1440, 1000) }, uFrom: { value: new THREE.Vector2() }, uTo: { value: new THREE.Vector2() },
+          uMorph: { value: 0 }, uSize: { value: 68 }, uPhase: { value: PIPELINE_ROUTES.map(() => -1) }, uMotion: { value: 1 }, uActive: { value: PIPELINE_ROUTES.map(() => -1) },
+          uViewport: { value: new THREE.Vector2(1440, 1000) }, uFrom: { value: PIPELINE_ROUTES.map(() => new THREE.Vector2()) }, uTo: { value: PIPELINE_ROUTES.map(() => new THREE.Vector2()) },
           uCenters: { value: PIPELINE_NODES.map(() => new THREE.Vector2()) },
         },
         transparent: true, depthWrite: false, depthTest: false,
@@ -202,29 +213,35 @@ export default function ParticleTerrain({ analyzing = false, onStageChange }: { 
     const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
     let frameId = 0, lastFrame = 0, elapsed = 0, contextLost = false;
     let pointerX = 0, pointerY = 0;
-    let wasAnalyzing = false, began = 0, morph = 0, reportedStep = -2;
+    let wasAnalyzing = false, began = 0, morph = 0, reportedActivity = "";
     let returnBegan = 0, returnMorph = 0;
     let layout = pipelineLayout(window.innerWidth, window.innerHeight);
     const ease = (value: number) => { const t = Math.max(0, Math.min(1, value)); return t*t*t*(t*(t*6-15)+10); };
     function render() {
-      if (mode.current.analyzing && !wasAnalyzing) { began = elapsed; reportedStep = -2; }
+      if (mode.current.analyzing && !wasAnalyzing) { began = elapsed; reportedActivity = ""; }
       if (!mode.current.analyzing && wasAnalyzing) { returnBegan = elapsed; returnMorph = morph; }
       wasAnalyzing = mode.current.analyzing;
       const age = elapsed - began;
       morph = mode.current.analyzing ? (motion.matches ? 1 : ease(age/MORPH_SECONDS)) : motion.matches ? 0 : returnMorph*(1-ease((elapsed-returnBegan)/1.4));
       const processAge = Math.max(0, age-MORPH_SECONDS);
-      const step = Math.floor(processAge/STEP_SECONDS) % PIPELINE_STEPS.length;
-      const stage = PIPELINE_STEPS[step];
-      const from = layout.nodes[nodeIndex(stage.id)], to = layout.nodes[nodeIndex(stage.next)];
-      const phase = processAge % STEP_SECONDS;
-      const visibleStep = !motion.matches && age < MORPH_SECONDS ? -1 : step;
-      if (mode.current.analyzing && visibleStep !== reportedStep) { reportedStep = visibleStep; mode.current.onStageChange?.(visibleStep); }
+      const flows = pipelineActivity(processAge);
+      const forming = !motion.matches && age < MORPH_SECONDS;
+      const activeSteps = forming ? [] : flows.filter(flow => flow.phase >= 0).map(flow => flow.step);
+      const activity = forming ? "forming" : activeSteps.join(",");
+      if (mode.current.analyzing && activity !== reportedActivity) {
+        reportedActivity = activity;
+        mode.current.onStageChange?.(forming ? -1 : (flows.find(flow => flow.phase >= 0) || flows[0]).step, activeSteps);
+      }
       for (const material of materials) {
         const u = material.uniforms;
         u.uTime.value = elapsed; u.uMorph.value = morph; u.uSize.value = layout.size;
-        u.uFrom.value.set(from.px, from.py); u.uTo.value.set(to.px, to.py);
-        u.uPhase.value = phase; u.uMotion.value = motion.matches ? 0 : 1; u.uActive.value = nodeIndex(stage.id);
-        u.uCurve.value = Math.abs(from.py-to.py)>30 ? 1 : 0;
+        flows.forEach((flow, index) => {
+          const from = layout.nodes[nodeIndex(flow.stage.id)], to = layout.nodes[nodeIndex(flow.stage.next)];
+          u.uFrom.value[index].set(from.px, from.py); u.uTo.value[index].set(to.px, to.py);
+          u.uPhase.value[index] = flow.phase;
+          u.uActive.value[index] = flow.phase < 0 ? -1 : nodeIndex(flow.stage.id);
+        });
+        u.uMotion.value = motion.matches ? 0 : 1;
       }
       dustMaterial.opacity = .22*(1-morph);
       particleLayers.forEach((points, index) => { points.visible = index === 0 || morph < .999; });
