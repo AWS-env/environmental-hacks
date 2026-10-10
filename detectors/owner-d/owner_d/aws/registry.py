@@ -29,9 +29,10 @@ Logs Insights checks also define ``LOGS_INSIGHTS_QUERY``; X-Ray checks may defin
 Normalizers that take raw API pages instead (``fn(pages)`` / ``fn(pages, tags=None)`` returning data keyed
 by scope or resource) are wired through an ``adapter`` (ADAPTERS below), which builds the telemetry
 sources with account-free locators: ``list_metrics`` (OBS-06), ``describe_log_groups`` (OBS-07) and
-``xray_traces`` (LLM-10: ``fn(Traces)`` plus the module's ``telemetry_sources``).
+``xray_traces`` (LLM-10 and LLM-05: ``fn(Traces)`` plus the module's ``telemetry_sources``).
 
-Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07 and LLM-10 are registered below).
+Wiring a new check is one line in CHECKS (INF-01, OBS-06, OBS-07, OBS-11, LLM-10, OBS-17 and LLM-05 are
+registered below).
 """
 from __future__ import annotations
 
@@ -62,6 +63,12 @@ OBS11_DEFAULTS = {  # OBS-11 reference values (obs11.REFERENCE_SETTINGS)
 LLM10_DEFAULTS = {"max_identical_tool_calls": 3, "max_llm_iterations": 10, "min_traces": 10}  # LLM-10 reference values
 OBS17_DEFAULTS = {"max_event_bytes": 4096, "min_bytes_share": 0.25, "max_trace_repeats": 1,  # obs17.REFERENCE_SETTINGS
                   "max_error_trace_repeats": 10, "min_events": 20}
+LLM05_DEFAULTS = {  # LLM-05 reference values (owner_d.llm05.REFERENCE_SETTINGS, README "LLM-05")
+    "min_traces": 10,
+    "max_identical_consecutive_calls": 1,
+    "min_chain_calls": 3,
+    "min_repeat_share": 0.5,
+}
 
 
 @dataclass(frozen=True)
@@ -85,6 +92,8 @@ CHECKS = (
     TelemetryCheck("LLM-10", "owner_d.llm10", "traces", normalizer="owner_d.llm10:normalize_xray_traces",
                    adapter="xray_traces", defaults=LLM10_DEFAULTS),
     TelemetryCheck("OBS-17", "owner_d.obs17", "logs_insights", defaults=OBS17_DEFAULTS),
+    TelemetryCheck("LLM-05", "owner_d.llm05", "traces", normalizer="owner_d.llm05:normalize_xray_traces",
+                   adapter="xray_traces", defaults=LLM05_DEFAULTS),
 )
 
 

@@ -93,7 +93,7 @@ A pair that fails is refused: it is not published and is listed under
 | --- | --- | --- | --- |
 | `owner-d-telemetry-analyzer` | `owner_d/aws/telemetry_handler.py`, `metrics.py` | CloudWatch `ListMetrics`, `GetMetricData` | INF-01, OBS-06 |
 | `owner-d-log-analyzer` | `owner_d/aws/log_handler.py` | Logs `DescribeLogGroups`, `ListTagsForResource`, Logs Insights `StartQuery`/`GetQueryResults`/`StopQuery` | OBS-07, OBS-11, OBS-17 |
-| `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10 |
+| `owner-d-trace-analyzer` | `owner_d/aws/trace_handler.py` | X-Ray `GetTraceSummaries`, `BatchGetTraces` (5 ids per call) | LLM-10, LLM-05 |
 
 Infrastructure: [`cdk/owner-d/telemetry.yaml`](../../cdk/owner-d/telemetry.yaml)
 (plain CloudFormation). Build: `scripts/build-owner-d-telemetry.sh`. The zip
@@ -139,7 +139,7 @@ ID, `scope_per_payload` (1-200, default 50) and `dry_run`.
   `max_traces` (default 50, at most 100, leaving room above LLM-10's
   `min_traces` of 10) and `max_pages`. Point `filter_expression` at the agent
   entrypoint, e.g. `service("agent-fn")`, so the traces read are the ones
-  LLM-10 can analyze.
+  LLM-10 and LLM-05 can analyze. Both checks share one collection.
 - `{"probe": ["cpu_metrics" | "metrics" | "log_groups" | "logs_insights" | "traces"], "role_arn": ...}`
   only collects. It returns counts and publishes nothing, so you can check
   IAM and the role before running checks.
@@ -187,13 +187,13 @@ minimum.
 ### Registered checks (one line each)
 
 `owner_d/aws/registry.py` lists the checks each Lambda runs: INF-01
-(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11
-(`logs_insights`), LLM-10 (`traces`) and OBS-17 (`logs_insights`). A detector module plugs in through a normalizer, by default
+(`cpu_metrics`), OBS-06 (`metrics`), OBS-07 (`log_groups`), OBS-11 and
+OBS-17 (`logs_insights`), LLM-10 and LLM-05 (`traces`). A detector module plugs in through a normalizer, by default
 `normalize_<source>(raw, *, settings)`. It returns contract `telemetry`
 sources, or `{"scope", "sources", "limitations"}`. Normalizers that take raw
 API pages use an adapter. The adapter builds the sources with account-free
-locators and drops `log_group_arn`. OBS-06, OBS-07 and LLM-10 use the
-`list_metrics`, `describe_log_groups` and `xray_traces` adapters:
+locators and drops `log_group_arn`. OBS-06 and OBS-07 use the `list_metrics`
+and `describe_log_groups` adapters; LLM-10 and LLM-05 use `xray_traces`:
 
 ```python
 TelemetryCheck("OBS-06", "owner_d.obs06", "metrics", normalizer="owner_d.obs06:normalize_list_metrics",
@@ -1966,6 +1966,113 @@ PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
 
 The fixtures under `tests/fixtures/llm10/` are synthetic `BatchGetTraces`
 responses shaped on the X-Ray segment document format, not production traces.
+
+## LLM-05 — Redundant chained calls in multi-step pipelines (X-Ray traces)
+
+Flags agent runs and pipelines that send the same model the same request again,
+using AWS X-Ray traces the client already records: a step that re-sends an
+unchanged request back to back (the later call cannot use the earlier output, so
+that output is discarded and recomputed), or a chain that keeps re-asking
+requests it already sent. It proves what the sampled traces show. No token or
+cost measurements are emitted. LLM-04 (static) covers a different pattern: the
+whole context passed to every step.
+
+### Input
+
+`llm05.normalize_xray_traces(traces)` takes the same `BatchGetTraces` `Traces`
+list as LLM-10 and builds on `llm10.normalize_xray_traces`. Traces that LLM-10
+skips (unparseable document, in-progress or orphaned subsegment) are skipped
+with the same reasons. For each accepted trace, LLM-05 walks the same
+OpenTelemetry GenAI spans (metadata or annotations, embedded or separately sent
+subsegments, `invoke_agent` / `invoke_workflow` runs). It records per model
+call (`gen_ai.operation.name` `chat` / `text_completion` / `generate_content`):
+
+| Field | Source |
+| --- | --- |
+| Run | the enclosing agent span, or the entrypoint when there is none |
+| Model | `gen_ai.request.model` (required for comparison) |
+| Request hash | SHA-256 of canonical JSON over the model, `gen_ai.input.messages` (or legacy `gen_ai.prompt` / indexed `gen_ai.prompt.<n>.*`), `gen_ai.system_instructions`, `gen_ai.tool.definitions` and the recorded request parameters (`max_tokens`, `temperature`, `top_p`, `top_k`, `seed`, `stop_sequences`, penalties, `choice.count`, `gen_ai.output.type`) |
+| Digest basis | when no input content is recorded: `gen_ai.input.messages.hash`, an app-recorded digest of the canonical request (not a semconv attribute; for apps that keep content out of traces) |
+| Sampling | `gen_ai.request.temperature` |
+
+Only hashes leave the normalizer, never prompt content. A framework `chat` span
+around the instrumented client span is one call; the inner span fills in
+missing attributes. `llm05.telemetry_sources` is LLM-10's: one `telemetry`
+source per `entrypoint:<name>`.
+
+Each entrypoint summary has `traces_with_model_calls`, `traces_analyzed`,
+`traces_without_inputs`, `traces_skipped`, `skip_reasons`,
+`failed_model_calls`, `model_calls_without_input`, `uncompared_pairs`,
+`retry_repeats_excluded`, `sampling_repeats_excluded`, the worst
+`max_consecutive_identical` streak, `repeated_chains` (runs with at least one
+repeated request) and per-trace `traces`. A trace is analyzable when it has a
+successful model call and either every run makes one model call, or at least
+one consecutive pair of calls is comparable.
+
+### Context settings (all required)
+
+| Setting | Meaning | Reference value |
+| --- | --- | --- |
+| `min_traces` | Analyzable traces needed before an entrypoint is evaluated | `10` |
+| `max_identical_consecutive_calls` | Most identical requests allowed back to back in one run | `1` |
+| `min_chain_calls` | Fewest comparable model calls in a run for the chain rule | `3` |
+| `min_repeat_share` | Share of a chain's calls that repeat an earlier request, at or above which it is flagged | `0.5` |
+
+The values are `llm05.REFERENCE_SETTINGS` and the registry defaults. A request
+repeated unchanged back to back is already redundant work. The AWS agentic AI
+lens
+[AGENTCOST02-BP03](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentcost02-bp03.html)
+says that "agents repeat work constantly: identical prompts, semantically
+equivalent requests, the same planning steps", and
+[AGENTSUS02-BP02](https://docs.aws.amazon.com/wellarchitected/latest/agentic-ai-lens/agentsus02-bp02.html)
+that "every duplicate model call ... is work the agent fleet has already done
+once". `min_traces` follows LLM-10. `min_chain_calls` and `min_repeat_share`
+are team judgment. Missing or invalid settings make the result `unavailable`.
+
+### Detection rule
+
+For each entrypoint with at least `min_traces` analyzable traces, successful
+model calls in each run are ordered by start time:
+
+- `consecutive-identical-calls`: more than `max_identical_consecutive_calls`
+  consecutive calls have the same model and request hash (on the same basis).
+  Confidence is `high` when two or more traces breach, otherwise `medium`.
+- `repeated-chain-requests`: a run with at least `min_chain_calls` comparable
+  calls, at least `min_repeat_share` of which repeat an earlier request of the
+  same run (A, B, A, B). Confidence is `medium` when two or more traces breach,
+  otherwise `low`.
+
+Evidence cites `traces_analyzed` and `max_consecutive_identical` or
+`repeated_chains`. Not counted:
+
+- failed calls (`error`, `throttle` or `fault` true, or `error.type`), and an
+  identical request right after a failure (a retry), as in LLM-10;
+- identical calls whose recorded `gen_ai.request.temperature` is above 0
+  (intentional sampling, e.g. self-consistency). An unrecorded temperature is
+  not assumed to be above 0;
+- calls in different agent runs (orchestrator and sub-agents);
+- requests that differ in any recorded request parameter, e.g. a retry with a
+  larger `max_tokens` after a truncated answer.
+
+`gen_ai.input.messages` and `gen_ai.system_instructions` are Opt-In in the
+[OpenTelemetry GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai/blob/main/docs/gen-ai/client-inference.md).
+When chained calls record neither content nor a digest, the trace is not
+analyzable. The limitations say so, and the entrypoint is `unavailable` when too
+few traces remain. It is never reported clean. Paraphrased or overlapping
+questions, duplicates across runs and dependencies through tools or state are
+not detected.
+
+### Run
+
+```bash
+PYTHONPATH=detectors/owner-d .venv/bin/python -m owner_d.cli \
+  detectors/owner-d/tests/fixtures/llm05/llm05-01-positive-input.json
+```
+
+The fixtures under `tests/fixtures/llm05/` are synthetic `BatchGetTraces`
+responses shaped on the X-Ray segment document format, not production traces.
+The telemetry demo's opt-in `LLM-05` scenario emits a matching waste/control
+pair (see `examples/telemetry-demo/README.md`).
 
 
 ## OBS-04 — Unstructured logs requiring query-time parsing
