@@ -1,0 +1,57 @@
+name: Owner C profile upload
+description: >
+  Run py-spy, memray and/or Lighthouse on your own runner and upload the results for owner C's artifact detectors
+  (PY-01, PY-05, PY-11, FE-02/10/11/13/15/16). Nothing you upload is executed on our side. Your workflow needs
+  `permissions: id-token: write` and `contents: read`.
+
+inputs:
+  artifacts:
+    description: "Comma list of speedscope (py-spy), memray_stats (memray), lighthouse."
+    required: true
+  python-args:
+    description: "Arguments after `python` for the py-spy and memray runs, e.g. `-m pytest tests/` or `app.py`."
+    required: false
+    default: ""
+  lighthouse-url:
+    description: "Reachable URL for the Lighthouse run, e.g. your preview deployment."
+    required: false
+    default: ""
+  role-arn:
+    description: "Role to assume through GitHub OIDC (it can only invoke owner-c-presign)."
+    required: false
+    default: arn:aws:iam::768666229343:role/owner-c-client-upload
+  region:
+    description: "Region of the owner C stack."
+    required: false
+    default: ap-south-1
+  repository-id:
+    description: "Repository identity, github:<owner>/<repo>."
+    required: false
+    default: github:${{ github.repository }}
+  commit-sha:
+    description: "Full 40-character commit sha."
+    required: false
+    default: ${{ github.sha }}
+
+runs:
+  using: composite
+  steps:
+    - uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.role-arn }}
+        aws-region: ${{ inputs.region }}
+        role-session-name: owner-c-upload
+
+    - name: Run the tools and upload
+      shell: bash
+      env:
+        ARTIFACTS: ${{ inputs.artifacts }}
+        PYTHON_ARGS: ${{ inputs.python-args }}
+        LIGHTHOUSE_URL: ${{ inputs.lighthouse-url }}
+        REGION: ${{ inputs.region }}
+        REPOSITORY_ID: ${{ inputs.repository-id }}
+        COMMIT_SHA: ${{ inputs.commit-sha }}
+      run: |
+        python "${{ github.action_path }}/profile_upload.py" \
+          --repository-id "$REPOSITORY_ID" --commit-sha "$COMMIT_SHA" --artifacts "$ARTIFACTS" \
+          --python-args "$PYTHON_ARGS" --lighthouse-url "$LIGHTHOUSE_URL" --region "$REGION"

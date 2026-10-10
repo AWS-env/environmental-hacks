@@ -1,0 +1,56 @@
+name: Owner C client action test
+
+# Exercises .github/actions/owner-c-profile-upload on a clean GitHub-hosted runner against the deployed owner C
+# stack: py-spy and memray run a fixture script, Lighthouse audits a tiny local page, and the artifacts are uploaded
+# under a test repository id so no real repository's results are touched.
+
+on:
+  push:
+    paths:
+      - .github/actions/owner-c-profile-upload/**
+      - .github/workflows/owner-c-client-action-test.yml
+  pull_request:
+    paths:
+      - .github/actions/owner-c-profile-upload/**
+      - .github/workflows/owner-c-client-action-test.yml
+
+permissions:
+  contents: read
+  id-token: write # GitHub OIDC -> role owner-c-client-upload
+
+concurrency:
+  group: owner-c-client-action-test-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  upload:
+    # OIDC tokens are not issued to workflows from forks.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Serve a tiny page for Lighthouse
+        run: |
+          mkdir -p /tmp/site
+          printf '<!doctype html><html><head><meta charset="utf-8"><title>t</title><link rel="stylesheet" href="app.css"></head><body><h1>Hello</h1></body></html>' > /tmp/site/index.html
+          echo 'body{font-family:sans-serif}' > /tmp/site/app.css
+          python -m http.server 8765 --directory /tmp/site >/dev/null 2>&1 &
+          sleep 2
+
+      - name: Run the action
+        uses: ./.github/actions/owner-c-profile-upload
+        with:
+          artifacts: speedscope,memray_stats,lighthouse
+          python-args: detectors/owner-c/tests/fixtures/real/mem.py
+          lighthouse-url: http://localhost:8765/index.html
+          repository-id: github:AWS-env/owner-c-action-test
