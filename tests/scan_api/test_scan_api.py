@@ -155,6 +155,7 @@ class ScanApiTest(unittest.TestCase):
                                (f"{top}/escape", ("symlink", "/etc/passwd"))])
         scan_id = str(uuid.uuid4())
         with mock.patch.object(worker, "resolve_sha", return_value=SHA), \
+                mock.patch.object(worker, "LAMBDA_OWNERS", {"C", "D"}), \
                 mock.patch.object(worker, "download", side_effect=lambda url, path: shutil.copy(fixture, path)) as dl:
             worker.handler({"scan_id": scan_id, "repo_url": "https://github.com/owner/repo"})
 

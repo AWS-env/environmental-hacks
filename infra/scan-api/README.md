@@ -7,7 +7,12 @@ frontend polls `GET` until the scan is `done` or `error`.
 - Code: [`scan_api/`](../../scan_api) (`api.py`, `worker.py`, `store.py`), tests in [`tests/scan_api/`](../../tests/scan_api).
 - Template: [`template.yaml`](template.yaml), plain CloudFormation like `cdk/owner-c/python-detectors.yaml`.
   It needs no CDK toolchain or `cdk bootstrap` (which would add a staging bucket and an ECR repository).
-- Package: [`scripts/build-scan-api-lambda.sh`](../../scripts/build-scan-api-lambda.sh) builds one zip for both functions.
+- Package: [`scripts/build-scan-api-lambda.sh`](../../scripts/build-scan-api-lambda.sh) builds one zip for both functions
+  (including the Owner A `dist/` build and the Owner B production `node_modules`) and `node-runtime-layer.zip`, the
+  official Node.js 22 linux-arm64 binary, sha256-pinned against nodejs.org's `SHASUMS256.txt`. Only the worker uses
+  that layer. Lambda extracts it to `/opt/bin/node`, which is on `PATH`, so the Owner A and B adapters run as they
+  do in the local CLI (`NODE_BINARY` overrides the lookup). The zip is about 8 MB (37 MB unzipped) and the layer
+  44 MB (122 MB unzipped): 159 MB of the 250 MB unzipped limit for the worker.
 
 ## Architecture
 
@@ -21,7 +26,7 @@ frontend polls `GET` until the scan is `done` or `error`.
     │                                        1. status = running
     │                                        2. GET api.github.com/repos/<o>/<r>/commits/HEAD -> SHA
     │                                        3. GET codeload.github.com/<o>/<r>/tar.gz/<SHA> (<= 50 MB, 120 s)
-    │                                        4. safe extract to /tmp, run scanner (owners C, D), delete source
+    │                                        4. safe extract to /tmp, run scanner (owners A-D), delete source
     │                                        5. PUT scans/<id>/report.json, status = done (or error)
     │                                                               ▼
     └──GET /scans/{scan_id} (poll every 3-5 s)──▶ api Lambda ──▶ S3 bucket (private, SSE-S3, TLS only,
@@ -127,15 +132,18 @@ aws lambda get-account-settings --region ap-south-1 --query AccountLimit.Concurr
 ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 CODE_BUCKET="scan-api-code-$ACCOUNT-ap-south-1"
 
-scripts/build-scan-api-lambda.sh             # prints the suggested CodeKey
+scripts/build-scan-api-lambda.sh             # prints the suggested CodeKey and NodeLayerKey
 KEY="scan-api/scan-api-$(shasum -a 256 infra/scan-api/build/scan-api.zip | cut -c1-16).zip"
+LAYER_KEY="scan-api/node-runtime-layer-$(shasum -a 256 infra/scan-api/build/node-runtime-layer.zip | cut -c1-16).zip"
 
 aws s3 mb "s3://$CODE_BUCKET" --region ap-south-1          # once
 aws s3 cp infra/scan-api/build/scan-api.zip "s3://$CODE_BUCKET/$KEY" --region ap-south-1
+aws s3 cp infra/scan-api/build/node-runtime-layer.zip "s3://$CODE_BUCKET/$LAYER_KEY" --region ap-south-1
 
 aws cloudformation deploy --region ap-south-1 --stack-name scan-api \
   --template-file infra/scan-api/template.yaml --capabilities CAPABILITY_IAM \
-  --parameter-overrides CodeBucket="$CODE_BUCKET" CodeKey="$KEY" AllowedOrigin='*' WorkerReservedConcurrency=2
+  --parameter-overrides CodeBucket="$CODE_BUCKET" CodeKey="$KEY" NodeLayerKey="$LAYER_KEY" AllowedOrigin='*' \
+    WorkerReservedConcurrency=2
 
 aws cloudformation describe-stacks --region ap-south-1 --stack-name scan-api \
   --query "Stacks[0].Outputs" --output table
@@ -222,9 +230,10 @@ aws s3 rb "s3://$CODE_BUCKET" --force --region ap-south-1   # the code bucket is
 
 ## Limitations
 
-- **Owners A and B are reported as `unavailable`.** They run on Node.js, which the `python3.12` Lambda
-  runtime does not include. Run the CLI locally for those checks. A container-image Lambda with Node.js
-  would cover them, at the cost of an ECR repository and a bigger cold start.
+- **Owners A and B need the node-runtime layer.** They run on Node.js, which the `python3.12` runtime does
+  not include. A worker without the layer reports them as `unavailable`. On a source-only scan, owner B
+  evaluates PHP files (DB-34) and lists its NET checks as `unavailable`. Owners A and B added about 8 s to a
+  60 s scan of this repository (1,481 files) in an arm64 Lambda container capped at 3008 MB and 1.7 vCPUs.
 - Only public GitHub repositories, at the default branch HEAD. Submodules are not included, and Git LFS
   files arrive as pointer files.
 - GitHub's unauthenticated API allows 60 requests per hour per IP, and Lambda shares its outbound IPs.
