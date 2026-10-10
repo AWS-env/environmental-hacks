@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0",
+  "kind": "input",
+  "repository_id": "github:AWS-env/example",
+  "scan_id": "scan-llm14-001",
+  "commit_sha": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+  "check_id": "LLM-14",
+  "detector_version": "1.0.0",
+  "context": {
+    "language": "python"
+  },
+  "scope": [
+    "file:positive.py"
+  ],
+  "sources": [
+    {
+      "source_id": "src:positive.py",
+      "scope_id": "file:positive.py",
+      "kind": "static",
+      "locator": "positive.py",
+      "content": "# Synthetic LLM-14 fixture: histories that grow every turn and are re-sent whole. Never executed.\nimport json\nfrom dataclasses import dataclass, field\n\nimport anthropic\nimport boto3\nfrom openai import OpenAI\n\nclaude = anthropic.Anthropic()\noai = OpenAI()\nbedrock = boto3.client(\"bedrock-runtime\")\nHISTORY = []\n\n\ndef chat():\n    messages = []\n    while True:\n        messages.append({\"role\": \"user\", \"content\": input(\"> \")})\n        reply = claude.messages.create(model=\"claude-sonnet-4-5\", max_tokens=1024, messages=messages)\n        messages.append({\"role\": \"assistant\", \"content\": reply.content})\n\n\ndef agent(task):\n    messages = [{\"role\": \"user\", \"content\": task}]\n    while True:\n        response = oai.chat.completions.create(\n            model=\"gpt-4.1\",\n            messages=[{\"role\": \"system\", \"content\": \"You are an agent.\"}, *messages],\n        )\n        if response.choices[0].finish_reason == \"stop\":\n            return response\n        messages += [response.choices[0].message, {\"role\": \"user\", \"content\": \"continue\"}]\n\n\ndef converse_loop(model_id):\n    conversation = list()\n    while True:\n        conversation.append({\"role\": \"user\", \"content\": [{\"text\": input()}]})\n        out = bedrock.converse(modelId=model_id, messages=conversation, inferenceConfig={\"maxTokens\": 512})\n        conversation.append(out[\"output\"][\"message\"])\n\n\ndef respond_loop():\n    items = []\n    while True:\n        items = items + [{\"role\": \"user\", \"content\": input()}]\n        oai.responses.create(model=\"gpt-4.1\", input=items, max_output_tokens=300)\n\n\ndef invoke_loop(model_id):\n    turns = []\n    while True:\n        turns.append({\"role\": \"user\", \"content\": input()})\n        body = json.dumps({\"anthropic_version\": \"bedrock-2023-05-31\", \"max_tokens\": 512, \"messages\": turns})\n        bedrock.invoke_model(modelId=model_id, body=body)\n\n\nclass Assistant:\n    def __init__(self):\n        self.client = anthropic.Anthropic()\n        self.history = []\n\n    def ask(self, question):\n        self.history.append({\"role\": \"user\", \"content\": question})\n        reply = self.client.messages.create(model=\"claude-sonnet-4-5\", max_tokens=1024, messages=self.history)\n        self.history.append({\"role\": \"assistant\", \"content\": reply.content})\n        return reply\n\n\n@dataclass\nclass Session:\n    turns: list = field(default_factory=list)\n\n    def send(self, text):\n        self.turns.append({\"role\": \"user\", \"content\": text})\n        return oai.chat.completions.create(model=\"gpt-4.1\", messages=self.turns, max_tokens=200)\n\n\ndef handler(event, context):\n    HISTORY.append({\"role\": \"user\", \"content\": event[\"body\"]})\n    reply = claude.messages.create(model=\"claude-sonnet-4-5\", max_tokens=512, messages=HISTORY)\n    HISTORY.append({\"role\": \"assistant\", \"content\": reply.content})\n    return reply\n\n\ndef grade_all(answers):\n    transcript = []\n    for answer in answers:\n        transcript.append({\"role\": \"user\", \"content\": answer})\n        oai.chat.completions.create(model=\"gpt-4.1\", messages=transcript, max_tokens=50)\n\n\ndef continue_agent(messages):\n    while True:\n        reply = claude.messages.create(model=\"claude-sonnet-4-5\", max_tokens=512, messages=messages)\n        messages.append({\"role\": \"assistant\", \"content\": reply.content})\n\n\ndef injected(client, prompts):\n    log = []\n    while True:\n        log.append({\"role\": \"user\", \"content\": input()})\n        client.chat.completions.create(model=\"gpt-4.1\", messages=log, max_tokens=100)\n"
+    }
+  ]
+}
