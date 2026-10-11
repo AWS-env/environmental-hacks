@@ -2,7 +2,7 @@
 
 Build what the planet needs — our entry for the **WeMakeDevs × AWS Environmental Hacks** hackathon (Bharat Builds Tour, stop 2).
 
-> Stack and project idea are still being decided. This repo currently holds the **governance, workflow, and CI scaffolding** so the tree stays clean from the first commit.
+> A read-only software sustainability auditor: it scans a public repository for compute-waste patterns (static checks plus optional runtime evidence from the client's CI) and shows evidence-backed findings in a web dashboard. Everything runs on AWS in ap-south-1. Start with [`docs/SETUP.md`](docs/SETUP.md) to run it and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) to see how it fits together.
 
 ## Tracks (pick one)
 
@@ -83,7 +83,7 @@ implemented in this repository run, which is a small share of the taxonomy. Owne
 test files. Owner B runs through its pre-contract `scanSource` entry point, translated by the scanner.
 If Node.js or the owner A build is missing, that owner is reported as `unavailable`.
 
-Open decisions (idea, track, stack) live in [`docs/DECISIONS.md`](docs/DECISIONS.md).
+Decisions are logged in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 For agent-assisted AWS work, use the shared handshake in [`docs/AWS_AGENT_WORKFLOW.md`](docs/AWS_AGENT_WORKFLOW.md): agents ask before using AWS CLI/MCP, then verify local profile identity and selected Region before inspecting service state.
 
@@ -99,12 +99,18 @@ unavailable. See its README for deploy and cleanup commands, costs and limitatio
 ## Repo layout
 
 ```
-.github/            issue forms, PR template, CI, CODEOWNERS, dependabot
-docs/               workflow, branching, and label docs
-detectors/          per-owner detectors (contract v1)
+.github/            issue forms, PR template, CI, CODEOWNERS, client GitHub Action
+docs/               setup, architecture, workflow, branching, labels, contract, taxonomy
+web/                Next.js dashboard (Amplify Hosting)
+dashboard/          static no-build report viewer
 scanner/            repository scan runner -> report.json
-scan_api/           async scan API Lambdas (infra/scan-api/)
-scripts/            helper scripts (branch + label setup)
+scan_api/           async scan API Lambdas (template in infra/scan-api/)
+hub/                findings hub writer, read API and artifact upload
+detectors/          per-owner detectors (contract v1): owner-a, owner-b, owner-c, owner-d
+shared/contracts/   detector schema and reference validator
+cdk/, infra/        CloudFormation templates per owner and for the scan API
+scripts/            build, deploy-check, label and taxonomy helper scripts
+tests/              contract, scanner and scan API tests
 ```
 
 ## Quick links
