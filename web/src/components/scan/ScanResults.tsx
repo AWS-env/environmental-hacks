@@ -41,9 +41,9 @@ function EvidenceBlock({ item }: { item: Evidence }) {
   const label = item.line_start ? `${item.locator}:${item.line_start}` : item.field ? `${item.locator} [${item.field}]` : item.locator;
   const lines = text.split("\n");
   return (
-    <figure className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/50">
-      <figcaption className="border-b border-white/10 px-3 py-1.5 font-mono text-[11px] text-zinc-400">{label}</figcaption>
-      <pre className="overflow-x-auto px-3 py-2 font-mono text-xs leading-relaxed text-zinc-200">
+    <figure className="mt-3 overflow-hidden rounded-xl border border-white/[0.08] bg-black/40">
+      <figcaption className="border-b border-white/[0.08] px-3 py-1.5 font-mono text-xs text-zinc-400">{label}</figcaption>
+      <pre className="overflow-x-auto px-3 py-2.5 font-mono text-xs leading-relaxed text-zinc-200">
         {lines.map((line, i) => (
           <div key={i} className="flex gap-3">
             {item.line_start ? <span className="select-none text-right tabular-nums text-zinc-500 min-w-[2.5ch]">{item.line_start + i}</span> : null}
@@ -55,11 +55,22 @@ function EvidenceBlock({ item }: { item: Evidence }) {
   );
 }
 
+/** "arxiv.org/abs/2108.04639" for a reference link; the full URL stays in href and title. */
+function referenceLabel(url: string): string {
+  try {
+    const { hostname, pathname } = new URL(url);
+    const label = hostname.replace(/^www\./, "") + pathname.replace(/\/$/, "");
+    return label.length > 48 ? `${label.slice(0, 46)}…` : label;
+  } catch {
+    return url;
+  }
+}
+
 function Finding({ finding, report }: { finding: FindingView; report?: ScanReport }) {
   const where = finding.file ? `${finding.file}${finding.line ? `:${finding.line}` : ""}` : "location not reported";
   const link = report ? sourceLink(report, finding.file, finding.line) : null;
   return (
-    <li className="border-t border-white/[0.07] py-4 first:border-t-0">
+    <li className="border-t border-white/[0.07] py-5 first:border-t-0">
       <div className="flex flex-wrap items-center gap-2">
         <Pill className={CONFIDENCE_STYLE[finding.confidence]}>{finding.confidence} confidence</Pill>
         {link ? (
@@ -70,11 +81,12 @@ function Finding({ finding, report }: { finding: FindingView; report?: ScanRepor
       </div>
       <p className="mt-2 text-sm leading-relaxed text-zinc-100">{finding.summary}</p>
       {finding.evidence.map((item, i) => <EvidenceBlock key={i} item={item} />)}
-      <p className="mt-3 text-sm leading-relaxed text-zinc-300"><span className="text-zinc-400">Recommendation: </span>{finding.recommendation}</p>
+      <p className="mt-3 text-sm leading-relaxed text-zinc-300"><span className="font-medium text-zinc-100">Recommendation: </span>{finding.recommendation}</p>
       {finding.references.length > 0 && (
-        <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
+        <p className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs">
+          <span className="text-zinc-500">References</span>
           {finding.references.map((url) => (
-            <a key={url} href={url} target="_blank" rel="noreferrer" className="break-all text-zinc-400 underline decoration-white/15 underline-offset-2 hover:text-zinc-200">{url}</a>
+            <a key={url} href={url} title={url} target="_blank" rel="noreferrer" className="max-w-full truncate text-zinc-400 underline decoration-white/15 underline-offset-2 hover:text-zinc-200">{referenceLabel(url)}</a>
           ))}
         </p>
       )}
