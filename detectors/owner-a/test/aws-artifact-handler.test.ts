@@ -2,7 +2,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it, expect } from "vitest";
 import { createHash } from "node:crypto";
-import { parseArtifactKey, processRecord, MAX_ARTIFACT_BYTES, ARTIFACT_EVENT_SOURCE } from "../src/aws/artifact-handler.js";
+import { parseArtifactKey, processRecord, evaluateOversize, MAX_ARTIFACT_BYTES, ARTIFACT_EVENT_SOURCE } from "../src/aws/artifact-handler.js";
+import { validatePair, validatorAvailable } from "./helpers/contract.js";
 
 const SHA = "a".repeat(40);
 const KEY = `artifacts/${encodeURIComponent("github:owner-a-smoke/skeleton")}/scan-1/${SHA}/memray-stats.json`;
@@ -88,11 +89,78 @@ describe("processRecord", () => {
     expect(r.scope).toEqual(["artifact:my stats+1.json"]);
   });
 
-  it("refuses oversized artifacts without publishing", async () => {
+  it("an oversized artifact is an honest unavailable result, decided from ContentLength without reading the body", async () => {
     const eb = fakeEb();
-    await expect(
-      processRecord(record(KEY), fakeS3(Buffer.alloc(1), MAX_ARTIFACT_BYTES + 1), eb, "findings-hub")
-    ).rejects.toThrow(/limit is/);
+    let bodyRead = false;
+    const s3 = {
+      async send() {
+        return {
+          ContentLength: MAX_ARTIFACT_BYTES + 1,
+          Body: { transformToByteArray: async () => { bodyRead = true; return new Uint8Array(); } },
+        };
+      },
+    };
+    const out = await processRecord(record(KEY), s3, eb, "findings-hub");
+    expect(bodyRead).toBe(false);
+    expect(out).toMatchObject({ event_id: "evt-9", status: "unavailable", findings: 0, bytes: MAX_ARTIFACT_BYTES + 1 });
+    const r = JSON.parse(eb.calls.find((c) => c.constructor.name === "PutEventsCommand").input.Entries[0].Detail);
+    expect(r.status).toBe("unavailable");
+    expect(r.findings).toEqual([]);
+    expect(r.scope).toEqual(["artifact:memray-stats.json"]);
+    expect(r.coverage.limitations.join(" ")).toMatch(/limit is 5242880/);
+    expect(r.context).toMatchObject({ artifact_bytes: MAX_ARTIFACT_BYTES + 1, too_large: true });
+  });
+
+  it.skipIf(!validatorAvailable)("the oversize result passes the shared contract validator", () => {
+    const k = parseArtifactKey(KEY);
+    const result = evaluateOversize(k, MAX_ARTIFACT_BYTES + 1);
+    const input = {
+      schema_version: "1.0" as const,
+      kind: "input" as const,
+      repository_id: k.repository_id,
+      scan_id: k.scan_id,
+      commit_sha: k.commit_sha,
+      check_id: "CODE-C6.1",
+      detector_version: "0.1.0",
+      context: { parser: "owner-a-profile-parser", artifact_bytes: MAX_ARTIFACT_BYTES + 1, json: false, too_large: true },
+      scope: [`artifact:${k.name}`],
+      sources: [{ source_id: k.name, scope_id: `artifact:${k.name}`, kind: "artifact" as const, locator: k.name, data: {} }],
+    };
+    const v = validatePair(input as any, result);
+    expect(v.output).not.toMatch(/error|invalid/i);
+    expect(v.ok).toBe(true);
+  });
+
+  it("an artifact whose ContentLength is missing but whose body is too large is unavailable too", async () => {
+    const eb = fakeEb();
+    const big = Buffer.alloc(MAX_ARTIFACT_BYTES + 1);
+    const s3 = {
+      async send() {
+        return { Body: { transformToByteArray: async () => new Uint8Array(big) } };
+      },
+    };
+    const out = await processRecord(record(KEY), s3, eb, "findings-hub");
+    expect(out).toMatchObject({ status: "unavailable", findings: 0 });
+  });
+
+  it("an artifact exactly at the limit is still read and evaluated", async () => {
+    const eb = fakeEb();
+    const out = await processRecord(record(KEY), fakeS3(Buffer.from("{}"), MAX_ARTIFACT_BYTES), eb, "findings-hub");
+    expect(out.status).toBe("unavailable"); // `{}` is not a memray export, but it was read and evaluated
+    expect(out.bytes).toBe(2);
+  });
+
+  it("a key outside the expected layout is logged and dropped, not thrown (a retry cannot fix it)", async () => {
+    const eb = fakeEb();
+    const out = await processRecord(record("artifacts/only/two"), fakeS3(Buffer.from("{}")), eb, "findings-hub");
+    expect(out).toMatchObject({ status: "ignored", findings: 0 });
     expect(eb.calls).toEqual([]);
+  });
+
+  it("transient failures still throw so Lambda retries and the DLQ catches them", async () => {
+    const s3 = { async send() { throw new Error("S3 unavailable"); } };
+    await expect(processRecord(record(KEY), s3, fakeEb(), "findings-hub")).rejects.toThrow("S3 unavailable");
+    const eb = { async send() { return { FailedEntryCount: 1, Entries: [{ ErrorCode: "Throttling", ErrorMessage: "slow down" }] }; } };
+    await expect(processRecord(record(KEY), fakeS3(Buffer.from("{}")), eb, "findings-hub")).rejects.toThrow();
   });
 });

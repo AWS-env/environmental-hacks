@@ -8,7 +8,7 @@
  * proves the upload -> trigger -> parse -> publish path end to end.
  */
 import { createHash } from "node:crypto";
-import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { EventBridgeClient } from "@aws-sdk/client-eventbridge";
 import { ContractResult, evaluate } from "../contract.js";
 import { EventBridgeLike, publishResult } from "./handler.js";
@@ -26,7 +26,7 @@ export interface ArtifactKey {
 }
 
 export interface S3Like {
-  send(command: GetObjectCommand): Promise<any>;
+  send(command: GetObjectCommand | HeadObjectCommand): Promise<any>;
 }
 
 /** `artifacts/<url-encoded repository_id>/<scan_id>/<40-hex commit_sha>/<name>`; throws on anything else. */
@@ -53,6 +53,20 @@ export function evaluateArtifact(k: ArtifactKey, body: Buffer, sha256: string): 
   } catch {
     parsedJson = false;
   }
+  return evaluateParsed(k, data, { artifact_sha256: sha256, artifact_bytes: body.length, json: parsedJson });
+}
+
+/**
+ * An artifact over the size limit is never read: the result is an honest `unavailable` that says why, so the
+ * client sees the upload was not evaluated instead of the Lambda failing, retrying and filling the DLQ.
+ */
+export function evaluateOversize(k: ArtifactKey, bytes: number): ContractResult {
+  const result = evaluateParsed(k, {}, { artifact_bytes: bytes, json: false, too_large: true });
+  result.coverage.limitations.push(`artifact is ${bytes} bytes; limit is ${MAX_ARTIFACT_BYTES}; it was not read.`);
+  return result;
+}
+
+function evaluateParsed(k: ArtifactKey, data: Record<string, unknown>, context: Record<string, unknown>): ContractResult {
   const scopeId = `artifact:${k.name}`;
   return evaluate({
     schema_version: "1.0",
@@ -62,30 +76,61 @@ export function evaluateArtifact(k: ArtifactKey, body: Buffer, sha256: string): 
     commit_sha: k.commit_sha,
     check_id: PARSER_CHECK_ID,
     detector_version: PARSER_VERSION,
-    context: { parser: "owner-a-profile-parser", artifact_sha256: sha256, artifact_bytes: body.length, json: parsedJson },
+    context: { parser: "owner-a-profile-parser", ...context },
     scope: [scopeId],
     sources: [{ source_id: k.name, scope_id: scopeId, kind: "artifact", locator: k.name, data }],
   });
 }
 
+export interface ProcessedRecord {
+  key: string;
+  event_id: string;
+  bytes: number;
+  status: string;
+  findings: number;
+}
+
+/**
+ * Problems a retry cannot fix (a key outside the layout, an oversized object) are answered or dropped here;
+ * transient failures (S3, EventBridge) throw so Lambda retries and the dead-letter queue catches the rest.
+ */
 export async function processRecord(
   record: { s3: { bucket: { name: string }; object: { key: string } } },
   s3: S3Like,
   eb: EventBridgeLike,
   busName: string
-): Promise<{ key: string; event_id: string; bytes: number; status: string; findings: number }> {
+): Promise<ProcessedRecord> {
   const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
-  const parsed = parseArtifactKey(key);
-  const obj = await s3.send(new GetObjectCommand({ Bucket: record.s3.bucket.name, Key: key }));
-  if (obj.ContentLength !== undefined && obj.ContentLength > MAX_ARTIFACT_BYTES) {
-    throw new Error(`artifact is ${obj.ContentLength} bytes; limit is ${MAX_ARTIFACT_BYTES}`);
+  let parsed: ArtifactKey;
+  try {
+    parsed = parseArtifactKey(key);
+  } catch (error) {
+    // No repository or scan can be named, so there is nothing to publish a result against.
+    console.warn(JSON.stringify({ level: "warn", message: "artifact key ignored", key, error: String(error) }));
+    return { key, event_id: "", bytes: 0, status: "ignored", findings: 0 };
   }
+  const head = await s3.send(new HeadObjectCommand({ Bucket: record.s3.bucket.name, Key: key }));
+  if (head.ContentLength !== undefined && head.ContentLength > MAX_ARTIFACT_BYTES) {
+    return publishProcessed(key, evaluateOversize(parsed, head.ContentLength), head.ContentLength, eb, busName);
+  }
+  const obj = await s3.send(new GetObjectCommand({ Bucket: record.s3.bucket.name, Key: key }));
   const body = Buffer.from(await obj.Body.transformToByteArray());
-  if (body.length > MAX_ARTIFACT_BYTES) throw new Error(`artifact exceeds ${MAX_ARTIFACT_BYTES} bytes`);
+  if (body.length > MAX_ARTIFACT_BYTES) {
+    return publishProcessed(key, evaluateOversize(parsed, body.length), body.length, eb, busName);
+  }
   const sha256 = createHash("sha256").update(body).digest("hex");
-  const result = evaluateArtifact(parsed, body, sha256);
+  return publishProcessed(key, evaluateArtifact(parsed, body, sha256), body.length, eb, busName);
+}
+
+async function publishProcessed(
+  key: string,
+  result: ContractResult,
+  bytes: number,
+  eb: EventBridgeLike,
+  busName: string
+): Promise<ProcessedRecord> {
   const event_id = await publishResult(eb, busName, ARTIFACT_EVENT_SOURCE, result);
-  return { key, event_id, bytes: body.length, status: result.status, findings: result.findings.length };
+  return { key, event_id, bytes, status: result.status, findings: result.findings.length };
 }
 
 export async function handler(event: { Records?: any[] }) {
