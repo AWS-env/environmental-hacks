@@ -137,6 +137,14 @@ class Readers:
 
 # ---- bounds -----------------------------------------------------------------------------------
 
+class InputRefused(ValueError):
+    """The event's input for one collector source is invalid (wrong shape, out of bounds, unsupported).
+
+    run_analyzer lists every check of that source under "refused", publishes nothing for them and still runs
+    and publishes the other checks of the invocation, which then succeeds. Raise it only for problems in the
+    event, before any AWS read; AWS and code errors keep failing the invocation."""
+
+
 def bounded_int(value, default, low, high, name):
     """An integer setting within [low, high]; out-of-range values are refused, not clamped."""
     if value is None:
@@ -330,6 +338,11 @@ def _call_collector(collector, event, readers, module, deadline):
     return collector(event, readers, module=module, deadline=deadline)
 
 
+def _refusal(exc):
+    # input errors can quote event values, so keep the report short
+    return f"{type(exc).__name__}: {exc}"[:MAX_ERROR_CHARS]
+
+
 def run_probe(event, context, *, analyzer, collectors):
     """Collect-only smoke test of the read path (IAM, role, Region): returns counts, publishes nothing."""
     region()
@@ -340,7 +353,11 @@ def run_probe(event, context, *, analyzer, collectors):
         raise ValueError(f"probe must list sources handled by {analyzer}: {sorted(collectors)}")
     report = {}
     for source in requested:
-        raw = _call_collector(collectors[source], event, readers, None, deadline)
+        try:
+            raw = _call_collector(collectors[source], event, readers, None, deadline)
+        except InputRefused as exc:
+            report[source] = {"refused": _refusal(exc)}
+            continue
         report[source] = raw.get("counts", {}) | {"truncated": raw.get("truncated", False),
                                                   "limitations": raw.get("limitations", [])}
     return log_summary({"analyzer": analyzer, "probe": report, "assumed_role": readers.assumed, "published": False})
@@ -348,7 +365,9 @@ def run_probe(event, context, *, analyzer, collectors):
 
 def run_analyzer(event, context, *, analyzer, source, collectors):
     """Collect -> normalize (registry) -> evaluate -> validate -> publish, for every registered check
-    whose source this analyzer collects. Collection errors raise before anything is published.
+    whose source this analyzer collects. Collection errors raise before anything is published, except
+    InputRefused: invalid event input for one source refuses that source's checks (listed under "refused" with
+    scope 0 and no status) while the other checks still run and publish.
 
     Every input/result pair goes through validate_pair before publishing. A pair that fails is refused:
     it is not published and is listed under "refused" in the response, while valid results are still
@@ -375,8 +394,14 @@ def run_analyzer(event, context, *, analyzer, source, collectors):
         module, normalize = registry.load(check)
         key = (check.source, *registry.collector_key(module))
         if key not in raw_cache:
-            raw_cache[key] = _call_collector(collectors[check.source], event, readers, module, deadline)
+            try:
+                raw_cache[key] = _call_collector(collectors[check.source], event, readers, module, deadline)
+            except InputRefused as exc:
+                raw_cache[key] = exc
         raw = raw_cache[key]
+        if isinstance(raw, InputRefused):  # invalid input for this source: nothing to evaluate or publish
+            refused.append({"check_id": check.check_id, "scope": 0, "status": None, "error": _refusal(raw)})
+            continue
         collection[check.check_id] = raw.get("counts", {}) | {"source": check.source,
                                                               "truncated": raw.get("truncated", False)}
         settings = registry.settings(check, module, event)

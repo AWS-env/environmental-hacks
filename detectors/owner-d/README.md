@@ -5701,6 +5701,11 @@ resource over whole UTC days.
   example from the static findings or the team's inventory.
 - Without `activity`, nothing is read, and INF-04 is listed under `skipped`.
   The existing analyzer schedule therefore reads no INF-04 data.
+- An invalid `activity` block (wrong shape, out-of-bounds window or limits, an
+  invalid resource, or `discover` of `lambda`/`alb`) is checked before any AWS
+  read. INF-04 is listed under `refused` (`scope` 0, `status` null, error
+  `InputRefused: invalid activity input: ...`), the other checks in the event
+  still run and publish, and the invocation succeeds.
 - `{"probe": ["activity_metrics"], "activity": {...}}` only collects and
   returns counts.
 

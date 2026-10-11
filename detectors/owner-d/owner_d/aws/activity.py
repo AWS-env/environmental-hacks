@@ -14,6 +14,10 @@ metrics with data in the last two weeks, so idle functions and load balancers ca
 lists them (for example from the INF-04 static findings or the team's inventory). RDS instances that are
 running report DatabaseConnections, so `discover` (RecentlyActive, i.e. reporting now) finds them.
 
+An invalid "activity" block (shape, window, resource, or discovery of lambda/alb) is checked before any AWS read
+and raises common.InputRefused: the analyzer lists INF-04 under "refused", still runs and publishes the other
+checks of the event, and the invocation succeeds.
+
 The pure normalizer is owner_d.inf04.normalize_activity_metrics.
 """
 from __future__ import annotations
@@ -68,7 +72,7 @@ def _resource(kind, value):
 
 def parse_resource(spec: dict) -> dict:
     """{"type": "lambda", "name": n} | {"type": "alb", "name": "app/<name>/<id>"} | {"type": "rds", "id": i}."""
-    if not isinstance(spec, dict) or spec.get("type") not in ACTIVITY_TYPES:
+    if not isinstance(spec, dict) or not isinstance(spec.get("type"), str) or spec["type"] not in ACTIVITY_TYPES:
         raise ValueError(f"activity resource type must be one of {sorted(ACTIVITY_TYPES)}")
     kind = spec["type"]
     value = spec.get(KEYS[kind])
@@ -77,12 +81,12 @@ def parse_resource(spec: dict) -> dict:
     return _resource(kind, value)
 
 
-def discover(cloudwatch, cfg: dict):
-    """ListMetrics (RecentlyActive) for discoverable types. Returns (resources, truncated, limitations)."""
+def discover_settings(cfg: dict):
+    """(types, max_resources, max_pages) of an activity.discover block; ValueError when it is invalid."""
     types = cfg.get("types") or [k for k, v in ACTIVITY_TYPES.items() if v.discoverable]
-    if not isinstance(types, list) or not set(types) <= set(ACTIVITY_TYPES):
+    if not isinstance(types, list) or not all(isinstance(t, str) and t in ACTIVITY_TYPES for t in types):
         raise ValueError(f"activity.discover.types must be a subset of {sorted(ACTIVITY_TYPES)}")
-    hidden = sorted(t for t in types if not ACTIVITY_TYPES[t].discoverable)
+    hidden = sorted({t for t in types if not ACTIVITY_TYPES[t].discoverable})
     if hidden:
         raise ValueError(f"activity.discover cannot find idle {', '.join(hidden)} resources: CloudWatch publishes "
                          "their metrics only when there is traffic; list them in activity.resources")
@@ -90,6 +94,12 @@ def discover(cloudwatch, cfg: dict):
                                "activity.discover.max_resources")
     pages = common.bounded_int(cfg.get("max_pages"), DEFAULT_LIST_PAGES, 1, MAX_LIST_PAGES,
                                "activity.discover.max_pages")
+    return types, limit, pages
+
+
+def discover(cloudwatch, cfg: dict):
+    """ListMetrics (RecentlyActive) for discoverable types. Returns (resources, truncated, limitations)."""
+    types, limit, pages = discover_settings(cfg)
     found, truncated, notes = {}, False, []
     for kind in types:
         spec = ACTIVITY_TYPES[kind]
@@ -143,12 +153,9 @@ def fetch_activity(cloudwatch, resources, start, end, max_pages=MAX_METRIC_DATA_
     return series
 
 
-def collect_activity_metrics(event, readers, *, module=None, deadline=None):
-    cfg = event.get("activity")
-    if cfg is None:
-        return {"window": None, "period_seconds": PERIOD, "window_days": None, "region": common.region(),
-                "resources": [], "series": {}, "truncated": False, "collection": None,
-                "counts": {"resources": 0}, "limitations": [NOT_CONFIGURED]}
+def read_request(cfg):
+    """(start, end, {id: resource}, discover block or None) of the event's "activity" block. Raises ValueError
+    when any part of it is invalid: shape, window, a resource, or discovery of a type that cannot be discovered."""
     if not isinstance(cfg, dict):
         raise ValueError("activity must be an object")
     start, end = common.time_window(cfg, lookback_key="lookback_days", default=DEFAULT_LOOKBACK_DAYS,
@@ -167,7 +174,24 @@ def collect_activity_metrics(event, readers, *, module=None, deadline=None):
         raise ValueError("activity.discover must be an object (or true)")
     if not explicit and discover_cfg is None:
         raise ValueError("activity needs resources or discover")
+    if discover_cfg is not None:
+        discover_settings(discover_cfg)
     resources = {r["id"]: r for r in (parse_resource(spec) for spec in explicit)}
+    return start, end, resources, discover_cfg
+
+
+def collect_activity_metrics(event, readers, *, module=None, deadline=None):
+    """INF-04's raw activity series. An invalid "activity" block raises common.InputRefused before any AWS read,
+    so the analyzer refuses INF-04 and still runs and publishes the invocation's other checks."""
+    cfg = event.get("activity")
+    if cfg is None:
+        return {"window": None, "period_seconds": PERIOD, "window_days": None, "region": common.region(),
+                "resources": [], "series": {}, "truncated": False, "collection": None,
+                "counts": {"resources": 0}, "limitations": [NOT_CONFIGURED]}
+    try:
+        start, end, resources, discover_cfg = read_request(cfg)
+    except (ValueError, OverflowError) as exc:  # bad event input, not an AWS or code error
+        raise common.InputRefused(f"invalid activity input: {exc}") from exc
     cloudwatch = readers.client("cloudwatch")
     truncated, notes = False, []
     if discover_cfg is not None:

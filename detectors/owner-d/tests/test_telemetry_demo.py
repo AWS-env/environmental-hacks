@@ -89,7 +89,7 @@ class Obs11(unittest.TestCase):
 
     def test_repeat_is_clamped(self):
         result, _, _, _ = run(scenario="OBS-11", repeat=10_000)
-        self.assertEqual(result["emitted"]["OBS-11"]["waste_lines"], 50)
+        self.assertEqual(result["emitted"]["OBS-11"]["waste_lines"], 200)
 
 
 class Obs17(unittest.TestCase):
@@ -98,7 +98,8 @@ class Obs17(unittest.TestCase):
         waste, control = records(lines)
         self.assertIn("Traceback (most recent call last)", waste["stack_trace"])
         self.assertIn("ValueError", waste["stack_trace"])
-        self.assertEqual(len(waste["request_body"]["items"]), 40)
+        self.assertEqual(len(waste["request_body"]["items"]), demo.OBS17_BODY_ITEMS)
+        self.assertGreater(len(lines[0]), 40_000)  # dominates an `all` + `llm12` window (#514)
         self.assertNotIn("stack_trace", control)
         self.assertNotIn("request_body", control)
         self.assertEqual(control["error_type"], "RuntimeError")

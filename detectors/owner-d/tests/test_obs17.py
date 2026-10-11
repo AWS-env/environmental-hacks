@@ -1,14 +1,20 @@
 """OBS-17 verbose log fields: the Logs Insights query, the normalizer, the detector and the log-analyzer route.
 
 Case IDs follow the verification plan on issue #241. `fixtures/obs17/demo.insights.json` holds real, sanitized
-GetQueryResults responses from the synthetic owner-d-telemetry-demo log group; every other input is synthetic."""
+GetQueryResults responses from the synthetic owner-d-telemetry-demo log group; every other input is synthetic.
+`insights()` below is a Python model of `obs17.LOGS_INSIGHTS_QUERY` (platform filter, level, size bucket, trace and
+body markers, stats per group/level/bucket); it has not been run against CloudWatch Logs for these tests."""
 
 import copy
 import json
+import math
 import re
 import unittest
+from collections import defaultdict
 from pathlib import Path
+from unittest import mock
 
+from tests import test_llm12 as llm12_tests
 from tests.aws_fakes import NOW, AwsTestCase, FakeLogs, FakeTable
 
 from findings_hub import writer
@@ -411,6 +417,136 @@ class Obs17ThroughTheLogAnalyzerTests(AwsTestCase):
         self.assertEqual((result["status"], result["findings"]), ("unavailable", []))
         self.assertIn("Logs Insights returned the 5-row limit; more matching rows may exist",
                       result["coverage"]["limitations"])
+
+
+def _query_regex(field):
+    match = re.search(r"/(.*\(\?<" + field + r">.*)/", obs17.LOGS_INSIGHTS_QUERY)
+    return re.compile(match.group(1).replace("(?<", "(?P<"))
+
+
+_PLATFORM = (re.compile(r"^(START|END|REPORT) RequestId: |^(INIT_START|INIT_REPORT|INIT_RUNTIME_FAILURE|RESTORE_START|"
+                        r"RESTORE_REPORT|EXTENSION|TELEMETRY) "), re.compile(r'"type"\s*:\s*"platform\.'))
+_TEXT_LEVEL, _TRACE, _BODY = _query_regex("o17_text_level"), _query_regex("o17_trace"), _query_regex("o17_body")
+
+
+def insights(events):
+    """Rows of obs17.LOGS_INSIGHTS_QUERY over (log group, @message) events, in the shape of `row()`: values are
+    strings and empty fields (no level, zero marker counts) are left out, as Logs Insights leaves them out."""
+    stats = defaultdict(lambda: {"events": 0, "chars": 0, "max_chars": 0, "trace_events": 0, "body_events": 0})
+    for group, message in events:
+        if any(p.search(message) for p in _PLATFORM):
+            continue
+        try:
+            record = json.loads(message)
+        except json.JSONDecodeError:
+            record = {}
+        record = record if isinstance(record, dict) else {}
+        text_level = _TEXT_LEVEL.match(message)
+        level = next((str(record[k]) for k in ("level", "levelname", "severity") if record.get(k) is not None),
+                     text_level.group("o17_text_level") if text_level else "")
+        chars = len(message)
+        entry = stats[(group, level.upper()[:16], min(math.ceil(chars / 512), 65))]
+        entry["events"] += 1
+        entry["chars"] += chars
+        entry["max_chars"] = max(entry["max_chars"], chars)
+        entry["trace_events"] += bool(_TRACE.search(message))
+        entry["body_events"] += bool(_BODY.search(message))
+    return [row(group, level, bucket, e["events"], e["chars"], e["max_chars"], e["trace_events"], e["body_events"])
+            for (group, level, bucket), e in sorted(stats.items())]
+
+
+class _Sink:
+    """Offline CloudWatch and X-Ray sinks for demo runs."""
+
+    def put_metric_data(self, **kwargs):
+        pass
+
+    def send(self, document):
+        return "sent"
+
+
+class Obs17DemoNextToLlm12Tests(unittest.TestCase):
+    """#514: the demo's opt-in LLM-12 lines share the OBS-17 demo's log group. One `all` run plus one `llm12` run
+    in one query window must give both demo findings (the LLM-12 lines once diluted OBS-17's share to 5.1%)."""
+
+    demo = llm12_tests.demo
+
+    def invoke(self, scenario, n):
+        """@message values of one invocation: platform lines around the demo's lines, each ending in a newline."""
+        lines = []
+        with mock.patch.object(self.demo, "SPAN_SECONDS", 0):
+            self.demo.run({"scenario": scenario}, write=lines.append, cloudwatch=_Sink(), xray=_Sink())
+        request = f"0000000{n}-0000-4000-8000-000000000000"
+        return ([f"START RequestId: {request} Version: $LATEST\n"] + [line + "\n" for line in lines]
+                + [f"END RequestId: {request}\n",
+                   f"REPORT RequestId: {request}\tDuration: 812.00 ms\tBilled Duration: 813 ms\n"])
+
+    def window(self, *scenarios):
+        return [(f"2026/10/10/[$LATEST]{n:032x}", message)
+                for n, scenario in enumerate(scenarios) for message in self.invoke(scenario, n)]
+
+    def obs17(self, window):
+        return run(raw(insights([(DEMO, message) for _, message in window]), [DEMO]))[0]
+
+    def llm12(self, window):
+        events = []
+        for stream, message in window:
+            try:
+                record = json.loads(message)
+            except json.JSONDecodeError:
+                record = {}
+            events.append((DEMO, stream, record if isinstance(record, dict) else {}))
+        return llm12_tests.run(llm12_tests.raw(llm12_tests.insights(events)))[0]
+
+    def share(self, result):
+        return float(re.search(r"carry ([\d.]+)% of", result["findings"][0]["summary"]).group(1)) / 100
+
+    def test_model_reads_the_waste_line_like_the_recorded_demo(self):
+        rows = insights([(DEMO, m) for _, m in self.window("OBS-17")])
+        large = [r for r in rows if int(r["o17_bucket"]) > SETTINGS["max_event_bytes"] // obs17.BUCKET_CHARS]
+        self.assertEqual([(r["events"], r["trace_events"], r["body_events"], r["o17_level"]) for r in large],
+                         [("1", "1", "1", "ERROR")])
+        self.assertEqual(sum(int(r["events"]) for r in rows), 2)  # START/END/REPORT are filtered out
+
+    def test_one_all_run_plus_one_llm12_run_flags_both_demos(self):
+        window = self.window("all", "LLM-12")
+        result = self.obs17(window)
+        self.assertEqual(list(by_identity(result)), [(scope(DEMO), "oversized-log-events")])
+        self.assertGreater(self.share(result), 0.35)
+        self.assertIn("1 carries a full stack trace and 1 carries a JSON body/payload field",
+                      result["findings"][0]["summary"])
+        cache = self.llm12(window)
+        self.assertEqual([(f["scope_id"], f["identity"]) for f in cache["findings"]],
+                         [(llm12_tests.scope("demo-agent-local"), "isolated-agent-caches")])
+        self.assertEqual(cache["coverage"]["evaluated_scope"], [llm12_tests.scope("demo-agent-local"),
+                                                                llm12_tests.scope("demo-fleet-shared")])
+
+    def test_a_second_llm12_run_in_the_window_still_flags_obs17(self):
+        result = self.obs17(self.window("all", "LLM-12", "LLM-12"))
+        self.assertEqual(list(by_identity(result)), [(scope(DEMO), "oversized-log-events")])
+        self.assertGreater(self.share(result), SETTINGS["min_bytes_share"])
+
+    def test_obs11_retry_lines_keep_their_share_next_to_llm12_runs(self):
+        # OBS-11 flags a repeated line above 20% of the group's application events; the default retry burst must
+        # stay above that next to one or two opt-in llm12 runs (240 cache-lookup lines each) in the same window.
+        for scenarios in (("all",), ("all", "llm12"), ("all", "llm12", "llm12")):
+            with self.subTest(scenarios=scenarios):
+                app = [m for _, m in self.window(*scenarios) if not m.startswith(("START ", "END ", "REPORT "))]
+                retries = sum(1 for m in app if "unavailable, retrying" in m)
+                self.assertGreater(retries, 50)  # OBS-11 reference min_repeats
+                self.assertGreater(retries / len(app), 0.2)
+
+    def test_the_previous_40_item_body_was_hidden_by_one_llm12_run(self):
+        with mock.patch.object(self.demo, "OBS17_BODY_ITEMS", 40), mock.patch.dict(self.demo.LIMITS, {"repeat": (20, 1, 50)}):
+            window = self.window("all", "LLM-12")
+        result = self.obs17(window)
+        self.assertEqual((result["status"], result["findings"]), ("completed", []))
+        self.assertRegex(" ".join(result["coverage"]["limitations"]),
+                         r"1 events larger than 4096 characters carry [\d.]+% of the logged characters, within the "
+                         r"25(\.0)?% limit")
+        with mock.patch.object(self.demo, "OBS17_BODY_ITEMS", 40), mock.patch.dict(self.demo.LIMITS, {"repeat": (20, 1, 50)}):
+            alone = self.obs17(self.window("all"))
+        self.assertEqual(list(by_identity(alone)), [(scope(DEMO), "oversized-log-events")])
 
 
 if __name__ == "__main__":
