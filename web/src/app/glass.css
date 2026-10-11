@@ -40,6 +40,19 @@
   -webkit-backdrop-filter: blur(2px) saturate(90%) brightness(90%);
   box-shadow: inset 0 1px 0 rgba(255,255,255,.18), inset 0 -1px 0 rgba(255,255,255,.035), 0 20px 50px rgb(0 0 0 / 0.85);
 }
+/* Scan results: the particle field keeps moving behind these, so they need a real fill and a
+   stronger blur than the decorative glass. (A bg-* utility can't do it: .liquid-glass is
+   unlayered, so its background shorthand beats Tailwind's layered utilities.) */
+.liquid-glass.scan-card {
+  border-color: rgb(255 255 255 / 0.12);
+  background: linear-gradient(160deg, rgb(17 21 24 / 0.88), rgb(9 12 14 / 0.92));
+  backdrop-filter: blur(14px) saturate(110%);
+  -webkit-backdrop-filter: blur(14px) saturate(110%);
+}
+/* Dims the particle field behind the results so loose text (headings, notes) reads too. */
+.scan-backdrop {
+  background: radial-gradient(ellipse at 50% 35%, rgb(7 9 10 / 0.9), rgb(7 9 10 / 0.78) 70%);
+}
 .liquid-panel { will-change: transform; }
 .liquid-panel:focus-within {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.27), inset 0 -1px 0 rgba(255,255,255,.045), 0 8px 28px rgba(0,0,0,.18);

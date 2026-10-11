@@ -20,7 +20,7 @@ const CONFIDENCE_STYLE: Record<Confidence, string> = {
   low: "border-white/15 text-zinc-300",
 };
 
-const card = "liquid-glass relative rounded-[22px] border bg-black/45";
+const card = "liquid-glass scan-card relative rounded-[22px] border";
 
 function Pill({ className, children }: { className: string; children: ReactNode }) {
   return <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${className}`}>{children}</span>;
@@ -31,7 +31,7 @@ function Stat({ label, value, detail }: { label: string; value: number | string;
     <div className={`${card} px-4 py-3`}>
       <p className="text-xs text-zinc-400">{label}</p>
       <p className="mt-1 text-2xl font-medium tabular-nums text-white">{value}</p>
-      {detail && <p className="mt-0.5 text-[11px] text-zinc-400">{detail}</p>}
+      {detail && <p className="mt-0.5 text-xs text-zinc-400">{detail}</p>}
     </div>
   );
 }
@@ -95,7 +95,7 @@ function Check({ check, report }: { check: CheckView; report?: ScanReport }) {
           {check.findings.length} finding{check.findings.length === 1 ? "" : "s"}
         </span>
       </div>
-      <p className="mt-1 text-[11px] text-zinc-400">
+      <p className="mt-1 text-xs text-zinc-400">
         {[check.layer && `layer ${check.layer}`, check.owner && `owner ${check.owner}`,
           check.scope ? `evaluated ${check.evaluated} of ${check.scope} in scope` : null].filter(Boolean).join(" · ")}
       </p>
