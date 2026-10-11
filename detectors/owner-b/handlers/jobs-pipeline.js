@@ -8,7 +8,7 @@ const {evaluate}=require('../core/dispatch');
 const provider=require('../collectors/job-provider');
 const config={region:process.env.AWS_REGION||'ap-south-1',maxAttempts:2};
 const storage=new S3Client(config),publisher=new EventBridgeClient(config);
-const families={static:['JOB-04','JOB-01'],log:['JOB-05'],telemetry:['JOB-03','JOB-01'],heuristic:['JOB-06']};
+const families={static:['JOB-04','JOB-01','DB-39'],log:['JOB-05'],telemetry:['JOB-03','JOB-01'],heuristic:['JOB-06']};
 const hash=text=>crypto.createHash('sha256').update(text).digest('hex');
 async function processJobs(family,event,context,deps={}){
   const s3=deps.s3||storage,bus=deps.bus||publisher,bucket=deps.bucket||process.env.ARTIFACT_BUCKET;
@@ -33,8 +33,8 @@ async function processJobs(family,event,context,deps={}){
     }catch(e){data={format:input.check_id==='JOB-03'?'worker-capacity-v1':input.check_id==='JOB-05'?'job-runs-v1':'schedule-inventory-v1',acquisition:{status:'unavailable',reason:e.message}};}
     input.sources.push({source_id:'provider-'+hash(canonical(a)).slice(0,16),scope_id:input.scope[0],kind:input.check_id==='JOB-04'?'artifact':'telemetry',locator:'aws:job-evidence',data});
   }
-  const result=evaluate(input);validatePair(input,result);
-  const body=canonical({input,result}),digest=hash(body),key='results/jobs/'+hash(canonical([input.repository_id,input.scan_id,input.check_id,input.detector_version])).slice(0,32)+'/'+digest+'.json';
+  const result=await evaluate(input);validatePair(input,result);
+  const body=canonical({input,result}),digest=hash(body),key='results/'+(input.check_id.startsWith('JOB-')?'jobs':'orm')+'/'+hash(canonical([input.repository_id,input.scan_id,input.check_id,input.detector_version])).slice(0,32)+'/'+digest+'.json';
   let saved;try{saved=await s3.send(new PutObjectCommand({Bucket:bucket,Key:key,Body:body,ContentType:'application/json',IfNoneMatch:'*'}));}catch(e){if(e.name!=='PreconditionFailed'&&e.$metadata?.httpStatusCode!==412)throw e;saved={};}
   const artifact={bucket,key,sha256:digest,...(saved.VersionId?{version_id:saved.VersionId}:{})};
   const hub=deps.hub??process.env.FINDINGS_HUB_ARN;

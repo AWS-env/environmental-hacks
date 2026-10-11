@@ -1,6 +1,6 @@
 'use strict';
 const cdk=require('aws-cdk-lib');
-const {aws_s3:s3,aws_lambda:lambda,aws_logs:logs,aws_iam:iam,aws_sqs:sqs}=cdk;
+const {aws_s3:s3,aws_lambda:lambda,aws_logs:logs,aws_iam:iam,aws_sqs:sqs,aws_cloudwatch:cw}=cdk;
 function createJobs(app){
   const project=app.node.tryGetContext('project'),region=app.node.tryGetContext('region');
   if(!/^\d{12}$/.test(project||'')||region!=='ap-south-1')throw new Error('Supply verified project and explicit selected Region ap-south-1');
@@ -22,6 +22,9 @@ function createJobs(app){
     const functionName={static:'owner-b-static-scan',log:'owner-b-log-analyzer',telemetry:'owner-b-telemetry-analyzer',heuristic:'owner-b-heuristic-scan'}[family];
     const group=new logs.LogGroup(stack,family+'Logs',{logGroupName:'/aws/lambda/'+functionName,retention:logs.RetentionDays.ONE_WEEK,removalPolicy:cdk.RemovalPolicy.RETAIN});
     const dlq=new sqs.Queue(stack,family+'Failures',{encryption:sqs.QueueEncryption.SQS_MANAGED,retentionPeriod:cdk.Duration.days(7)});
+    // Alarm on the failure queue (house rule: DLQ + alarm). Logical ID matches the alarm added to the live stack by change set owner-b-jobs-add-dlq-alarms.
+    const alarm=new cw.Alarm(stack,family+'DlqAlarm',{alarmName:`owner-b-jobs-${family}-dlq-not-empty`,alarmDescription:`Messages in the ${family} Lambda failure queue: an invocation failed after retries.`,metric:dlq.metricApproximateNumberOfMessagesVisible({statistic:'Maximum',period:cdk.Duration.minutes(5)}),threshold:0,evaluationPeriods:1,comparisonOperator:cw.ComparisonOperator.GREATER_THAN_THRESHOLD,treatMissingData:cw.TreatMissingData.NOT_BREACHING});
+    alarm.node.defaultChild.overrideLogicalId('dlqAlarm'+family[0].toUpperCase()+family.slice(1));
     const role=new iam.Role(stack,family+'Role',{assumedBy:new iam.ServicePrincipal('lambda.amazonaws.com')});
     role.addToPolicy(new iam.PolicyStatement({actions:['logs:CreateLogStream','logs:PutLogEvents'],resources:[group.logGroupArn]}));
     const fn=new lambda.Function(stack,family+'Function',{functionName,role,runtime:lambda.Runtime.NODEJS_22_X,architecture:lambda.Architecture.ARM_64,handler:family+'.handler',code:lambda.Code.fromBucket(shared,key,version),memorySize:512,timeout:cdk.Duration.seconds(90),logGroup:group,deadLetterQueue:dlq,retryAttempts:1,environment:{ARTIFACT_BUCKET:name,FINDINGS_HUB_ARN:hub,JOB_LOG_SOURCES:JSON.stringify(jobSources),WORKER_POOLS:JSON.stringify(pools),SCHEDULE_GROUPS:JSON.stringify(groups),QUERY_LOG_GROUPS:JSON.stringify(smokeGroup?[smokeGroup]:[])}});
