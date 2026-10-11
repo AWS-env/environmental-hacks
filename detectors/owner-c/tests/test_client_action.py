@@ -130,7 +130,7 @@ class ClientActionTests(unittest.TestCase):
 
 class CollectorGuards(unittest.TestCase):
     def args(self, **kw):
-        base = dict(python_args="", node_args="", lighthouse_url="", ci_workflows="", ci_repo="", repository_id="github:o/r")
+        base = dict(python_args="", node_args="", lighthouse_url="", ci_workflows="", repository_id="github:o/r")
         base.update(kw)
         return mock.Mock(**base)
 
@@ -160,7 +160,7 @@ class CollectorGuards(unittest.TestCase):
 
 class JsAndCiArtifacts(unittest.TestCase):
     def args(self, **kw):
-        base = dict(python_args="", node_args="", lighthouse_url="", ci_workflows="", ci_repo="", repository_id="github:o/r")
+        base = dict(python_args="", node_args="", lighthouse_url="", ci_workflows="", repository_id="github:o/r")
         base.update(kw)
         return mock.Mock(**base)
 
@@ -214,12 +214,11 @@ class JsAndCiArtifacts(unittest.TestCase):
         self.assertEqual([cmd[i + 1] for i, c in enumerate(cmd) if c == "--workflow"], ["ci.yml", "release.yml"])
         self.assertTrue(pu.CI_COLLECTOR.is_file())
 
-    def test_ci_repo_overrides_the_repository_id_and_defaults_to_it(self):
+    def test_ci_history_always_reads_the_repository_the_upload_is_filed_under(self):
         seen = []
         with mock.patch.object(pu, "collect_ci_history", lambda out, repo, wfs: seen.append(repo)):
             pu.collect("ci_history", pathlib.Path("x"), self.args(ci_workflows="ci.yml"), pathlib.Path("."))
-            pu.collect("ci_history", pathlib.Path("x"), self.args(ci_workflows="ci.yml", ci_repo="real/repo"), pathlib.Path("."))
-        self.assertEqual(seen, ["o/r", "real/repo"])
+        self.assertEqual(seen, ["o/r"])  # the parser rejects history collected for another repository
 
     def test_all_six_upload_in_order_with_manifest_last(self):
         names = ["speedscope", "memray_stats", "lighthouse", "cpuprofile", "heapprofile", "ci_history"]

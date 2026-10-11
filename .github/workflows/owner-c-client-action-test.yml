@@ -83,4 +83,6 @@ jobs:
           node-args: demo/app.js
           ci-workflows: ci.yml
           lighthouse-url: http://localhost:8765/index.html
-          repository-id: github:AWS-env/owner-c-action-test
+          # ci_history must be collected for the repository the upload is filed under (the parser checks), so this
+          # test files under the real repository id.
+          repository-id: github:AWS-env/environmental-hacks

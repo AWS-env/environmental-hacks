@@ -21,10 +21,6 @@ inputs:
     description: "Comma list of workflow files whose run history is read for ci_history, e.g. `ci.yml,release.yml`."
     required: false
     default: ""
-  ci-repository:
-    description: "owner/name whose run history is read for ci_history."
-    required: false
-    default: ${{ github.repository }}
   github-token:
     description: "Token that reads your run history (needs `actions: read`); the job token by default."
     required: false
@@ -42,7 +38,7 @@ inputs:
     required: false
     default: ap-south-1
   repository-id:
-    description: "Repository identity, github:<owner>/<repo>."
+    description: "Repository identity, github:<owner>/<repo>. ci_history reads the run history of this same repository."
     required: false
     default: github:${{ github.repository }}
   commit-sha:
@@ -66,7 +62,6 @@ runs:
         PYTHON_ARGS: ${{ inputs.python-args }}
         NODE_ARGS: ${{ inputs.node-args }}
         CI_WORKFLOWS: ${{ inputs.ci-workflows }}
-        CI_REPOSITORY: ${{ inputs.ci-repository }}
         GITHUB_TOKEN: ${{ inputs.github-token }}
         LIGHTHOUSE_URL: ${{ inputs.lighthouse-url }}
         REGION: ${{ inputs.region }}
@@ -75,5 +70,5 @@ runs:
       run: |
         python "${{ github.action_path }}/profile_upload.py" \
           --repository-id "$REPOSITORY_ID" --commit-sha "$COMMIT_SHA" --artifacts "$ARTIFACTS" \
-          --python-args "$PYTHON_ARGS" --node-args "$NODE_ARGS" --ci-workflows "$CI_WORKFLOWS" --ci-repo "$CI_REPOSITORY" \
+          --python-args "$PYTHON_ARGS" --node-args "$NODE_ARGS" --ci-workflows "$CI_WORKFLOWS" \
           --lighthouse-url "$LIGHTHOUSE_URL" --region "$REGION"

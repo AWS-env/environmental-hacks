@@ -46,12 +46,11 @@ A tool that cannot run is skipped with a warning, and its checks report `unavail
 | `python-args` | empty | arguments after `python` for py-spy and memray; needed for those two |
 | `node-args` | empty | arguments after `node` for the CPU and heap profiles (`app.js`); needed for those two |
 | `ci-workflows` | empty | comma list of workflow files whose run history is read (`ci.yml`); needed for `ci_history` |
-| `ci-repository` | `github.repository` | `owner/name` whose run history is read |
 | `github-token` | job token | reads the run history; needs `actions: read` |
 | `lighthouse-url` | empty | a reachable URL (your preview deployment); needed for Lighthouse |
 | `role-arn` | owner C upload role | role assumed through GitHub OIDC; it can only invoke `owner-c-presign` |
 | `region` | `ap-south-1` | region of the owner C stack |
-| `repository-id` | `github:<owner>/<repo>` | identity the results are filed under |
+| `repository-id` | `github:<owner>/<repo>` | identity the results are filed under; `ci_history` reads the run history of this same repository (the parser rejects a mismatch) |
 | `commit-sha` | `github.sha` | full 40-character commit |
 
 ## What gets uploaded

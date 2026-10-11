@@ -132,7 +132,8 @@ def collect(name: str, out: pathlib.Path, args: argparse.Namespace, repo: pathli
         workflows = [w.strip() for w in args.ci_workflows.split(",") if w.strip()]
         if not workflows:
             raise RuntimeError("ci-workflows is empty: name at least one workflow file, e.g. `ci.yml`")
-        collect_ci_history(out, args.ci_repo or args.repository_id.removeprefix("github:"), workflows)
+        # the parser rejects a history collected for another repository than the upload is filed under, so never override it
+        collect_ci_history(out, args.repository_id.removeprefix("github:"), workflows)
 
 
 def usable(path: pathlib.Path) -> str | None:
@@ -183,7 +184,6 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--node-args", default="", help="arguments after `node`, e.g. `app.js`")
     p.add_argument("--lighthouse-url", default="")
     p.add_argument("--ci-workflows", default="", help="comma list of workflow files, e.g. `ci.yml,release.yml`")
-    p.add_argument("--ci-repo", default="", help="owner/name whose run history is read (default: the repository id)")
     p.add_argument("--repo-dir", default=".")
     p.add_argument("--region", default="ap-south-1")
     args = p.parse_args(argv)
