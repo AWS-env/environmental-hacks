@@ -128,6 +128,51 @@ describe("CODE-C3.3 Inefficient per-iteration setup detector", () => {
     });
   });
 
+  describe("Objects that outlive the iteration (audit F4)", () => {
+    const run = (src: string) => checkCodeC33(parsePythonSource("a.py", src));
+    const factories = (src: string) => run(src).map((f) => f.evidence.factory);
+
+    it("an object appended to an outer list is a new object per item, not hoistable setup (aiohttp Morsel)", () => {
+      const src = "def f(items):\n    out = []\n    for i in items:\n        m = Morsel()\n        m.set(i, i, i)\n        out.append(m)\n    return out\n";
+      expect(run(src)).toEqual([]);
+    });
+
+    it("an object handed to a method of another object is stored there (aiohttp add_subapp)", () => {
+      const src = "def f(app, n):\n    for count in range(n):\n        subapp = Application()\n        app.add_subapp(f'/p/{count}', subapp)\n";
+      expect(run(src)).toEqual([]);
+    });
+
+    it("an object stored into a subscript or attribute escapes", () => {
+      expect(run("def f(items, d):\n    for i in items:\n        w = Widget()\n        d[i] = w\n")).toEqual([]);
+      expect(run("def f(items, self):\n    for i in items:\n        w = Widget()\n        self.last = w\n")).toEqual([]);
+    });
+
+    it("an object yielded or returned from the loop escapes", () => {
+      expect(run("def f(items):\n    for i in items:\n        w = Widget()\n        yield w\n")).toEqual([]);
+      expect(run("def f(items):\n    for i in items:\n        w = Widget()\n        if i:\n            return w\n")).toEqual([]);
+    });
+
+    it("a construction used as a `with` item has a per-iteration lifecycle (fastapi TestClient)", () => {
+      const src = "def f(app):\n    for _ in range(2):\n        with TestClient(app) as client:\n            assert client.get('/').status_code == 500\n";
+      expect(run(src)).toEqual([]);
+    });
+
+    it("still flags a CapWords object that is created, used and dropped inside the iteration (twin)", () => {
+      const src = "def f(items, cfg):\n    for i in items:\n        fmt = Formatter(cfg)\n        print(fmt.render(i))\n";
+      expect(factories(src)).toEqual(["Formatter"]);
+    });
+
+    it("still flags it when the object is only passed to a plain function", () => {
+      const src = "def f(items, cfg):\n    for i in items:\n        fmt = Formatter(cfg)\n        show(fmt, i)\n";
+      expect(factories(src)).toEqual(["Formatter"]);
+    });
+
+    it("heavy setup signals are unaffected by the escape guard", () => {
+      const src = "import re\ndef f(lines, rule):\n    for line in lines:\n        m = re.compile(rule)\n        use(m, line)\n";
+      expect(factories(src)).toEqual(["re.compile"]);
+    });
+  });
+
   describe("Robustness (C33-09)", () => {
     it("returns zero findings on invalid Python syntax", () => {
       const content = readFileSync(join(FIXTURES_DIR, "syntax_error.py"), "utf-8");

@@ -281,6 +281,54 @@ function isScratchObject(name: string, loop: LoopInfo): boolean {
   return visit(loop.bodyNode);
 }
 
+const CONTAINER_TYPES = new Set([
+  "list",
+  "tuple",
+  "set",
+  "dictionary",
+  "pair",
+  "parenthesized_expression",
+  "list_splat",
+  "keyword_argument",
+]);
+
+/**
+ * The bound object is handed to something that outlives the iteration: passed to a method of another
+ * object (`out.append(m)`, `app.add_subapp(p, m)`), stored into an attribute or subscript (`d[k] = m`),
+ * or yielded/returned. A new object per item is then the point, not a setup cost to hoist.
+ */
+function escapesIteration(name: string, loop: LoopInfo): boolean {
+  if (!loop.bodyNode) return false;
+  const escapes = (id: Parser.SyntaxNode): boolean => {
+    let node: Parser.SyntaxNode = id;
+    while (node.parent && CONTAINER_TYPES.has(node.parent.type)) node = node.parent;
+    const parent = node.parent;
+    if (!parent) return false;
+    if (parent.type === "yield" || parent.type === "return_statement") return true;
+    if (parent.type === "assignment") {
+      const left = parent.childForFieldName("left");
+      return parent.childForFieldName("right")?.id === node.id && (left?.type === "attribute" || left?.type === "subscript");
+    }
+    if (parent.type === "argument_list") {
+      const fn = parent.parent?.childForFieldName("function");
+      return fn?.type === "attribute" && fn.childForFieldName("object")?.text !== name;
+    }
+    return false;
+  };
+  const visit = (node: Parser.SyntaxNode): boolean => {
+    if (node.type === "identifier" && node.text === name && escapes(node)) return true;
+    return node.namedChildren.some(visit);
+  };
+  return visit(loop.bodyNode);
+}
+
+/** `with <call>:` / `with <call> as x:` — the manager's lifecycle is the iteration. */
+function isWithItemCall(call: Parser.SyntaxNode): boolean {
+  const parent = call.parent;
+  if (!parent) return false;
+  return parent.type === "with_item" || (parent.type === "as_pattern" && parent.parent?.type === "with_item");
+}
+
 /** Setup call sites directly owned by this loop body (not comprehensions / nested defs). */
 function collectCalls(loop: LoopInfo): Parser.SyntaxNode[] {
   const calls: Parser.SyntaxNode[] = [];
@@ -348,6 +396,11 @@ export function detectPerIterationSetup(
         isScratchObject(site.boundName, loop)
       ) {
         continue;
+      }
+      if (site.signal === "construction") {
+        // A fresh object per item that is stored/handed on, or a with-managed one, is not hoistable setup.
+        if (isWithItemCall(call)) continue;
+        if (site.boundName && escapesIteration(site.boundName, loop)) continue;
       }
 
       reported.add(call.startIndex);
