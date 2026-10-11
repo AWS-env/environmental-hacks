@@ -14,6 +14,7 @@ export default function HomePage() {
   const scanState = useScanSession(scan);
   const isAnalyzing = scanState !== null && ACTIVE_PHASES.includes(scanState.phase);
   const [scanStep, setScanStep] = useState(-1);
+  const [activeSteps, setActiveSteps] = useState<number[]>([]);
   useEffect(() => () => scan?.cancel(), [scan]);
 
   const sampleRepos = [
@@ -27,6 +28,7 @@ export default function HomePage() {
     const target = (urlToAnalyze || repoUrl).trim();
     if (!target || scan) return;
     setScanStep(-1);
+    setActiveSteps([]);
     setScan(startScan(target));
   };
 
@@ -37,7 +39,7 @@ export default function HomePage() {
 
   return (
     <>
-    <ParticleTerrain analyzing={isAnalyzing} onStageChange={setScanStep} />
+    <ParticleTerrain analyzing={isAnalyzing} onStageChange={(step, active) => { setScanStep(step); setActiveSteps(active); }} />
     <div className="relative z-10 h-screen max-h-screen overflow-y-auto flex flex-col py-4 px-4 md:px-8 text-white">
       {/* Top Header Bar */}
       <header className="flex items-center justify-between pb-2 shrink-0 border-b border-white/[0.04]">
@@ -98,7 +100,7 @@ export default function HomePage() {
         <div aria-hidden="true" />
       </main>
       {scanState && (isAnalyzing
-        ? <ScanProgress state={scanState} step={scanStep} onBack={closeScan} />
+        ? <ScanProgress state={scanState} step={scanStep} activeSteps={activeSteps} onBack={closeScan} />
         : <ScanPanel state={scanState} onClose={closeScan} />)}
     </div>
     </>
