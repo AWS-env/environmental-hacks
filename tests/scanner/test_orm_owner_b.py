@@ -51,3 +51,16 @@ class OrmStaticScanTest(unittest.TestCase):
             run = run_check(check_id, [("app/views.py", DJANGO)])
             self.assertTrue(run.unavailable and not run.result and not run.error)
             self.assertIn("EXPLAIN", run.unavailable)
+
+    def test_db23_scan_output_keeps_medium_and_counts_the_filtered_low_findings(self):
+        source = ("export const all = () => prisma.country.findMany();\n"
+                  "export const scoped = (userId: number) => prisma.membership.findMany({ where: { userId } });\n")
+        run = run_check("DB-23", [("src/repo.ts", source)])
+        self.assertIsNone(run.error)
+        self.assertEqual([f["identity"] for f in run.result["findings"]], ["all:option.findMany"])
+        self.assertTrue(any("below medium confidence" in text for text in run.result["coverage"]["limitations"]))
+        validate_pair(run.payload, run.result)
+
+
+if __name__ == "__main__":
+    unittest.main()
