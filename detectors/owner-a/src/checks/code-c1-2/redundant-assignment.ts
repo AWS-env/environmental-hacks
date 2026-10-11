@@ -2,6 +2,7 @@ import Parser from "tree-sitter";
 import { Confidence, Finding, Severity, generateFingerprint } from "../../core/finding.js";
 import { isLineSuppressed } from "../../core/suppressions.js";
 import { getEnclosingQualname } from "../../core/loops.js";
+import { sameTokens } from "../../core/tokens.js";
 
 const CHECK = "CODE-C1.2";
 const SELF_KIND = "self-assignment";
@@ -95,18 +96,6 @@ function plainAssignment(stmt: Parser.SyntaxNode): Assignment | null {
 function contains(node: Parser.SyntaxNode, types: Set<string>): boolean {
   if (types.has(node.type)) return true;
   return node.namedChildren.some((c) => contains(c, types));
-}
-
-/** Leaf tokens, so `a[ i ]` matches `a[i]` but `"x y"` never matches `"xy"`. */
-function tokens(node: Parser.SyntaxNode): string[] {
-  if (node.childCount === 0) return node.type === "comment" ? [] : [node.text];
-  return node.children.flatMap(tokens);
-}
-
-function sameTokens(a: Parser.SyntaxNode, b: Parser.SyntaxNode): boolean {
-  const ta = tokens(a);
-  const tb = tokens(b);
-  return ta.length === tb.length && ta.every((t, i) => t === tb[i]);
 }
 
 function normalized(node: Parser.SyntaxNode): string {
