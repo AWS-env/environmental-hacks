@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Kimi • Turn any repository into insights",
+  title: "EcoAudit • Turn any repository into insights",
   description:
     "Understand, analyze, and work with your codebase using AI.",
 };

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { gsap } from "gsap";
-import { Activity, ArrowDown, ArrowUp, Bell, Box, ChevronDown, Cpu, Database, MemoryStick, Monitor, Pause, Play, Thermometer, Globe, Code2, MessageSquare, Terminal, Folder } from "lucide-react";
+import { Activity, ArrowDown, ArrowUp, Box, ChevronDown, Cpu, Database, MemoryStick, Monitor, Pause, Play, Thermometer, Globe, Code2, MessageSquare, Terminal, Folder } from "lucide-react";
 import ParticleTerrain from "@/components/ParticleTerrain";
 import { ResourceChart, sampleResource } from "@/components/ResourceChart";
 import "./overview.css";
@@ -79,7 +80,7 @@ export default function OverviewPage() {
     <>
       <ParticleTerrain />
       <div className="overview-page" ref={root}>
-        <header className="overview-topbar"><a href="/home" className="overview-brand">Kimi</a><div className="overview-account"><span className="workspace-pill"><i />Personal<ChevronDown size={12} /></span><span className="overview-bell" aria-label="Notifications"><Bell size={15} /></span><span className="overview-avatar">S</span></div></header>
+        <header className="overview-topbar"><Link href="/" className="overview-brand">EcoAudit</Link></header>
         <main className="overview-content">
           <div className="overview-heading">
             <div><div className="overview-eyebrow">WORKSPACE / OVERVIEW</div><div className="overview-title"><h1>Resource Monitor</h1><span className={`demo-stream ${paused ? "is-paused" : ""}`}><i />{paused ? "PAUSED" : "DEMO STREAM"}</span></div><p>A little signal in the noise. Generated data, beautifully in motion.</p></div>

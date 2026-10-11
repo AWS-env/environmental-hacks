@@ -5,12 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   Crosshair,
-  Search,
   BookOpen,
-  ShoppingBag,
   Sun,
   Moon,
   Leaf,
+  UserRound,
 } from "lucide-react";
 import { THEME_STORAGE_KEY } from "@/components/theme/boot";
 import type { Theme } from "@/components/theme/boot";
@@ -38,8 +37,6 @@ export default function Sidebar() {
       ? "bot"
       : pathname.startsWith("/reports")
       ? "reports"
-      : pathname.startsWith("/stats")
-      ? "metrics"
       : pathname.startsWith("/login")
       ? "login"
       : "overview";
@@ -72,25 +69,11 @@ export default function Sidebar() {
           </span>
         </Link>
 
-        {/* Search */}
-        <button
-          onClick={() => setActiveOverride("search")}
-          title="Search (Ctrl+K)"
-          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
-            activeItem === "search" ? "text-white" : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <Search strokeWidth={2.2} className="w-[17px] h-[17px]" />
-          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-            Search
-          </span>
-        </button>
-
-        {/* Active Kimi / Bot Avatar */}
+        {/* Analyze a repository */}
         <Link
           href="/home"
           onNavigate={go("/home", "bot")}
-          title="Workspace / Chat"
+          title="Analyze a repository"
           className="relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200"
         >
           <div className={`transition-all duration-200 ${activeItem === "bot" ? "text-white scale-105" : "text-zinc-400 hover:text-white"}`}>
@@ -109,62 +92,7 @@ export default function Sidebar() {
             </svg>
           </div>
           <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-            Kimi Workspace
-          </span>
-        </Link>
-
-        {/* Key / Wand icon */}
-        <button
-          onClick={() => setActiveOverride("key")}
-          title="API Keys & Secrets"
-          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
-            activeItem === "key" ? "text-white" : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-[17px] h-[17px]"
-          >
-            <circle cx="7.5" cy="15.5" r="5" />
-            <path d="m11 12 8-8" />
-            <path d="m16 4 3 3" />
-            <path d="m14 6 2 2" />
-          </svg>
-          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-            Keys & Access
-          </span>
-        </button>
-
-        {/* Histogram / Metrics icon */}
-        <Link
-          href="/stats"
-          onNavigate={go("/stats", "metrics")}
-          title="Analytics & Logs"
-          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
-            activeItem === "metrics" ? "text-white scale-105" : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-[17px] h-[17px]"
-          >
-            <rect width="18" height="18" x="3" y="3" rx="4" />
-            <path d="M8 17v-4" />
-            <path d="M12 17v-7" />
-            <path d="M16 17v-2" />
-          </svg>
-          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-            Analytics
+            Analyze a repo
           </span>
         </Link>
 
@@ -183,57 +111,6 @@ export default function Sidebar() {
           </span>
         </Link>
 
-        {/* Chat / Pulse waveform bubble */}
-        <button
-          onClick={() => setActiveOverride("pulse")}
-          title="Discussions & Prompts"
-          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
-            activeItem === "pulse" ? "text-white" : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-[17px] h-[17px]"
-          >
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-            <path d="M8 10h1.5l1.5-2 2 4 1.5-2H17" />
-          </svg>
-          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-            Prompts & Threads
-          </span>
-        </button>
-
-        {/* 4-petal App grid / Hub */}
-        <button
-          onClick={() => setActiveOverride("grid")}
-          title="Apps & Integrations"
-          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
-            activeItem === "grid" ? "text-white" : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            className="w-[17px] h-[17px]"
-          >
-            <circle cx="8" cy="8" r="2.5" />
-            <circle cx="16" cy="8" r="2.5" />
-            <circle cx="8" cy="16" r="2.5" />
-            <circle cx="16" cy="16" r="2.5" />
-          </svg>
-          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-            Workspaces
-          </span>
-        </button>
       </div>
 
       {/* Bottom Icons */}
@@ -261,31 +138,14 @@ export default function Sidebar() {
           href="https://github.com/AWS-env/environmental-hacks"
           target="_blank"
           rel="noreferrer"
-          onClick={() => setActiveOverride(null)}
           title="Documentation"
-          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
-            activeItem === "book" ? "text-white" : "text-zinc-400 hover:text-white"
-          }`}
+          className="relative group flex items-center justify-center w-8 h-8 rounded-full text-zinc-400 hover:text-white transition-all duration-200"
         >
           <BookOpen strokeWidth={2.2} className="w-[17px] h-[17px]" />
           <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
             Documentation
           </span>
         </a>
-
-        {/* Store / Marketplace */}
-        <button
-          onClick={() => setActiveOverride("store")}
-          title="Plugin Store"
-          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
-            activeItem === "store" ? "text-white" : "text-zinc-400 hover:text-white"
-          }`}
-        >
-          <ShoppingBag strokeWidth={2.2} className="w-[17px] h-[17px]" />
-          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-            Marketplace
-          </span>
-        </button>
 
         {/* Account / User Avatar */}
         <Link
@@ -298,7 +158,7 @@ export default function Sidebar() {
               : "border-white/20 hover:border-white/40"
           }`}
         >
-          <span>N</span>
+          <UserRound strokeWidth={2.2} className="w-[15px] h-[15px]" />
           <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
             Account / Sign In
           </span>

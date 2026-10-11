@@ -231,12 +231,6 @@ export default function ReportsPage() {
 
           <div className="flex items-center gap-3">
             <Link
-              href="/stats"
-              className="hidden md:flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
-            >
-              Corpus Validation
-            </Link>
-            <Link
               href="/login"
               className="flex items-center gap-1.5 rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-medium text-ink-2 transition-colors hover:bg-surface-2 hover:text-ink"
             >
