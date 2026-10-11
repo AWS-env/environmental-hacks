@@ -1,6 +1,7 @@
 // Full-screen backdrop drawn before the tree. Outside the wavefront it is
-// opaque black; inside it is transparent, so the real page shows through.
-// Colours are premultiplied and may exceed alpha: that adds light over the page.
+// opaque (black at night, pale sky by day); inside it is transparent, so the real
+// page shows through. Night colours are premultiplied and may exceed alpha: that
+// adds light over the page. Day has no light to add, so the rim is painted ink.
 
 export const revealVertex = /* glsl */ `
 varying vec2 vUv;
@@ -19,6 +20,8 @@ uniform float uTime;
 uniform vec3 uRimA;
 uniform vec3 uRimB;
 uniform vec3 uWash;
+uniform vec3 uBackdrop; // display colour of the opaque side
+uniform float uPaint;   // 0: additive glow (night), 1: painted rim (day)
 
 varying vec2 vUv;
 
@@ -69,6 +72,15 @@ void main() {
   float wash = (1.0 - outside) * exp(edge * 7.0) * 0.4;
 
   vec3 rimColor = mix(uRimA, uRimB, smoothstep(0.35, 0.65, detail));
+  if (uPaint > 0.5) {
+    float rimW = rim * started * 0.8;
+    float washW = wash * started * 0.6;
+    float paint = clamp(rimW + washW, 0.0, 1.0);
+    vec3 ink = (rimColor * rimW + uWash * washW) / max(rimW + washW, 1e-4);
+    // Premultiplied: ink over the backdrop.
+    gl_FragColor = vec4(ink * paint + uBackdrop * outside * (1.0 - paint), paint + outside * (1.0 - paint));
+    return;
+  }
   vec3 glow = (rimColor * rim + uWash * wash) * started;
   gl_FragColor = vec4(glow, outside);
 }

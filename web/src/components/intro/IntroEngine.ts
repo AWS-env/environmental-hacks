@@ -26,7 +26,7 @@ import type { IUniform, Material, MeshStandardMaterial } from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 import { MeshoptDecoder } from "three/examples/jsm/libs/meshopt_decoder.module.js";
 import type { Theme } from "@/components/theme/boot";
-import { MODEL_URL } from "./config";
+import { INTRO_BACKDROP, MODEL_URL } from "./config";
 import { MOTE_FRACTION, normaliseModel, sampleModel } from "./sampleModel";
 import type { ModelBounds } from "./sampleModel";
 import { particlesFragment, particlesVertex } from "./shaders/particles";
@@ -68,6 +68,18 @@ interface Look {
   haze: Color;
   hazeAmount: number;
   moteColor: Color;
+  /** Linear colour the particles start as, before they take on the tree's own. */
+  coolColor: Color;
+  /** Brightness of the tree's colours on the particles (the lit mesh is brighter than its albedo). */
+  treeGain: number;
+  /** Opaque side of the reveal, as a display colour; matches the CSS cover. */
+  backdrop: Color;
+  /** Rim and wash of the reveal wavefront, as display colours. */
+  rimA: Color;
+  rimB: Color;
+  wash: Color;
+  /** Reveal rim painted as ink (day) rather than added as light (night). */
+  paintRim: boolean;
   /** Extra size for drifting motes (painted motes need more body than glowing ones to read). */
   moteScale: number;
   /** Particle opacity once the page is revealed: 0 adds light, 1 paints over (see the particle shader). */
@@ -81,6 +93,13 @@ const LOOKS: Record<Theme, Look> = {
     haze: new Color(0, 0, 0),
     hazeAmount: 0,
     moteColor: new Color("#fde68a").convertSRGBToLinear(),
+    coolColor: new Color("#5eead4").convertSRGBToLinear(),
+    treeGain: 2.6,
+    backdrop: new Color().setStyle(INTRO_BACKDROP.dark, LinearSRGBColorSpace),
+    rimA: RIM_A,
+    rimB: RIM_B,
+    wash: WASH,
+    paintRim: false,
     moteScale: 1,
     moteCover: 0,
   },
@@ -91,6 +110,14 @@ const LOOKS: Record<Theme, Look> = {
     haze: new Color().setStyle("#ece8cf", LinearSRGBColorSpace),
     hazeAmount: 0.14,
     moteColor: new Color("#fde68a").convertSRGBToLinear(),
+    // Painted over a light backdrop, so the glow colours turn into deep inks.
+    coolColor: new Color("#0f766e").convertSRGBToLinear(),
+    treeGain: 1.8,
+    backdrop: new Color().setStyle(INTRO_BACKDROP.light, LinearSRGBColorSpace),
+    rimA: new Color().setStyle("#0d7a5a", LinearSRGBColorSpace),
+    rimB: new Color().setStyle("#c8941a", LinearSRGBColorSpace),
+    wash: new Color().setStyle("#0d7a5a", LinearSRGBColorSpace),
+    paintRim: true,
     moteScale: 1.7,
     moteCover: 1,
   },
@@ -229,9 +256,11 @@ export class IntroEngine {
           uAspect: { value: 1 },
           uRadius: { value: 0 },
           uTime: { value: 0 },
-          uRimA: { value: RIM_A },
-          uRimB: { value: RIM_B },
-          uWash: { value: WASH },
+          uRimA: { value: RIM_A.clone() },
+          uRimB: { value: RIM_B.clone() },
+          uWash: { value: WASH.clone() },
+          uBackdrop: { value: LOOKS.dark.backdrop.clone() },
+          uPaint: { value: 0 },
         },
         blending: NoBlending,
         depthTest: false,
@@ -314,11 +343,13 @@ export class IntroEngine {
         uMoteTime: { value: 0 },
         uMoteFraction: { value: MOTE_FRACTION },
         uEdgeX: { value: 1 },
+        uEdgeY: { value: 1 },
         uSpin: { value: 0 },
         // Fewer particles on small devices, so each one is drawn larger.
         uBaseSize: { value: 0.0065 * Math.sqrt(60000 / data.count) },
         uPixelScale: { value: 1 },
-        uCoolColor: { value: new Color("#5eead4").convertSRGBToLinear() },
+        uCoolColor: { value: this.look.coolColor },
+        uTreeGain: { value: this.look.treeGain },
         uMoteColor: { value: this.look.moteColor },
         uMoteScale: { value: 1 },
         uCover: { value: 0 },
@@ -442,8 +473,9 @@ export class IntroEngine {
       u.uSpin.value = spin;
       u.uMoteColor.value = this.look.moteColor;
       u.uMoteScale.value = this.look.moteScale;
-      // Only once the page shows through: over the intro's black the particles always glow.
-      u.uCover.value = this.look.moteCover * f.reveal;
+      u.uCoolColor.value = this.look.coolColor;
+      u.uTreeGain.value = this.look.treeGain;
+      u.uCover.value = this.look.moteCover;
     }
     if (this.tree) {
       this.fade.value = f.solid;
@@ -451,6 +483,11 @@ export class IntroEngine {
     }
 
     const r = this.reveal.material.uniforms;
+    r.uRimA.value = this.look.rimA;
+    r.uRimB.value = this.look.rimB;
+    r.uWash.value = this.look.wash;
+    r.uBackdrop.value = this.look.backdrop;
+    r.uPaint.value = this.look.paintRim ? 1 : 0;
     r.uTime.value = t;
     r.uRadius.value = f.reveal * this.revealEnd();
     this.renderer.render(this.scene, this.camera);
@@ -509,6 +546,7 @@ export class IntroEngine {
       const u = this.points.material.uniforms;
       // Half the visible width on the trunk's plane: particles start just past it.
       u.uEdgeX.value = distance * tan * aspect;
+      u.uEdgeY.value = distance * tan;
       u.uPixelScale.value = this.camera.projectionMatrix.elements[5] * height * 0.5 * this.renderer.getPixelRatio();
     }
     // The wavefront starts from the middle of the canopy, in screen uv.

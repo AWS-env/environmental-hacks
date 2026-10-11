@@ -1,15 +1,16 @@
 "use client";
 
 import gsap from "gsap";
+import { Flip } from "gsap/Flip";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { ScrollSmoother } from "gsap/ScrollSmoother";
 import { SplitText } from "gsap/SplitText";
 import { useGSAP } from "@gsap/react";
 
 // Registered once, here, so every motion module shares the same plugin set.
-gsap.registerPlugin(useGSAP, ScrollTrigger, ScrollSmoother, SplitText);
+gsap.registerPlugin(useGSAP, Flip, ScrollTrigger, ScrollSmoother, SplitText);
 
-export { gsap, ScrollTrigger, ScrollSmoother, SplitText, useGSAP };
+export { gsap, Flip, ScrollTrigger, ScrollSmoother, SplitText, useGSAP };
 
 export const MOTION_OK = "(prefers-reduced-motion: no-preference)";
 export const MOTION_REDUCED = "(prefers-reduced-motion: reduce)";

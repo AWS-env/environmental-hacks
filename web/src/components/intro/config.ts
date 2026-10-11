@@ -3,6 +3,12 @@
 
 export const MODEL_URL = "/models/tree.glb";
 
+/**
+ * Backdrop the intro plays over, as display colours. The CSS cover in globals.css
+ * (`#intro-cover`) must match, or the handoff from cover to canvas flashes.
+ */
+export const INTRO_BACKDROP = { dark: "#000000", light: "#c3d3d4" } as const;
+
 /** If the page is not ready to play by this time after navigation, skip the intro. */
 export const START_DEADLINE_MS = 3500;
 
@@ -56,6 +62,15 @@ export function decideIntro(): IntroDecision {
 // load timing), so every caller sees the same answer.
 let decision: IntroDecision | null = null;
 export const getIntroDecision = () => (decision ??= decideIntro());
+
+/**
+ * For arrivals through the route transition: its particle veil already covered the page,
+ * so the tree fades straight in instead of replaying the intro.
+ */
+export function skipIntroReplay() {
+  const current = getIntroDecision();
+  if (current.mode === "intro") decision = { mode: "ambient", options: current.options };
+}
 
 /**
  * Fired on `window` when the intro overlay stops covering the page: at the

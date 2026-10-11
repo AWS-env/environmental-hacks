@@ -16,12 +16,14 @@ uniform float uSolid;
 uniform float uMoteTime;
 uniform float uMoteFraction;
 uniform float uEdgeX;
+uniform float uEdgeY;
 uniform float uSpin;
 uniform float uBaseSize;
 uniform float uPixelScale;
 uniform vec3 uCoolColor;
 uniform vec3 uMoteColor;
 uniform float uMoteScale;
+uniform float uTreeGain;
 
 varying vec3 vColor;
 varying float vAlpha;
@@ -44,6 +46,8 @@ vec3 flow(vec3 p, float t) {
     sin(p.x * 4.3 - t * 1.2 + s * 0.8) + 0.5 * sin(p.y * 5.9 - t * 1.4)
   );
 }
+
+float hash(float x) { return fract(sin(x * 12.9898) * 43758.5453); }
 
 float easeOutCubic(float x) { return 1.0 - pow(1.0 - x, 3.0); }
 float easeInOutCubic(float x) {
@@ -83,15 +87,14 @@ void main() {
   size *= 1.0 + 0.2 * sin(uTime * 3.0 + aSeed * 50.0) * built;
 
   // Colour starts as a cool glow and takes on the tree's own colour as it settles.
-  vec3 treeColor = aColor * 2.6 + 0.02;
+  vec3 treeColor = aColor * uTreeGain + 0.02;
   vec3 color = mix(uCoolColor, treeColor, smoothstep(0.2, 1.0, built) * 0.75 + 0.25 * uSolid);
 
   bool mote = aSeed < uMoteFraction;
   if (mote) {
-    // Motes lift off the tree and drift once it turns solid. The tree now stays
-    // on the page, so each mote loops on its own period (always longer than the
-    // intro's ~2.3s of drift, which therefore plays unchanged): it fades out at
-    // the top and fades back in on the canopy instead of rising forever.
+    // Motes lift off the tree and drift once it turns solid, then spread over the whole first
+    // screen rather than hugging the tree. Each mote loops on its own period (always longer than
+    // the intro's ~2.3s of drift): it fades out and fades back in somewhere new on the screen.
     float period = 4.0 + 3.0 * fract(aSeed * 37.0);
     float cycle = floor(uMoteTime / period);
     float age = uMoteTime - cycle * period;
@@ -103,6 +106,19 @@ void main() {
     p += lift * (flow(aTarget * 1.7, uTime * 0.35) * 0.04
       + vec3(outward.x, 0.0, outward.y) * 0.05
       + vec3(0.0, 0.035 * age, 0.0));
+
+    // This cycle's spot anywhere in view. Screen-fixed, so undo the group's spin.
+    float cs = aSeed * 91.7 + cycle * 13.1;
+    vec3 home = vec3(
+      (hash(cs) * 2.0 - 1.0) * uEdgeX,
+      0.5 + (hash(cs + 1.7) * 2.0 - 1.0) * uEdgeY,
+      (hash(cs + 3.1) - 0.5) * 0.8
+    );
+    home = rotateY(home, -uSpin);
+    home += flow(home * 1.3, uTime * 0.35) * 0.05 + vec3(0.0, 0.03 * age, 0.0);
+    // The first cycle travels out from the tree; later ones start at their spot.
+    float spread = lift * (cycle > 0.0 ? 1.0 : smoothstep(0.0, period * 0.7, age));
+    p = mix(p, home, spread);
     color = mix(color, uMoteColor, lift);
     size *= (1.0 + 0.8 * lift) * mix(1.0, uMoteScale, lift);
     alpha *= (1.0 - 0.3 * lift * (0.5 + 0.5 * sin(uTime * 2.3 + aSeed * 90.0))) * loopFade;

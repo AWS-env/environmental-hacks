@@ -3,11 +3,12 @@
 import React from "react";
 import Magnetic from "@/components/motion/Magnetic";
 import RollText from "@/components/motion/RollText";
+import FooterHands from "./FooterHands";
 
 export default function LandingFooter() {
   return (
-    <footer className="border-t border-line/60 bg-page py-16 px-6">
-      <div className="mx-auto max-w-7xl space-y-12">
+    <footer className="relative overflow-hidden border-t border-line/60 bg-page pt-16">
+      <div className="mx-auto max-w-7xl space-y-12 px-6">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-8 pb-12 border-b border-line">
           <div>
             <div className="flex items-center gap-3 mb-2">
@@ -58,6 +59,8 @@ export default function LandingFooter() {
           </div>
         </div>
       </div>
+
+      <FooterHands />
     </footer>
   );
 }

@@ -1,65 +1,268 @@
 "use client";
 
-import { useState } from "react";
+import React, { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, LayoutDashboard, Box, List, ChartLine, Gauge, Activity, BookOpen, ShoppingBag } from "lucide-react";
-
-const navigation = [
-  { label: "Home", icon: House, href: "/home" },
-  { label: "Overview", icon: LayoutDashboard, href: "/overview" },
-  { label: "Deployments", icon: Box },
-  { label: "Logs", icon: List },
-  { label: "Analytics", icon: ChartLine },
-  { label: "Speed Insights", icon: Gauge },
-  { label: "Observability", icon: Activity },
-];
+import {
+  Crosshair,
+  Search,
+  BookOpen,
+  ShoppingBag,
+  Sun,
+  Moon,
+  Leaf,
+} from "lucide-react";
+import { THEME_STORAGE_KEY } from "@/components/theme/boot";
+import type { Theme } from "@/components/theme/boot";
+import { useRouteTransition } from "@/components/transition/RouteTransition";
 
 export default function Sidebar() {
-  const [activeItem, setActiveItem] = useState("");
   const pathname = usePathname();
+  const [activeOverride, setActiveOverride] = useState<string | null>(null);
+
+  const toggleTheme = () => {
+    const current = document.documentElement.dataset.theme;
+    const next: Theme = current === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, next);
+    } catch {
+      // Ignore storage errors in private browsing
+    }
+  };
+
+  const routeItem =
+    pathname === "/"
+      ? "overview"
+      : pathname.startsWith("/home")
+      ? "bot"
+      : pathname.startsWith("/reports")
+      ? "reports"
+      : pathname.startsWith("/stats")
+      ? "metrics"
+      : pathname.startsWith("/login")
+      ? "login"
+      : "overview";
+
+  const activeItem = activeOverride ?? routeItem;
+
+  // Highlights the destination immediately, while the route transition plays.
+  const transition = useRouteTransition();
+  const go = (href: string, item: string) => (event: { preventDefault(): void }) => {
+    setActiveOverride(item);
+    transition?.intercept(event, href);
+  };
 
   return (
-    <aside className="fixed left-3.5 top-3.5 bottom-3.5 w-[50px] liquid-glass rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col items-center justify-between py-4 z-50 border border-white/[0.08] select-none">
-      <nav aria-label="Main navigation" className="flex flex-col items-center gap-3.5 w-full">
-        {navigation.map(({ label, icon: Icon, href }, index) => {
-          const active = href ? pathname === href || (href === "/home" && pathname === "/") : activeItem === label;
-          const className = `relative group flex items-center justify-center w-8 h-8 shrink-0 rounded-full transition-all duration-200 motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 ${
-            active
-              ? "text-white bg-white/[0.10] shadow-[inset_0_1px_0_rgba(255,255,255,0.15)]"
-              : "text-zinc-400 hover:text-white hover:bg-white/[0.05]"
-          }`;
-          const content = (
-            <>
-              <Icon strokeWidth={1.9} className="w-[18px] h-[18px]" aria-hidden="true" />
-              <span aria-hidden="true" className="absolute left-[46px] px-3 py-1.5 text-xs font-medium text-white bg-black/90 rounded-lg border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 translate-x-1 group-hover:opacity-100 group-hover:translate-x-0 group-focus-visible:opacity-100 group-focus-visible:translate-x-0 transition-all duration-200 motion-reduce:transition-none z-50">
-                {label}
-              </span>
-            </>
-          );
+    <aside data-route-keep className="fixed left-3.5 top-3.5 bottom-3.5 w-[50px] liquid-glass rounded-full shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex flex-col items-center justify-between py-4 z-50 border border-white/[0.08] select-none">
+      {/* Top Icons */}
+      <div className="flex flex-col items-center gap-3.5 w-full">
+        {/* Project / Overview Crosshair */}
+        <Link
+          href="/"
+          onNavigate={go("/", "overview")}
+          title="Project Overview"
+          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+            activeItem === "overview" ? "text-[#f7c062] scale-105" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <Crosshair strokeWidth={2.2} className="w-[18px] h-[18px]" />
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Overview
+          </span>
+        </Link>
 
-          return (
-            <div key={label} className="flex flex-col items-center gap-3.5">
-              {href ? (
-                <Link href={href} onClick={() => setActiveItem("")} aria-label={label} aria-current={active ? "page" : undefined} className={className}>
-                  {content}
-                </Link>
-              ) : (
-                <button type="button" aria-label={label} aria-pressed={active} onClick={() => setActiveItem(label)} className={className}>
-                  {content}
-                </button>
-              )}
-              {index === 0 && <span aria-hidden="true" className="h-px w-5 bg-white/10" />}
-            </div>
-          );
-        })}
-      </nav>
+        {/* Search */}
+        <button
+          onClick={() => setActiveOverride("search")}
+          title="Search (Ctrl+K)"
+          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+            activeItem === "search" ? "text-white" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <Search strokeWidth={2.2} className="w-[17px] h-[17px]" />
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Search
+          </span>
+        </button>
+
+        {/* Active Kimi / Bot Avatar */}
+        <Link
+          href="/home"
+          onNavigate={go("/home", "bot")}
+          title="Workspace / Chat"
+          className="relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200"
+        >
+          <div className={`transition-all duration-200 ${activeItem === "bot" ? "text-white scale-105" : "text-zinc-400 hover:text-white"}`}>
+            <svg
+              viewBox="0 0 24 24"
+              fill="currentColor"
+              className="w-[20px] h-[20px]"
+            >
+              <circle cx="5" cy="11" r="2" />
+              <circle cx="19" cy="11" r="2" />
+              <rect x="11" y="2" width="2" height="3" rx="1" />
+              <rect x="6" y="5" width="12" height="13" rx="5" />
+              <circle cx="9.5" cy="11.5" r="1.5" fill="#0a0d11" />
+              <circle cx="14.5" cy="11.5" r="1.5" fill="#0a0d11" />
+              <rect x="9.5" y="14.5" width="5" height="1.2" rx="0.6" fill="#0a0d11" />
+            </svg>
+          </div>
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Kimi Workspace
+          </span>
+        </Link>
+
+        {/* Key / Wand icon */}
+        <button
+          onClick={() => setActiveOverride("key")}
+          title="API Keys & Secrets"
+          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+            activeItem === "key" ? "text-white" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-[17px] h-[17px]"
+          >
+            <circle cx="7.5" cy="15.5" r="5" />
+            <path d="m11 12 8-8" />
+            <path d="m16 4 3 3" />
+            <path d="m14 6 2 2" />
+          </svg>
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Keys & Access
+          </span>
+        </button>
+
+        {/* Histogram / Metrics icon */}
+        <Link
+          href="/stats"
+          onNavigate={go("/stats", "metrics")}
+          title="Analytics & Logs"
+          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+            activeItem === "metrics" ? "text-white scale-105" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-[17px] h-[17px]"
+          >
+            <rect width="18" height="18" x="3" y="3" rx="4" />
+            <path d="M8 17v-4" />
+            <path d="M12 17v-7" />
+            <path d="M16 17v-2" />
+          </svg>
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Analytics
+          </span>
+        </Link>
+
+        {/* Environmental Reports & Impact */}
+        <Link
+          href="/reports"
+          onNavigate={go("/reports", "reports")}
+          title="Sustainability Reports & Impact"
+          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+            activeItem === "reports" ? "text-emerald-400 scale-105" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <Leaf strokeWidth={2.2} className="w-[17px] h-[17px]" />
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Carbon Reports
+          </span>
+        </Link>
+
+        {/* Chat / Pulse waveform bubble */}
+        <button
+          onClick={() => setActiveOverride("pulse")}
+          title="Discussions & Prompts"
+          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+            activeItem === "pulse" ? "text-white" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-[17px] h-[17px]"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+            <path d="M8 10h1.5l1.5-2 2 4 1.5-2H17" />
+          </svg>
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Prompts & Threads
+          </span>
+        </button>
+
+        {/* 4-petal App grid / Hub */}
+        <button
+          onClick={() => setActiveOverride("grid")}
+          title="Apps & Integrations"
+          className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+            activeItem === "grid" ? "text-white" : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className="w-[17px] h-[17px]"
+          >
+            <circle cx="8" cy="8" r="2.5" />
+            <circle cx="16" cy="8" r="2.5" />
+            <circle cx="8" cy="16" r="2.5" />
+            <circle cx="16" cy="16" r="2.5" />
+          </svg>
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Workspaces
+          </span>
+        </button>
+      </div>
+
+      {/* Bottom Icons */}
       <div className="flex flex-col items-center gap-3 w-full">
+        {/* Subtle Divider */}
+        <div className="w-5 h-px bg-white/10 my-0.5" />
+
+        {/* Theme Toggle (Day / Night) */}
         <button
           type="button"
-          onClick={() => setActiveItem("book")}
+          onClick={toggleTheme}
+          title="Toggle light / dark mode"
+          className="relative group flex items-center justify-center w-8 h-8 rounded-full text-zinc-400 hover:text-white transition-all duration-200"
+        >
+          {/* Moon by day, Sun by night: icon indicates the destination theme */}
+          <Moon strokeWidth={2.2} className="w-[17px] h-[17px] block dark:hidden" />
+          <Sun strokeWidth={2.2} className="w-[17px] h-[17px] hidden dark:block" />
+          <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
+            Toggle Theme
+          </span>
+        </button>
+
+        {/* Documentation Book */}
+        <a
+          href="https://github.com/AWS-env/environmental-hacks"
+          target="_blank"
+          rel="noreferrer"
+          onClick={() => setActiveOverride(null)}
           title="Documentation"
-          aria-label="Documentation"
           className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
             activeItem === "book" ? "text-white" : "text-zinc-400 hover:text-white"
           }`}
@@ -68,12 +271,12 @@ export default function Sidebar() {
           <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
             Documentation
           </span>
-        </button>
+        </a>
+
+        {/* Store / Marketplace */}
         <button
-          type="button"
-          onClick={() => setActiveItem("store")}
+          onClick={() => setActiveOverride("store")}
           title="Plugin Store"
-          aria-label="Marketplace"
           className={`relative group flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
             activeItem === "store" ? "text-white" : "text-zinc-400 hover:text-white"
           }`}
@@ -83,18 +286,23 @@ export default function Sidebar() {
             Marketplace
           </span>
         </button>
-        <button
-          type="button"
-          onClick={() => setActiveItem("gradient")}
-          title="AI Studio & Settings"
-          aria-label="AI Engine"
-          className="relative group mt-0.5"
+
+        {/* Account / User Avatar */}
+        <Link
+          href="/login"
+          onNavigate={go("/login", "login")}
+          title="Account / Sign In"
+          className={`relative group mt-0.5 flex items-center justify-center w-7 h-7 rounded-full bg-zinc-900 border text-white font-medium text-xs transition-all duration-200 ${
+            activeItem === "login"
+              ? "border-[#f7c062] shadow-[0_0_8px_rgba(247,192,98,0.4)]"
+              : "border-white/20 hover:border-white/40"
+          }`}
         >
-          <div className="w-[22px] h-[22px] rounded-full bg-gradient-to-tr from-[#ff3b69] via-[#892be2] to-[#00f2fe] shadow-[inset_1.5px_1.5px_3px_rgba(255,255,255,0.7),0_0_10px_rgba(137,43,226,0.5)] hover:scale-110 active:scale-95 transition-all duration-200 cursor-pointer" />
+          <span>N</span>
           <span className="absolute left-[54px] px-2.5 py-1 text-xs font-medium text-white bg-black/90 rounded-md border border-white/10 shadow-xl whitespace-nowrap pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity z-50">
-            AI Engine
+            Account / Sign In
           </span>
-        </button>
+        </Link>
       </div>
     </aside>
   );
