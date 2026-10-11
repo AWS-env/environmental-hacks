@@ -5,8 +5,9 @@ export default function HomeLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Always dark: the particle field is drawn for a night sky. data-theme keeps the sidebar's colours in step.
   return (
-    <div className="h-screen w-screen overflow-hidden flex bg-[#0a0d0e] text-zinc-100 selection:bg-white selection:text-black relative font-sans">
+    <div data-theme="dark" className="h-screen w-screen overflow-hidden flex bg-[#0a0d0e] text-zinc-100 selection:bg-white selection:text-black relative font-sans">
       {/* Global Sleek Floating Capsule Sidebar */}
       <Sidebar />
 
