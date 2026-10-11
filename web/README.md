@@ -35,6 +35,13 @@ before `npm run build` (Amplify: App settings > Environment variables) or in
 Use the base URL with no trailing path, e.g. `https://<api-id>.execute-api.ap-south-1.amazonaws.com`.
 Both APIs allow CORS from `*` today.
 
+## Deploy
+
+The site is hosted on **Amplify Hosting** in the project Region (ap-south-1), built from `main` on
+every push using [`amplify.yml`](amplify.yml) (`appRoot: web`, Next.js server output). The two
+`NEXT_PUBLIC_*` variables above must be set on the Amplify app before the first build, because
+Next.js inlines them at build time. Live URL: _to be added once the app is connected_ (#534).
+
 ## Analyze flow
 
 `src/app/home/page.tsx` starts a scan session (`src/lib/scan-session.ts`) when Analyze is clicked and
