@@ -147,8 +147,15 @@ def obs11(emit, repeat):
 
 # ---- OBS-17: verbose fields ----------------------------------------------------------------------------
 
+# OBS-17 flags a log group when its events over 4 KB carry more than 25% of its application log characters. The
+# echoed body is large enough (about 50 KB) that the one waste line keeps that share when the opt-in LLM-12 run
+# (about 60 KB of small lines) shares the log group and the query window with an `all` run.
+OBS17_BODY_ITEMS = 400
+
+
 def _request_body():
-    items = [{"sku": f"SKU-{i:04d}", "qty": 1 + i % 3, "note": "synthetic demo item " * 4} for i in range(40)]
+    items = [{"sku": f"SKU-{i:04d}", "qty": 1 + i % 3, "note": "synthetic demo item " * 4}
+             for i in range(OBS17_BODY_ITEMS)]
     return {"order_id": "ord-demo-0001", "customer": "demo-customer", "items": items, "synthetic": True}
 
 

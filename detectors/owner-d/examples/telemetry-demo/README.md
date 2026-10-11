@@ -17,7 +17,7 @@ X-Ray subsegments. Owner D's telemetry analyzers then have real evidence to read
 | Scenario | Waste path | Control path | What it proves |
 | --- | --- | --- | --- |
 | `OBS-11` | A retry loop logs the identical line `upstream inventory-svc unavailable, retrying` `repeat` times (default 20, max 50). | One summary line with `attempts=N`. | A dedup analyzer sees N identical messages in one run and one line on the clean path. |
-| `OBS-17` | One ERROR line with the full `stack_trace` (chained exceptions) and the whole echoed `request_body` (40 items, about 6 KB). | `error_type`, `error`, `order_id`, `body_bytes`, `body_sha256` (about 0.25 KB). | Field-level analysis finds large verbose fields and the size ratio between the two paths. |
+| `OBS-17` | One ERROR line with the full `stack_trace` (chained exceptions) and the whole echoed `request_body` (400 items, about 48 KB). | `error_type`, `error`, `order_id`, `body_bytes`, `body_sha256` (about 0.25 KB). | Field-level analysis finds large verbose fields and the size ratio between the two paths. |
 | `OBS-04` | Three free-text lines (`<time> WARN [...] inventory lookup slow for order_id ... ms 2310`). | The same three events as JSON lines. | Unstructured lines need parsing at query time; the structured ones need none. |
 | `OBS-06` | `RequestLatencyMs` keyed by `request_id` (`req-000`..`req-039`, one series per request). | `RequestLatencyMs` keyed by `endpoint` (2 values). | `ListMetrics` shows a dimension whose value count grows with traffic, next to a bounded one. |
 | `LLM-10` | `invoke_agent demo_unbounded_agent` runs `tool_calls` turns (default 12, max 25). Each turn is a `chat` span followed by `execute_tool get_order_status` with byte-identical arguments. It ends with `stop_reason=max_iterations`. | `invoke_agent demo_bounded_agent`: 3 `chat` turns and 2 different tools (`get_order_status`, then `draft_reply`), ending with `stop_reason=answer_ready`. | Owner D's LLM-10 detector flags the waste run for `identical-tool-calls` (12 > 3) and `iteration-budget` (12 > 10). The control run stays under both limits. |
@@ -70,8 +70,17 @@ The opt-in `LLM-12` scenario writes one JSON line per cache lookup with `agent_i
 `cache_backend`, `cache_result` (`hit` or `miss`) and `cache_key_hash`. The hash is a 16-hex SHA-256 digest of
 the placeholder model, the run ID and the question. No question text or answer is logged. Including the run ID
 gives every run new keys, so every run re-warms the caches the way new traffic does. One run with the
-defaults writes 240 lines (120 per path), about 50 KB, and is enough to exceed LLM-12's `min_lookups` of 100.
+defaults writes 240 lines (120 per path), about 60 KB, and is enough to exceed LLM-12's `min_lookups` of 100.
 Run it once, then invoke `owner-d-log-analyzer` with `"checks": ["LLM-12"]` over the demo log group.
+
+These lines go to the same log group as the OBS-17 demo. OBS-17 flags the group when events over 4096
+characters carry more than 25% of its application log characters, so the OBS-17 waste line echoes a body large
+enough (about 48 KB) to stay above that share next to the LLM-12 lines. With the old 6 KB body, one `all` run
+plus one `llm12` run gave 5.1% live, and OBS-17 no longer flagged the demo (#514). Now one `all` run plus one
+`llm12` run in the same query window gives both findings: OBS-17 at about 42% (about 27% with a second `llm12`
+run), and LLM-12 on `demo-agent-local`. A test in `tests/test_obs17.py` replays both runs through Python
+models of the two Logs Insights queries. Shrinking the LLM-12 lines would not be enough: LLM-12 needs at least
+100 lookups per cache, and each line needs its five cache fields and the `synthetic` labels.
 
 ## Event
 
@@ -193,7 +202,7 @@ fall within free tiers or plan credits.
   - With the optional daily schedule: 42 × 30 h / 730 h × $0.30 ≈ **$0.52/month**.
   - Do not schedule it hourly. That keeps all 42 series active all month, about $12.60/month.
 - **PutMetricData**: 1 request per run, at $0.01 per 1,000 requests.
-- **Logs**: about 10 KB per full run, and about 50 KB per opt-in `LLM-12` run. Ingestion is about $0.50/GB, and retention is 7 days.
+- **Logs**: about 55 KB per full run (most of it the OBS-17 waste line), and about 60 KB per opt-in `LLM-12` run. Ingestion is about $0.50/GB, and retention is 7 days.
 - **X-Ray**: 1 trace per run. The first 100,000 traces each month are free.
 - **Lambda**: 128 MB, arm64, under 1 s per run.
 - **EventBridge Scheduler**: free while disabled.

@@ -6,8 +6,9 @@ per check (registry.py), evaluates the contract v1 detectors and publishes detec
 the findings-hub bus. INF-01 reads CPUUtilization Average/Maximum per EC2 instance or ECS service; Lambda
 functions are listed but publish no CPU utilization, so they stay unevaluated with a limitation. LLM-17 reads
 the utilization of the fixed agent/inference capacity listed in `agent_capacity` (nothing without it).
-INF-04 reads
-one daily activity series per resource listed (or discovered) under "activity" (aws/activity.py).
+INF-04 reads one daily activity series per resource listed (or discovered, RDS only) under "activity"
+(aws/activity.py). An invalid "activity" block refuses INF-04 only: it is listed under "refused", the other checks
+still run and publish, and the invocation succeeds.
 
 Event:
     {"repository_id": "github:o/r", "commit_sha": "<40 hex>", "scan_id": "optional",

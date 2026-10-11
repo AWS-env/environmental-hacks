@@ -607,8 +607,34 @@ class Inf04TelemetryCollectionTests(AwsTestCase):
             result["coverage"]["limitations"]))
         list_call = cw.calls[0][1]
         self.assertEqual((list_call["Namespace"], list_call["RecentlyActive"]), ("AWS/RDS", "PT3H"))
-        with self.assertRaisesRegex(ValueError, "cannot find idle lambda resources"):
-            self.run_event(activity={"discover": {"types": ["lambda"]}})
+
+    def test_discovery_of_idle_types_is_refused_and_the_invocation_succeeds(self):
+        # live on the 1ea9461 deploy this raised out of the handler and failed the Lambda invocation (#514)
+        cw = self.use(data=DATA)
+        for types in (["lambda"], ["alb"], ["rds", "lambda"]):
+            with self.subTest(types=types):
+                out = self.run_event(activity={"discover": {"types": types}})
+                [refusal] = out["refused"]
+                self.assertEqual((refusal["check_id"], refusal["scope"], refusal["status"]), ("INF-04", 0, None))
+                self.assertRegex(refusal["error"], r"^InputRefused: invalid activity input: activity\.discover "
+                                                   r"cannot find idle (lambda|alb) resources")
+                self.assertEqual((out["results"], out["errors"], out["published"]), ([], [], 0))
+        self.assertEqual((cw.calls, self.fakes["events"].entries), ([], []))  # refused before any AWS read
+
+    def test_refused_activity_does_not_stop_the_other_checks(self):
+        listed = [{"Namespace": "OwnerD/Demo", "MetricName": "RequestLatencyMs",
+                   "Dimensions": [{"Name": "request_id", "Value": f"req-{i:03d}"}]} for i in range(40)]
+        cw = self.use(data=DATA, list_pages=[listed])
+        out = telemetry_handler.lambda_handler(self.base_event(
+            checks=["OBS-06", "INF-04"], list_metrics={"namespace": "OwnerD/Demo"},
+            activity={"discover": {"types": ["lambda"]}}))
+        self.assertEqual([r["check_id"] for r in out["results"]], ["OBS-06"])
+        self.assertEqual(out["published"], 1)
+        self.assertEqual(json.loads(self.fakes["events"].entries[0]["Detail"])["check_id"], "OBS-06")
+        self.assertEqual([(r["check_id"], r["scope"]) for r in out["refused"]], [("INF-04", 0)])
+        self.assertEqual(out["errors"], [])
+        self.assertNotIn("INF-04", out["collection"])
+        self.assertEqual([kw["Namespace"] for name, kw in cw.calls], ["OwnerD/Demo"])  # OBS-06's read only
 
     def test_discovery_is_bounded(self):
         listed = [{"Namespace": "AWS/RDS", "MetricName": "DatabaseConnections",
@@ -647,18 +673,60 @@ class Inf04TelemetryCollectionTests(AwsTestCase):
         self.assertIn(("cloudwatch", "ap-south-1", "ASIA1"), self.created)
         self.assertEqual(self.fakes["sts"].calls[0]["RoleArn"], ROLE)
 
-    def test_event_validation(self):
-        self.use(data=DATA)
+    def test_invalid_activity_input_is_refused_not_raised(self):
+        cw = self.use(data=DATA)
+        lam = [{"type": "lambda", "name": "orders"}]
         for bad, message in (
             ({"resources": [{"type": "ec2", "id": "i-1"}]}, "activity resource type must be one of"),
+            ({"resources": [{"type": ["rds"], "id": "x"}]}, "activity resource type must be one of"),
+            ({"resources": ["orders"]}, "activity resource type must be one of"),
             ({"resources": [{"type": "alb", "name": "web"}]}, "alb activity resources need a valid 'name'"),
             ({"resources": [{"type": "rds", "name": "orders-db"}]}, "rds activity resources need a valid 'id'"),
-            ({"resources": [{"type": "lambda", "name": "orders"}], "lookback_days": 91}, r"within \[0, 90"),
+            ({"resources": {"type": "rds", "id": "orders-db"}}, "activity.resources must be a list"),
+            ({"resources": lam * 201}, "activity.resources must be a list of at most 200 items"),
+            ({"resources": lam, "lookback_days": 91}, r"within \[0, 90"),
+            ({"resources": lam, "lookback_days": "30"}, "lookback_days must be a number"),
+            ({"resources": lam, "lookback_days": 0.5}, "at least one whole UTC day"),
+            ({"resources": lam, "end": "yesterday"}, "Invalid isoformat|expected an ISO 8601"),
+            ({"resources": lam, "end": 1760000000}, "expected an ISO 8601 timestamp"),
+            ({"resources": lam, "start": "2026-10-09T00:00:00Z", "end": "2026-10-01T00:00:00Z"},
+             "start must be before its end"),
+            ({"resources": lam, "end": "0001-01-02T00:00:00Z"}, "out of range"),  # OverflowError
+            ({"discover": "rds"}, "activity.discover must be an object"),
+            ({"discover": {"types": "rds"}}, "activity.discover.types must be a subset of"),
+            ({"discover": {"types": ["rds", ["lambda"]]}}, "activity.discover.types must be a subset of"),
+            ({"discover": {"types": ["ec2"]}}, "activity.discover.types must be a subset of"),
+            ({"discover": {"max_resources": 0}}, r"max_resources must be within \[1, 200\]"),
+            ({"discover": {"max_pages": True}}, "max_pages must be an integer"),
+            ({"resources": lam, "discover": {"types": ["alb"]}}, "cannot find idle alb resources"),
             ({}, "activity needs resources or discover"),
             ([], "activity must be an object"),
         ):
-            with self.subTest(message=message), self.assertRaisesRegex(ValueError, message):
-                self.run_event(activity=bad)
+            with self.subTest(message=message):
+                out = self.run_event(activity=bad)
+                [refusal] = out["refused"]
+                self.assertEqual(refusal["check_id"], "INF-04")
+                self.assertRegex(refusal["error"], "^InputRefused: invalid activity input: .*(" + message + ")")
+                self.assertLessEqual(len(refusal["error"]), common.MAX_ERROR_CHARS)
+                self.assertEqual((out["results"], out["published"], out["errors"]), ([], 0, []))
+        self.assertEqual(cw.calls, [])  # every refusal happens before any CloudWatch read
+
+    def test_aws_errors_still_fail_the_invocation(self):
+        class Denied(ActivityCloudWatch):
+            def get_metric_data(self, **kw):
+                raise RuntimeError("AccessDenied")
+
+        self.fakes["cloudwatch"] = Denied(data=DATA)
+        common._clients.clear()
+        with self.assertRaisesRegex(RuntimeError, "AccessDenied"):
+            self.run_event(activity={"resources": [{"type": "rds", "id": "orders-db"}]})
+
+    def test_probe_reports_refused_input(self):
+        cw = self.use(data=DATA)
+        out = telemetry_handler.lambda_handler({"probe": ["activity_metrics"], "activity": {"discover": {
+            "types": ["lambda"]}}})
+        self.assertRegex(out["probe"]["activity_metrics"]["refused"], "^InputRefused: .*cannot find idle lambda")
+        self.assertEqual((out["published"], cw.calls), (False, []))
 
     def test_probe_counts_without_publishing(self):
         self.use(data=DATA)
