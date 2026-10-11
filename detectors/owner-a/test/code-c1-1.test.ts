@@ -90,6 +90,17 @@ describe("CODE-C1.1 Dead code / unused results detector", () => {
     });
   });
 
+  describe("References", () => {
+    it("every finding cites the paper and the taxonomy issue #34", () => {
+      const findings = runCheckOnFixture("positives.py");
+      expect(findings.length).toBeGreaterThan(0);
+      for (const f of findings) {
+        expect(f.references.map((r) => r.id)).toEqual(["SRC-01", "taxonomy-c1.1"]);
+        expect(f.references[1].url).toMatch(/\/issues\/34$/);
+      }
+    });
+  });
+
   describe("Package and test module guards", () => {
     it("does not flag intentional re-exports in __init__.py", () => {
       const findings = runCheckOnFixture("pkg/__init__.py");
@@ -99,6 +110,71 @@ describe("CODE-C1.1 Dead code / unused results detector", () => {
     it("does not flag pytest fixture imports in conftest.py", () => {
       const findings = runCheckOnFixture("conftest.py");
       expect(findings).toEqual([]);
+    });
+  });
+
+  describe("Explicit re-exports (audit F2)", () => {
+    const run = (code: string, path = "mod.py") => checkCodeC11(parsePythonSource(path, code));
+    const unused = (code: string, path?: string) => run(code, path).filter((f) => f.kind === "unused-import");
+
+    it("`from m import X as X` is an explicit re-export, not an unused import", () => {
+      expect(unused("from pydantic import FieldInfo as FieldInfo\n")).toEqual([]);
+    });
+
+    it("`import X as X` is an explicit re-export too", () => {
+      expect(unused("import os as os\n")).toEqual([]);
+    });
+
+    it("a parenthesised multi-name re-export block is skipped name by name", () => {
+      const code = "from pkg._shared import (\n    Handler as Handler,\n    Other as Other,\n)\n";
+      expect(unused(code)).toEqual([]);
+    });
+
+    it("a real alias that is never used is still flagged", () => {
+      const f = unused("from pandas import DataFrame as DF\n");
+      expect(f).toHaveLength(1);
+      expect(f[0].evidence.symbol).toBe("DF");
+    });
+
+    it("an unused plain import next to a re-export is still flagged", () => {
+      const f = unused("from m import A as A, B\n");
+      expect(f.map((x) => x.evidence.symbol)).toEqual(["B"]);
+    });
+
+    it("an unused plain import in a compat module is reported at low confidence", () => {
+      const [f] = unused("from urllib.parse import quote\n", "src/requests/compat.py");
+      expect(f.confidence).toBe("low");
+      expect(f.limitations.some((l) => l.includes("compat"))).toBe(true);
+    });
+
+    it("the same import outside a compat module keeps high confidence", () => {
+      const [f] = unused("from urllib.parse import quote\n", "src/requests/utils.py");
+      expect(f.confidence).toBe("high");
+    });
+  });
+
+  describe("Generator marker `yield` after a terminal statement (audit F3)", () => {
+    const unreachable = (code: string) =>
+      checkCodeC11(parsePythonSource("gen.py", code)).filter((f) => f.kind === "unreachable-code");
+
+    it("a bare `yield` after `raise` only makes the function a generator, so it is not reported", () => {
+      expect(unreachable("async def g():\n    raise RuntimeError('boom')\n    yield\n")).toEqual([]);
+    });
+
+    it("`yield value` and `yield from` after `return` are not reported either", () => {
+      expect(unreachable("def g():\n    return\n    yield 1\n")).toEqual([]);
+      expect(unreachable("def g(xs):\n    return\n    yield from xs\n")).toEqual([]);
+    });
+
+    it("other statements after `raise` are still reported", () => {
+      const f = unreachable("def g():\n    raise RuntimeError('boom')\n    print('never')\n");
+      expect(f).toHaveLength(1);
+      expect(f[0].evidence.snippet).toBe("print('never')");
+    });
+
+    it("a statement after the marker yield is still reported", () => {
+      const f = unreachable("def g():\n    raise RuntimeError('boom')\n    yield\n    print('never')\n");
+      expect(f.map((x) => x.evidence.snippet)).toEqual(["print('never')"]);
     });
   });
 
