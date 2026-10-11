@@ -2,10 +2,12 @@
 """Client-side half of owner C's artifact detectors: run the profiler in the client's own CI, then upload.
 
     python profile_upload.py --repository-id github:org/repo --commit-sha <40 hex> \
-        --artifacts speedscope,memray_stats,lighthouse --python-args "-m pytest tests/" --lighthouse-url http://localhost:8080
+        --artifacts speedscope,memray_stats,lighthouse,cpuprofile,heapprofile,ci_history \
+        --python-args "-m pytest tests/" --node-args "app.js" --lighthouse-url http://localhost:8080 --ci-workflows ci.yml
 
 Steps: 1. run each requested tool here, on the client's runner (py-spy -> speedscope, memray -> memray_stats,
-Lighthouse -> lighthouse); 2. ask `owner-c-presign` for 15-minute PUT URLs; 3. upload repo.zip and every artifact that
+Lighthouse -> lighthouse, node --cpu-prof -> cpuprofile, the heap collector -> heapprofile, the GitHub Actions run
+history collector -> ci_history); 2. ask `owner-c-presign` for 15-minute PUT URLs; 3. upload repo.zip and every artifact that
 was produced; 4. upload manifest.json LAST, which triggers the parser Lambda. A tool that cannot run is skipped with a
 warning and its artifact is simply not uploaded (the detector reports `unavailable`, never clean). Presigned URLs are
 credentials and are never printed. Nothing uploaded is ever executed by us.
@@ -30,7 +32,10 @@ import zipfile
 PYSPY = "py-spy==0.4.2"
 MEMRAY = "memray==1.20.0"
 LIGHTHOUSE = "lighthouse@13.5.0"
-KNOWN = ("speedscope", "memray_stats", "lighthouse")
+KNOWN = ("speedscope", "memray_stats", "lighthouse", "cpuprofile", "heapprofile", "ci_history")
+ROOT = pathlib.Path(__file__).resolve().parents[3]  # the repository this action lives in, also when used from another repo
+HEAP_COLLECTOR = ROOT / "detectors" / "owner-c" / "collectors" / "collect-heap.js"
+CI_COLLECTOR = ROOT / "detectors" / "owner-c" / "owner_c" / "ci" / "collector.py"
 MAX_ARTIFACT_BYTES = 50_000_000  # the parser rejects anything larger
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox"}
 
@@ -81,8 +86,34 @@ def collect_lighthouse(out: pathlib.Path, url: str) -> None:
          "--chrome-flags=--headless=new --no-sandbox", "--quiet"], shell=sys.platform.startswith("win"))
 
 
+def collect_cpuprofile(out: pathlib.Path, node_args: list[str], cwd: pathlib.Path) -> None:
+    profiles = out.parent / "cpu"
+    # V8 inlines small hot functions into their callers; --no-opt keeps function boundaries so the profile can be matched.
+    run(["node", "--no-opt", "--cpu-prof", f"--cpu-prof-dir={profiles}", *node_args], cwd=cwd, stdout=subprocess.DEVNULL)
+    found = sorted(profiles.glob("*.cpuprofile"), key=lambda f: f.stat().st_size, reverse=True)
+    if not found:
+        raise RuntimeError("node wrote no .cpuprofile")
+    shutil.copyfile(found[0], out)  # several processes write one file each: the largest is the main one
+
+
+def collect_heapprofile(out: pathlib.Path, node_args: list[str], cwd: pathlib.Path) -> None:
+    # V8's default heap profile omits freed objects; the collector includes them.
+    run(["node", "--no-opt", "-r", str(HEAP_COLLECTOR), *node_args], cwd=cwd, stdout=subprocess.DEVNULL,
+        env={**os.environ, "HEAP_OUT": str(out)})
+
+
+def collect_ci_history(out: pathlib.Path, repo: str, workflows: list[str]) -> None:
+    cmd = [sys.executable, str(CI_COLLECTOR), "--repo", repo]
+    for workflow in workflows:
+        cmd += ["--workflow", workflow]
+    with out.open("wb") as f:  # reads the run history with the job's own GITHUB_TOKEN (permissions: actions: read)
+        run(cmd, stdout=f)
+
+
 def collect(name: str, out: pathlib.Path, args: argparse.Namespace, repo: pathlib.Path) -> None:
-    python_args = shlex.split(args.python_args, posix=not sys.platform.startswith("win"))
+    windows = sys.platform.startswith("win")
+    python_args = shlex.split(args.python_args, posix=not windows)
+    node_args = shlex.split(args.node_args, posix=not windows)
     if name in ("speedscope", "memray_stats") and not python_args:
         raise RuntimeError("python-args is empty: name the script or `-m module` to run, e.g. `-m pytest tests/`")
     if name == "speedscope":
@@ -93,6 +124,15 @@ def collect(name: str, out: pathlib.Path, args: argparse.Namespace, repo: pathli
         if not args.lighthouse_url:
             raise RuntimeError("lighthouse-url is empty: give a reachable preview URL")
         collect_lighthouse(out, args.lighthouse_url)
+    elif name in ("cpuprofile", "heapprofile"):
+        if not node_args:
+            raise RuntimeError("node-args is empty: name the script to run after `node`, e.g. `app.js`")
+        (collect_cpuprofile if name == "cpuprofile" else collect_heapprofile)(out, node_args, repo)
+    elif name == "ci_history":
+        workflows = [w.strip() for w in args.ci_workflows.split(",") if w.strip()]
+        if not workflows:
+            raise RuntimeError("ci-workflows is empty: name at least one workflow file, e.g. `ci.yml`")
+        collect_ci_history(out, args.ci_repo or args.repository_id.removeprefix("github:"), workflows)
 
 
 def usable(path: pathlib.Path) -> str | None:
@@ -140,7 +180,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--commit-sha", required=True)
     p.add_argument("--artifacts", required=True, help=f"comma list of {', '.join(KNOWN)}")
     p.add_argument("--python-args", default="", help="arguments after `python`, e.g. `-m pytest tests/` or `app.py`")
+    p.add_argument("--node-args", default="", help="arguments after `node`, e.g. `app.js`")
     p.add_argument("--lighthouse-url", default="")
+    p.add_argument("--ci-workflows", default="", help="comma list of workflow files, e.g. `ci.yml,release.yml`")
+    p.add_argument("--ci-repo", default="", help="owner/name whose run history is read (default: the repository id)")
     p.add_argument("--repo-dir", default=".")
     p.add_argument("--region", default="ap-south-1")
     args = p.parse_args(argv)

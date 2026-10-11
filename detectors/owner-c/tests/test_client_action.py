@@ -101,7 +101,7 @@ class ClientActionTests(unittest.TestCase):
 
     def test_unknown_artifact_is_rejected(self):
         h = Harness()
-        code, _ = h.run(["--artifacts", "cpuprofile"], self.repo)
+        code, _ = h.run(["--artifacts", "xray"], self.repo)  # X-Ray is read from the client's account, never uploaded
         self.assertEqual((code, h.uploaded), (2, []))
 
     def test_never_prints_presigned_url_even_when_upload_fails(self):
@@ -130,7 +130,7 @@ class ClientActionTests(unittest.TestCase):
 
 class CollectorGuards(unittest.TestCase):
     def args(self, **kw):
-        base = dict(python_args="", lighthouse_url="")
+        base = dict(python_args="", node_args="", lighthouse_url="", ci_workflows="", ci_repo="", repository_id="github:o/r")
         base.update(kw)
         return mock.Mock(**base)
 
@@ -156,6 +156,79 @@ class CollectorGuards(unittest.TestCase):
         self.assertNotIn("--nonblocking", cmd)
         self.assertEqual(cmd[cmd.index("--") + 2:], ["-m", "pytest"])
         self.assertIn("--format", cmd)
+
+
+class JsAndCiArtifacts(unittest.TestCase):
+    def args(self, **kw):
+        base = dict(python_args="", node_args="", lighthouse_url="", ci_workflows="", ci_repo="", repository_id="github:o/r")
+        base.update(kw)
+        return mock.Mock(**base)
+
+    def test_all_six_new_and_old_types_are_known(self):
+        self.assertEqual(set(pu.KNOWN), {"speedscope", "memray_stats", "lighthouse", "cpuprofile", "heapprofile", "ci_history"})
+
+    def test_node_tools_need_node_args(self):
+        for name in ("cpuprofile", "heapprofile"):
+            with self.assertRaises(RuntimeError):
+                pu.collect(name, pathlib.Path("x"), self.args(), pathlib.Path("."))
+
+    def test_ci_history_needs_workflows(self):
+        with self.assertRaises(RuntimeError):
+            pu.collect("ci_history", pathlib.Path("x"), self.args(), pathlib.Path("."))
+
+    def test_cpuprofile_command_and_largest_profile_is_picked(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = pathlib.Path(tmp) / "cpuprofile.json"
+            calls = []
+
+            def fake_run(cmd, **kw):
+                calls.append(cmd)
+                d = pathlib.Path(tmp) / "cpu"
+                d.mkdir()
+                (d / "small.cpuprofile").write_text("{}")
+                (d / "main.cpuprofile").write_text('{"nodes": []}')
+            with mock.patch.object(pu, "run", fake_run):
+                pu.collect_cpuprofile(out, ["app.js"], pathlib.Path("."))
+            self.assertEqual(calls[0][:3], ["node", "--no-opt", "--cpu-prof"])
+            self.assertEqual(out.read_text(), '{"nodes": []}')
+
+    def test_cpuprofile_without_output_is_an_error(self):
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(pu, "run", lambda cmd, **kw: None):
+            with self.assertRaises(RuntimeError):
+                pu.collect_cpuprofile(pathlib.Path(tmp) / "cpuprofile.json", ["app.js"], pathlib.Path("."))
+
+    def test_heapprofile_uses_the_collector_and_heap_out(self):
+        seen = {}
+        with mock.patch.object(pu, "run", lambda cmd, **kw: seen.update(cmd=cmd, env=kw["env"])):
+            pu.collect_heapprofile(pathlib.Path("h.json"), ["app.js"], pathlib.Path("."))
+        self.assertIn(str(pu.HEAP_COLLECTOR), seen["cmd"])
+        self.assertEqual(pathlib.Path(seen["env"]["HEAP_OUT"]), pathlib.Path("h.json"))
+        self.assertTrue(pu.HEAP_COLLECTOR.is_file())  # shipped next to the action
+
+    def test_ci_history_command_names_the_repo_and_each_workflow(self):
+        seen = {}
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.object(pu, "run", lambda cmd, **kw: seen.update(cmd=cmd)):
+            pu.collect_ci_history(pathlib.Path(tmp) / "ci.json", "org/repo", ["ci.yml", "release.yml"])
+        cmd = seen["cmd"]
+        self.assertEqual(cmd[cmd.index("--repo") + 1], "org/repo")
+        self.assertEqual([cmd[i + 1] for i, c in enumerate(cmd) if c == "--workflow"], ["ci.yml", "release.yml"])
+        self.assertTrue(pu.CI_COLLECTOR.is_file())
+
+    def test_ci_repo_overrides_the_repository_id_and_defaults_to_it(self):
+        seen = []
+        with mock.patch.object(pu, "collect_ci_history", lambda out, repo, wfs: seen.append(repo)):
+            pu.collect("ci_history", pathlib.Path("x"), self.args(ci_workflows="ci.yml"), pathlib.Path("."))
+            pu.collect("ci_history", pathlib.Path("x"), self.args(ci_workflows="ci.yml", ci_repo="real/repo"), pathlib.Path("."))
+        self.assertEqual(seen, ["o/r", "real/repo"])
+
+    def test_all_six_upload_in_order_with_manifest_last(self):
+        names = ["speedscope", "memray_stats", "lighthouse", "cpuprofile", "heapprofile", "ci_history"]
+        h = Harness(tool_output={n: "{}" for n in names})
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = pathlib.Path(tmp)
+            (repo / "app.py").write_text("x")
+            code, _ = h.run(["--artifacts", ",".join(names)], repo)
+        self.assertEqual((code, h.uploaded), (0, ["repo", *names, "manifest"]))
 
 
 if __name__ == "__main__":
