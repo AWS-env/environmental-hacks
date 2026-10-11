@@ -1,0 +1,28 @@
+/* Route transition veil: over every page's content, under the sidebar. */
+.route-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  cursor: progress;
+}
+.route-veil[hidden] {
+  display: none;
+}
+.route-veil__backdrop {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 45%, color-mix(in srgb, var(--ink) 6%, var(--page)) 0%, var(--page) 70%);
+}
+.route-veil__canvas {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* The sidebar rides above the veil, so it stays put while the page changes beneath it. */
+html[data-route-transition] [data-route-keep] {
+  z-index: 95;
+}

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { THEME_BOOT_SCRIPT } from "@/components/theme/boot";
+import RouteTransition from "@/components/transition/RouteTransition";
 import "./globals.css";
 import "./glass.css";
 
@@ -34,7 +35,7 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         {/* Sets <html data-theme> before anything paints, so the page never flashes the other theme. */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
-        {children}
+        <RouteTransition>{children}</RouteTransition>
       </body>
     </html>
   );

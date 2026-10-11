@@ -118,7 +118,15 @@ const fragmentShader = `
   }
 `;
 
-export default function ParticleTerrain({ analyzing = false, onStageChange }: { analyzing?: boolean; onStageChange?: (step: number, activeSteps: number[]) => void }) {
+export default function ParticleTerrain({
+  analyzing = false,
+  onStageChange,
+  overlay = false,
+}: {
+  analyzing?: boolean;
+  onStageChange?: (step: number, activeSteps: number[]) => void;
+  overlay?: boolean;
+}) {
   const mountRef = useRef<HTMLDivElement>(null);
   const mode = useRef({ analyzing, onStageChange });
   const refresh = useRef<() => void>(() => {});
@@ -321,10 +329,10 @@ export default function ParticleTerrain({ analyzing = false, onStageChange }: { 
     };
   }, []);
   return (
-    <div aria-hidden="true" className="pointer-events-none fixed inset-0 z-0 overflow-hidden bg-[#0a0d0e]">
-      <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(ellipse at 20% 35%, #354044 0%, transparent 55%), radial-gradient(ellipse at 90% 85%, #30383b 0%, transparent 50%)" }} />
+    <div aria-hidden="true" className={`pointer-events-none fixed inset-0 z-0 overflow-hidden ${overlay ? "" : "bg-[#0a0d0e]"}`}>
+      {!overlay && <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "radial-gradient(ellipse at 20% 35%, #354044 0%, transparent 55%), radial-gradient(ellipse at 90% 85%, #30383b 0%, transparent 50%)" }} />}
       <div ref={mountRef} className="absolute inset-0 opacity-90" />
-      <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 52% 30%, rgba(10,13,14,.64) 0%, transparent 65%), linear-gradient(to bottom, rgba(10,13,14,.25), transparent 60%, rgba(10,13,14,.65))" }} />
+      {!overlay && <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse at 52% 30%, rgba(10,13,14,.64) 0%, transparent 65%), linear-gradient(to bottom, rgba(10,13,14,.25), transparent 60%, rgba(10,13,14,.65))" }} />}
     </div>
   );
 }
