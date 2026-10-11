@@ -8,7 +8,7 @@ const {evaluate}=require('../core/dispatch');
 const provider=require('../collectors/job-provider');
 const config={region:process.env.AWS_REGION||'ap-south-1',maxAttempts:2};
 const storage=new S3Client(config),publisher=new EventBridgeClient(config);
-const families={static:['JOB-04','JOB-01','DB-09','DB-13','DB-14','DB-23','DB-29','DB-39','DB-43','DB-45','DB-41'],log:['JOB-05'],telemetry:['JOB-03','JOB-01'],heuristic:['JOB-06']};
+const families={static:['JOB-04','JOB-01','DB-09','DB-13','DB-14','DB-23','DB-29','DB-39','DB-43','DB-45','DB-46','DB-41'],log:['JOB-05'],telemetry:['JOB-03','JOB-01'],heuristic:['JOB-06']};
 const hash=text=>crypto.createHash('sha256').update(text).digest('hex');
 async function processJobs(family,event,context,deps={}){
   const s3=deps.s3||storage,bus=deps.bus||publisher,bucket=deps.bucket||process.env.ARTIFACT_BUCKET;
