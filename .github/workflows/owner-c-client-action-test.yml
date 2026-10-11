@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  actions: read # ci_history reads this repository's workflow run history
   id-token: write # GitHub OIDC -> role owner-c-client-upload
 
 concurrency:
@@ -44,6 +45,7 @@ jobs:
         run: |
           mkdir demo
           cat detectors/owner-c/tests/fixtures/real/hot.py detectors/owner-c/tests/fixtures/real/mem.py > demo/app.py
+          cp detectors/owner-c/tests/fixtures/real/node/app.js demo/app.js
 
       # The hero image is fetched by script after load (not discoverable in the HTML) and uses loading=lazy, so
       # Lighthouse's LCP discovery insight exercises FE-02 and FE-10. It is noise because Chrome ignores
@@ -76,7 +78,11 @@ jobs:
       - name: Run the action
         uses: ./.github/actions/owner-c-profile-upload
         with:
-          artifacts: speedscope,memray_stats,lighthouse
+          artifacts: speedscope,memray_stats,lighthouse,cpuprofile,heapprofile,ci_history
           python-args: demo/app.py
+          node-args: demo/app.js
+          ci-workflows: ci.yml
           lighthouse-url: http://localhost:8765/index.html
-          repository-id: github:AWS-env/owner-c-action-test
+          # ci_history must be collected for the repository the upload is filed under (the parser checks), so this
+          # test files under the real repository id.
+          repository-id: github:AWS-env/environmental-hacks

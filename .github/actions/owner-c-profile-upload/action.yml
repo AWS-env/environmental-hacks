@@ -1,17 +1,30 @@
 name: Owner C profile upload
 description: >
-  Run py-spy, memray and/or Lighthouse on your own runner and upload the results for owner C's artifact detectors
-  (PY-01, PY-05, PY-11, FE-02/10/11/13/15/16). Nothing you upload is executed on our side. Your workflow needs
-  `permissions: id-token: write` and `contents: read`.
+  Run py-spy, memray, Lighthouse, node profiles and/or read your GitHub Actions run history on your own runner and
+  upload the results for owner C's artifact detectors (PY-01/05/11, FE-02/10/11/13/15/16, JS-02/03/04/05/07/08,
+  CI-01/02/03/05/12/18). Nothing you upload is executed on our side. Your workflow needs
+  `permissions: id-token: write` and `contents: read` (plus `actions: read` for ci_history).
 
 inputs:
   artifacts:
-    description: "Comma list of speedscope (py-spy), memray_stats (memray), lighthouse."
+    description: "Comma list of speedscope (py-spy), memray_stats (memray), lighthouse, cpuprofile and heapprofile (node), ci_history."
     required: true
   python-args:
     description: "Arguments after `python` for the py-spy and memray runs, e.g. `-m pytest tests/` or `app.py`."
     required: false
     default: ""
+  node-args:
+    description: "Arguments after `node` for the cpuprofile and heapprofile runs, e.g. `app.js`."
+    required: false
+    default: ""
+  ci-workflows:
+    description: "Comma list of workflow files whose run history is read for ci_history, e.g. `ci.yml,release.yml`."
+    required: false
+    default: ""
+  github-token:
+    description: "Token that reads your run history (needs `actions: read`); the job token by default."
+    required: false
+    default: ${{ github.token }}
   lighthouse-url:
     description: "Reachable URL for the Lighthouse run, e.g. your preview deployment."
     required: false
@@ -25,7 +38,7 @@ inputs:
     required: false
     default: ap-south-1
   repository-id:
-    description: "Repository identity, github:<owner>/<repo>."
+    description: "Repository identity, github:<owner>/<repo>. ci_history reads the run history of this same repository."
     required: false
     default: github:${{ github.repository }}
   commit-sha:
@@ -47,6 +60,9 @@ runs:
       env:
         ARTIFACTS: ${{ inputs.artifacts }}
         PYTHON_ARGS: ${{ inputs.python-args }}
+        NODE_ARGS: ${{ inputs.node-args }}
+        CI_WORKFLOWS: ${{ inputs.ci-workflows }}
+        GITHUB_TOKEN: ${{ inputs.github-token }}
         LIGHTHOUSE_URL: ${{ inputs.lighthouse-url }}
         REGION: ${{ inputs.region }}
         REPOSITORY_ID: ${{ inputs.repository-id }}
@@ -54,4 +70,5 @@ runs:
       run: |
         python "${{ github.action_path }}/profile_upload.py" \
           --repository-id "$REPOSITORY_ID" --commit-sha "$COMMIT_SHA" --artifacts "$ARTIFACTS" \
-          --python-args "$PYTHON_ARGS" --lighthouse-url "$LIGHTHOUSE_URL" --region "$REGION"
+          --python-args "$PYTHON_ARGS" --node-args "$NODE_ARGS" --ci-workflows "$CI_WORKFLOWS" \
+          --lighthouse-url "$LIGHTHOUSE_URL" --region "$REGION"
