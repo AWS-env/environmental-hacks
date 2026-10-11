@@ -526,15 +526,25 @@ class Obs17DemoNextToLlm12Tests(unittest.TestCase):
         self.assertEqual(list(by_identity(result)), [(scope(DEMO), "oversized-log-events")])
         self.assertGreater(self.share(result), SETTINGS["min_bytes_share"])
 
+    def test_obs11_retry_lines_keep_their_share_next_to_llm12_runs(self):
+        # OBS-11 flags a repeated line above 20% of the group's application events; the default retry burst must
+        # stay above that next to one or two opt-in llm12 runs (240 cache-lookup lines each) in the same window.
+        for scenarios in (("all",), ("all", "llm12"), ("all", "llm12", "llm12")):
+            with self.subTest(scenarios=scenarios):
+                app = [m for _, m in self.window(*scenarios) if not m.startswith(("START ", "END ", "REPORT "))]
+                retries = sum(1 for m in app if "unavailable, retrying" in m)
+                self.assertGreater(retries, 50)  # OBS-11 reference min_repeats
+                self.assertGreater(retries / len(app), 0.2)
+
     def test_the_previous_40_item_body_was_hidden_by_one_llm12_run(self):
-        with mock.patch.object(self.demo, "OBS17_BODY_ITEMS", 40):
+        with mock.patch.object(self.demo, "OBS17_BODY_ITEMS", 40), mock.patch.dict(self.demo.LIMITS, {"repeat": (20, 1, 50)}):
             window = self.window("all", "LLM-12")
         result = self.obs17(window)
         self.assertEqual((result["status"], result["findings"]), ("completed", []))
         self.assertRegex(" ".join(result["coverage"]["limitations"]),
                          r"1 events larger than 4096 characters carry [\d.]+% of the logged characters, within the "
                          r"25(\.0)?% limit")
-        with mock.patch.object(self.demo, "OBS17_BODY_ITEMS", 40):
+        with mock.patch.object(self.demo, "OBS17_BODY_ITEMS", 40), mock.patch.dict(self.demo.LIMITS, {"repeat": (20, 1, 50)}):
             alone = self.obs17(self.window("all"))
         self.assertEqual(list(by_identity(alone)), [(scope(DEMO), "oversized-log-events")])
 

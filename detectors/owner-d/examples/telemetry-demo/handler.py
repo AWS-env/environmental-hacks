@@ -54,7 +54,7 @@ MAX_METRIC_SERIES = REQUEST_ID_POOL + len(ENDPOINTS)
 # LLM-12 agents, in order; the `agents` knob takes the first N.
 CACHE_AGENTS = ("planner", "researcher", "writer", "reviewer", "support", "triage", "billing", "escalation")
 
-LIMITS = {"repeat": (20, 1, 50), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25),
+LIMITS = {"repeat": (140, 1, 200), "series": (REQUEST_ID_POOL, 1, REQUEST_ID_POOL), "tool_calls": (12, 1, 25),
           "agents": (5, 2, len(CACHE_AGENTS)), "rounds": (3, 1, 5)}
 SPAN_SECONDS = 0.01
 
@@ -150,7 +150,7 @@ def obs11(emit, repeat):
 # OBS-17 flags a log group when its events over 4 KB carry more than 25% of its application log characters. The
 # echoed body is large enough (about 50 KB) that the one waste line keeps that share when the opt-in LLM-12 run
 # (about 60 KB of small lines) shares the log group and the query window with an `all` run.
-OBS17_BODY_ITEMS = 400
+OBS17_BODY_ITEMS = 800
 
 
 def _request_body():

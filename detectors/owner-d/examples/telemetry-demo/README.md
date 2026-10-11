@@ -16,8 +16,8 @@ X-Ray subsegments. Owner D's telemetry analyzers then have real evidence to read
 
 | Scenario | Waste path | Control path | What it proves |
 | --- | --- | --- | --- |
-| `OBS-11` | A retry loop logs the identical line `upstream inventory-svc unavailable, retrying` `repeat` times (default 20, max 50). | One summary line with `attempts=N`. | A dedup analyzer sees N identical messages in one run and one line on the clean path. |
-| `OBS-17` | One ERROR line with the full `stack_trace` (chained exceptions) and the whole echoed `request_body` (400 items, about 48 KB). | `error_type`, `error`, `order_id`, `body_bytes`, `body_sha256` (about 0.25 KB). | Field-level analysis finds large verbose fields and the size ratio between the two paths. |
+| `OBS-11` | A retry loop logs the identical line `upstream inventory-svc unavailable, retrying` `repeat` times (default 140, max 200; enough that the retry lines stay above OBS-11's 20% share next to two opt-in `LLM-12` runs in one window). | One summary line with `attempts=N`. | A dedup analyzer sees N identical messages in one run and one line on the clean path. |
+| `OBS-17` | One ERROR line with the full `stack_trace` (chained exceptions) and the whole echoed `request_body` (800 items, about 95 KB). | `error_type`, `error`, `order_id`, `body_bytes`, `body_sha256` (about 0.25 KB). | Field-level analysis finds large verbose fields and the size ratio between the two paths. |
 | `OBS-04` | Three free-text lines (`<time> WARN [...] inventory lookup slow for order_id ... ms 2310`). | The same three events as JSON lines. | Unstructured lines need parsing at query time; the structured ones need none. |
 | `OBS-06` | `RequestLatencyMs` keyed by `request_id` (`req-000`..`req-039`, one series per request). | `RequestLatencyMs` keyed by `endpoint` (2 values). | `ListMetrics` shows a dimension whose value count grows with traffic, next to a bounded one. |
 | `LLM-10` | `invoke_agent demo_unbounded_agent` runs `tool_calls` turns (default 12, max 25). Each turn is a `chat` span followed by `execute_tool get_order_status` with byte-identical arguments. It ends with `stop_reason=max_iterations`. | `invoke_agent demo_bounded_agent`: 3 `chat` turns and 2 different tools (`get_order_status`, then `draft_reply`), ending with `stop_reason=answer_ready`. | Owner D's LLM-10 detector flags the waste run for `identical-tool-calls` (12 > 3) and `iteration-budget` (12 > 10). The control run stays under both limits. |
@@ -75,17 +75,21 @@ Run it once, then invoke `owner-d-log-analyzer` with `"checks": ["LLM-12"]` over
 
 These lines go to the same log group as the OBS-17 demo. OBS-17 flags the group when events over 4096
 characters carry more than 25% of its application log characters, so the OBS-17 waste line echoes a body large
-enough (about 48 KB) to stay above that share next to the LLM-12 lines. With the old 6 KB body, one `all` run
+enough (about 95 KB) to stay above that share next to the LLM-12 lines. With the old 6 KB body, one `all` run
 plus one `llm12` run gave 5.1% live, and OBS-17 no longer flagged the demo (#514). Now one `all` run plus one
-`llm12` run in the same query window gives both findings: OBS-17 at about 42% (about 27% with a second `llm12`
+`llm12` run in the same query window gives both findings: OBS-17 at about 52% (about 39% with a second `llm12`
 run), and LLM-12 on `demo-agent-local`. A test in `tests/test_obs17.py` replays both runs through Python
 models of the two Logs Insights queries. Shrinking the LLM-12 lines would not be enough: LLM-12 needs at least
 100 lookups per cache, and each line needs its five cache fields and the `synthetic` labels.
 
+The same applies to OBS-11, which counts events: it flags a repeated line above 20% of the group's
+application events. The default retry burst is 140 lines, so one `all` run plus one `llm12` run gives about
+36% (about 22% with a second `llm12` run). With the old 20-line burst one `llm12` run left it at 7.3%.
+
 ## Event
 
 ```json
-{"scenario": "all", "repeat": 20, "series": 40, "tool_calls": 12, "path": "both"}
+{"scenario": "all", "repeat": 140, "series": 40, "tool_calls": 12, "path": "both"}
 ```
 
 `scenario` takes `all` (the default) or one of `OBS-11`, `OBS-17`, `OBS-04`, `OBS-06` or `LLM-10`. Short
@@ -202,7 +206,7 @@ fall within free tiers or plan credits.
   - With the optional daily schedule: 42 × 30 h / 730 h × $0.30 ≈ **$0.52/month**.
   - Do not schedule it hourly. That keeps all 42 series active all month, about $12.60/month.
 - **PutMetricData**: 1 request per run, at $0.01 per 1,000 requests.
-- **Logs**: about 55 KB per full run (most of it the OBS-17 waste line), and about 60 KB per opt-in `LLM-12` run. Ingestion is about $0.50/GB, and retention is 7 days.
+- **Logs**: about 120 KB per full run (most of it the OBS-17 waste line), and about 60 KB per opt-in `LLM-12` run. Ingestion is about $0.50/GB, and retention is 7 days.
 - **X-Ray**: 1 trace per run. The first 100,000 traces each month are free.
 - **Lambda**: 128 MB, arm64, under 1 s per run.
 - **EventBridge Scheduler**: free while disabled.

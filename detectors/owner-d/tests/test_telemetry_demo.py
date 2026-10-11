@@ -89,7 +89,7 @@ class Obs11(unittest.TestCase):
 
     def test_repeat_is_clamped(self):
         result, _, _, _ = run(scenario="OBS-11", repeat=10_000)
-        self.assertEqual(result["emitted"]["OBS-11"]["waste_lines"], 50)
+        self.assertEqual(result["emitted"]["OBS-11"]["waste_lines"], 200)
 
 
 class Obs17(unittest.TestCase):
