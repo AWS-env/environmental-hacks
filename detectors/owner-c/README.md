@@ -52,7 +52,8 @@ detectors/owner-c/
     cli.py               `evaluate` and `scan` commands
   collectors/            collect-heap.js, the heap-profile collector clients run in their CI
   examples/xray-demo/    traced demo Lambda used to test the JS-01 X-Ray route
-  examples/client-ci/    tested client-side script: profile, presign, upload, manifest last
+  examples/client-ci/    tested client-side scripts: profile, presign, upload, manifest last (JS profiles and CI history)
+  (repo root) .github/actions/owner-c-profile-upload/  one-click GitHub Action for py-spy, memray and Lighthouse
   requirements.txt       tree-sitter parsers (JS/TS detectors only)
   tests/                 unittest suite; fixtures/<check>/cases.json are the committed verification cases
 ```
@@ -299,6 +300,18 @@ v1 result per check per batch of files** to the shared `findings-hub` bus (owner
 detector.result.v1`; they check the bus exists first because EventBridge silently drops events sent to a missing bus. Only
 owner D's hub rules decide what is stored. Failed asynchronous invocations go to a dead-letter queue; the alarm `owner-c-parse-dlq-not-empty` is in ALARM while that queue holds a message (no notification target is attached).
 
+### One-click client action (py-spy, memray, Lighthouse)
+
+For the `speedscope` (PY-01), `memray_stats` (PY-05, PY-11, and owner A's CODE-C6.1) and `lighthouse` (FE-02/10/11/13/15/16) artifacts the client
+does not run anything by hand: they add the composite action
+[`.github/actions/owner-c-profile-upload`](../../.github/actions/owner-c-profile-upload/README.md) to a workflow. It runs the tools on the
+client's own runner, assumes the role `owner-c-client-upload` through GitHub OIDC (no stored secrets), and follows the upload flow below.
+A tool that cannot run is skipped and its checks report `unavailable`, never clean. The role, the OIDC provider and the per-client
+allowlist (`ClientRepoSubs`, immutable GitHub subject patterns) live in the `owner-c-python-detectors` stack, so onboarding a client is a
+reviewed stack update. Proven end to end on a GitHub-hosted runner against the deployed stack by the `Owner C client action test`
+workflow: PY-01, PY-05, PY-11, FE-02, FE-10 and FE-11 reported findings and FE-16 completed (FE-13 and FE-15 had nothing to report
+on the test page). memray runs on Linux and macOS runners only.
+
 ### Upload flow (client CI)
 
 1. Invoke `owner-c-presign` with `{"repository_id", "commit_sha", "artifacts": ["<artifact type>", ...]}`; it returns
@@ -326,16 +339,16 @@ implementations. Real-repo hand-checks for the JS category are recorded in `docs
 
 ## Frontend checks (Category 4)
 
-Research and decisions: [`category-4-frontend.md`](../../docs/research/category-4-frontend.md), [`category-4-decisions.md`](../../docs/research/category-4-decisions.md). Static checks parse HTML, CSS, JSX and package.json with tree-sitter / json (never executed). Lighthouse checks are artifact-only: the client's CI runs Lighthouse 13 and uploads the JSON as artifact `lighthouse`; a stylesheet or page the report does not cover is left out of coverage, never reported clean.
+Research and decisions: [`category-4-frontend.md`](../../docs/research/category-4-frontend.md), [`category-4-decisions.md`](../../docs/research/category-4-decisions.md). Static checks parse HTML, CSS, JSX and package.json with tree-sitter / json (never executed). Lighthouse checks are artifact-only: the client's CI runs Lighthouse 13 (the one-click action does this) and uploads the JSON as artifact `lighthouse`; a stylesheet or page the report does not cover is left out of coverage, never reported clean.
 
 | Check | Pattern | Evidence | Strength of evidence | Issue |
 | --- | --- | --- | --- | --- |
 | FE-03 | `<img>` without explicit dimensions (Lighthouse `unsized-images` rule): HTML and JSX | static | good: Lighthouse rule from its source; real-repo hits hand-checked | #151 |
 | FE-17 | CSS `transition` / `@keyframes` on layout or paint properties instead of `transform`/`opacity` | static | good: web.dev guidance; hand-checked on bootstrap.css (3 of 3 layout transitions) | #164 |
-| FE-11 | Render-blocking stylesheet in a Lighthouse 13 report (`render-blocking-insight`) | Lighthouse report (artifact-only) | medium: tested on sample reports, not yet on a client's real CI run | #158 |
-| FE-13 | Unused CSS (`unused-css-rules`, over 10 KiB wasted) | Lighthouse report (artifact-only) | medium: tested on sample reports, not yet on a client's real CI run | #160 |
-| FE-15 | Forced synchronous layout per script (`forced-reflow-insight`, at least `min_reflow_ms`) | Lighthouse report (artifact-only) | medium: tested on sample reports; threshold is ours (30 ms) | #162 |
-| FE-16 | Large DOM (`dom-size-insight`, more than `max_dom_elements` elements) | Lighthouse report (artifact-only) | medium: tested on sample reports; threshold is ours (1400) | #163 |
-| FE-02 | Lazy-loaded Largest Contentful Paint image (`lcp-discovery-insight` `eagerlyLoaded`) | Lighthouse report (artifact-only) | medium: real captures of our own test pages | #150 |
-| FE-10 | LCP image not discoverable in the initial HTML (`lcp-discovery-insight` `requestDiscoverable`) | Lighthouse report (artifact-only) | medium: real captures of our own test pages | #157 |
+| FE-11 | Render-blocking stylesheet in a Lighthouse 13 report (`render-blocking-insight`) | Lighthouse report (artifact-only) | medium: sample reports, plus a real GitHub-runner run through the deployed stack | #158 |
+| FE-13 | Unused CSS (`unused-css-rules`, over 10 KiB wasted) | Lighthouse report (artifact-only) | medium: tested on sample reports; the deployed run's test page had no unused CSS to report | #160 |
+| FE-15 | Forced synchronous layout per script (`forced-reflow-insight`, at least `min_reflow_ms`) | Lighthouse report (artifact-only) | medium: tested on sample reports; threshold is ours (30 ms); not exercised by the deployed run | #162 |
+| FE-16 | Large DOM (`dom-size-insight`, more than `max_dom_elements` elements) | Lighthouse report (artifact-only) | medium: sample reports plus a real run through the deployed stack; threshold is ours (1400) | #163 |
+| FE-02 | Lazy-loaded Largest Contentful Paint image (`lcp-discovery-insight` `eagerlyLoaded`) | Lighthouse report (artifact-only) | medium: real captures of our own test pages, plus a real GitHub-runner run through the deployed stack | #150 |
+| FE-10 | LCP image not discoverable in the initial HTML (`lcp-discovery-insight` `requestDiscoverable`) | Lighthouse report (artifact-only) | medium: real captures of our own test pages, plus a real GitHub-runner run through the deployed stack | #157 |
 | FE-04 | JavaScript lazy-load library instead of native `loading="lazy"` (package.json and markup) | static | weak: no tool precedent, no real repo with a hit; dependency findings are low confidence | #152 |
