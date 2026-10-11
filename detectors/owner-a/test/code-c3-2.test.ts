@@ -186,6 +186,32 @@ describe("CODE-C3.2 Recomputing loop-invariant detector", () => {
     });
   });
 
+  describe("Context-manager calls (audit F5, rich examples/table_movie.py)", () => {
+    const run = (src: string) => checkCodeC32(parsePythonSource("a.py", src));
+
+    it("does not flag a call used as a `with` item: entering and leaving it is the per-iteration work", () => {
+      expect(run("def f(widths, t):\n    for w in widths:\n        with beat(1):\n            t.width = w\n")).toEqual([]);
+    });
+
+    it("does not flag `with call() as name` either", () => {
+      expect(run("def f(widths, cfg):\n    for w in widths:\n        with open_conn(cfg) as c:\n            c.send(w)\n")).toEqual([]);
+    });
+
+    it("does not flag an async with item", () => {
+      expect(run("async def f(widths, cfg):\n    for w in widths:\n        async with session(cfg) as s:\n            await s.send(w)\n")).toEqual([]);
+    });
+
+    it("still flags the same call in value position inside the loop (twin)", () => {
+      const src = "def f(widths, cfg):\n    for w in widths:\n        c = open_conn(cfg)\n        use(w, c)\n";
+      expect(run(src).map((f) => f.evidence.expr)).toEqual(["open_conn(cfg)"]);
+    });
+
+    it("still flags an invariant call assigned inside a with body", () => {
+      const src = "def f(widths, cfg, lock):\n    for w in widths:\n        with lock:\n            y = compute_rate(cfg)\n            use(w, y)\n";
+      expect(run(src).map((f) => f.evidence.expr)).toEqual(["compute_rate(cfg)"]);
+    });
+  });
+
   describe("Robustness against syntax errors and empty files", () => {
     it("gracefully returns zero findings on invalid Python syntax without throwing", () => {
       const findings = runCheckOnFixture("syntax_error.py");
