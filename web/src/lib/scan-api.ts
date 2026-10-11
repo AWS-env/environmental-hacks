@@ -59,6 +59,19 @@ export interface ReportFinding {
   agent_prompt?: string;
 }
 
+/** One detector measurement (shared/contracts/detector.schema.json `measurement`), tagged with its check. */
+export interface Measurement {
+  check_id: string;
+  metric: "energy" | "emissions" | "cpu_time" | "data_transfer" | "requests" | "tokens" | "log_volume";
+  value: number;
+  unit: "kWh" | "kgCO2e" | "seconds" | "bytes" | "count";
+  basis: "measured" | "user_provided" | "modelled";
+  boundary: string;
+  allocation_key: string;
+  window: { start: string; end: string };
+  provenance: { source_ids: string[]; method: string; assumptions: string[] };
+}
+
 export interface ScanReport {
   report_version: string;
   scanner: { name: string; version: string };
@@ -72,6 +85,7 @@ export interface ScanReport {
     skipped: Record<string, number>;
     truncated: boolean;
     by_extension?: Record<string, number>;
+    limits?: { max_files: number; max_file_bytes: number; excluded_dirs?: string[] };
   };
   summary: {
     checks_total: number;
@@ -86,8 +100,14 @@ export interface ScanReport {
   adapters: { owner: string; name: string; status: string; reason: string | null; checks: string[] }[];
   checks: ReportCheck[];
   findings: ReportFinding[];
-  impact: { status: string; explanation: string };
+  impact: {
+    status: string;
+    explanation: string;
+    detector_measurements?: Measurement[];
+    planned_methodology?: { name: string; formula: string; inputs_needed: string[]; reference: string };
+  };
   limitations: string[];
+  timings?: { total_seconds: number; adapters: Record<string, number> };
 }
 
 export interface ScanStatusResponse {
