@@ -18,10 +18,10 @@ export default function HomePage() {
   useEffect(() => () => scan?.cancel(), [scan]);
 
   const sampleRepos = [
-    { name: "vercel/next.js", url: "https://github.com/vercel/next.js" },
-    { name: "facebook/react", url: "https://github.com/facebook/react" },
-    { name: "langchain-ai/langchain", url: "https://github.com/langchain-ai/langchain" },
-    { name: "microsoft/vscode", url: "https://github.com/microsoft/vscode" },
+    { name: "fastapi/full-stack-fastapi-template", url: "https://github.com/fastapi/full-stack-fastapi-template" },
+    { name: "simonw/llm", url: "https://github.com/simonw/llm" },
+    { name: "pallets/flask", url: "https://github.com/pallets/flask" },
+    { name: "AWS-env/environmental-hacks", url: "https://github.com/AWS-env/environmental-hacks" },
   ];
 
   const startAnalysis = (urlToAnalyze?: string) => {
