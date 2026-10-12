@@ -63,7 +63,7 @@ export function DotMarker({ className }: { className: string }) {
 }
 
 export function Badge({ className, children }: { className: string; children: ReactNode }) {
-  return <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${className}`}>{children}</span>;
+  return <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${className}`}>{children}</span>;
 }
 
 /** Copies text, with a fallback for browsers that refuse the async clipboard; `copied` stays true briefly. */

@@ -22,6 +22,9 @@ const CONFIDENCE_STYLE: Record<Confidence, string> = {
   low: "border-white/15 text-zinc-300",
 };
 
+// Confidence is how strong the detector's evidence is, so it reads as evidence, not certainty.
+const EVIDENCE_LABEL: Record<Confidence, string> = { high: "High evidence", medium: "Medium evidence", low: "Low evidence" };
+
 const card = "liquid-glass scan-card relative rounded-[22px] border";
 
 // Findings shown per check before "Show more"; a check can report dozens.
@@ -49,7 +52,7 @@ function FindingCard({ n, finding, check, report, repo }: { n: number; finding: 
     <ResultCard
       heading={4}
       marker={<IndexMarker n={n} />}
-      badge={<Badge className={CONFIDENCE_STYLE[finding.confidence]}>{finding.confidence}</Badge>}
+      badge={<Badge className={CONFIDENCE_STYLE[finding.confidence]}>{EVIDENCE_LABEL[finding.confidence]}</Badge>}
       location={findingLocation(finding) ?? "location not reported"}
       locationHref={report ? sourceLink(report, finding.file, finding.line) : null}
       title={check.pattern ?? check.checkId}
@@ -192,7 +195,7 @@ export default function ScanResults({ state }: { state: ScanSessionState }) {
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Findings" value={findings.length} detail={`${byConfidence("high")} high · ${byConfidence("medium")} medium · ${byConfidence("low")} low`} />
+        <Stat label="Findings" value={findings.length} detail={`${byConfidence("high")} high · ${byConfidence("medium")} medium · ${byConfidence("low")} low evidence`} />
         <Stat label="Checks completed" value={(counts.completed ?? 0) + (counts.partial ?? 0)}
           detail={`${counts.partial ?? 0} partial · ${counts.error ?? 0} error`} />
         <Stat label="Unavailable" value={counts.unavailable ?? 0} detail="need telemetry, artifacts or a runtime" />
