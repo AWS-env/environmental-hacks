@@ -1,17 +1,19 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
-import { Database, ExternalLink, Info } from "lucide-react";
-import type { CheckStatus, Confidence, Evidence, ScanReport } from "@/lib/scan-api";
+import { useMemo, useState } from "react";
+import { Database, Info } from "lucide-react";
+import type { CheckStatus, Confidence, ScanReport } from "@/lib/scan-api";
 import type { HubState, ScanSessionState } from "@/lib/scan-session";
 import { checksFromHub, checksFromReport, sourceLink, type CheckView, type FindingView } from "@/lib/scan-view";
+import { buildAgentPrompt, findingLocation } from "@/lib/agent-prompt";
+import { Badge, CodeEvidence, DotMarker, IndexMarker, NotesPanel, RecommendationPanel, ResultCard } from "./ResultCard";
 
-const STATUS_STYLE: Record<CheckStatus, { label: string; className: string }> = {
-  completed: { label: "Completed", className: "border-emerald-300/30 text-emerald-200" },
-  partial: { label: "Partial", className: "border-amber-300/30 text-amber-200" },
-  error: { label: "Error", className: "border-rose-300/40 text-rose-200" },
-  unavailable: { label: "Unavailable", className: "border-white/15 text-zinc-300" },
-  not_applicable: { label: "Not applicable", className: "border-white/10 text-zinc-400" },
+const STATUS_STYLE: Record<CheckStatus, { label: string; className: string; dot: string }> = {
+  completed: { label: "Completed", className: "border-emerald-300/30 text-emerald-200", dot: "bg-emerald-300" },
+  partial: { label: "Partial", className: "border-amber-300/30 text-amber-200", dot: "bg-amber-300" },
+  error: { label: "Error", className: "border-rose-300/40 text-rose-200", dot: "bg-rose-300" },
+  unavailable: { label: "Unavailable", className: "border-white/15 text-zinc-300", dot: "bg-zinc-400" },
+  not_applicable: { label: "Not applicable", className: "border-white/10 text-zinc-400", dot: "bg-zinc-600" },
 };
 
 const CONFIDENCE_STYLE: Record<Confidence, string> = {
@@ -20,100 +22,112 @@ const CONFIDENCE_STYLE: Record<Confidence, string> = {
   low: "border-white/15 text-zinc-300",
 };
 
-const card = "liquid-glass relative rounded-[22px] border bg-black/45";
+// Confidence is how strong the detector's evidence is, so it reads as evidence, not certainty.
+const EVIDENCE_LABEL: Record<Confidence, string> = { high: "High evidence", medium: "Medium evidence", low: "Low evidence" };
 
-function Pill({ className, children }: { className: string; children: ReactNode }) {
-  return <span className={`inline-flex shrink-0 items-center rounded-full border px-2 py-0.5 text-[11px] font-medium ${className}`}>{children}</span>;
-}
+const card = "liquid-glass scan-card relative rounded-[22px] border";
+
+// Findings shown per check before "Show more"; a check can report dozens.
+const PAGE = 5;
+
+type Repo = { url: string; commit: string };
 
 function Stat({ label, value, detail }: { label: string; value: number | string; detail?: string }) {
   return (
     <div className={`${card} px-4 py-3`}>
       <p className="text-xs text-zinc-400">{label}</p>
       <p className="mt-1 text-2xl font-medium tabular-nums text-white">{value}</p>
-      {detail && <p className="mt-0.5 text-[11px] text-zinc-400">{detail}</p>}
+      {detail && <p className="mt-0.5 text-xs text-zinc-400">{detail}</p>}
     </div>
   );
 }
 
-function EvidenceBlock({ item }: { item: Evidence }) {
-  const text = typeof item.value === "string" ? item.value : JSON.stringify(item.value, null, 2);
-  const label = item.line_start ? `${item.locator}:${item.line_start}` : item.field ? `${item.locator} [${item.field}]` : item.locator;
-  const lines = text.split("\n");
+function checkMeta(check: CheckView): string {
+  return [check.layer && `layer ${check.layer}`, check.owner && `owner ${check.owner}`,
+    check.scope ? `evaluated ${check.evaluated} of ${check.scope} in scope` : null].filter(Boolean).join(" · ");
+}
+
+function FindingCard({ n, finding, check, report, repo }: { n: number; finding: FindingView; check: CheckView; report?: ScanReport; repo: Repo }) {
   return (
-    <figure className="mt-2 overflow-hidden rounded-xl border border-white/10 bg-black/50">
-      <figcaption className="border-b border-white/10 px-3 py-1.5 font-mono text-[11px] text-zinc-400">{label}</figcaption>
-      <pre className="overflow-x-auto px-3 py-2 font-mono text-xs leading-relaxed text-zinc-200">
-        {lines.map((line, i) => (
-          <div key={i} className="flex gap-3">
-            {item.line_start ? <span className="select-none text-right tabular-nums text-zinc-500 min-w-[2.5ch]">{item.line_start + i}</span> : null}
-            <code className="whitespace-pre">{line || " "}</code>
-          </div>
-        ))}
-      </pre>
-    </figure>
+    <ResultCard
+      heading={4}
+      marker={<IndexMarker n={n} />}
+      badge={<Badge className={CONFIDENCE_STYLE[finding.confidence]}>{EVIDENCE_LABEL[finding.confidence]}</Badge>}
+      location={findingLocation(finding) ?? "location not reported"}
+      locationHref={report ? sourceLink(report, finding.file, finding.line) : null}
+      title={check.pattern ?? check.checkId}
+      aside={<RecommendationPanel recommendation={finding.recommendation} references={finding.references}
+        prompt={buildAgentPrompt(finding, check, repo)} />}
+    >
+      <p className="mt-1.5 text-sm leading-relaxed text-zinc-300">{finding.summary}</p>
+      {finding.evidence.map((item, i) => <CodeEvidence key={i} item={item} />)}
+    </ResultCard>
   );
 }
 
-function Finding({ finding, report }: { finding: FindingView; report?: ScanReport }) {
-  const where = finding.file ? `${finding.file}${finding.line ? `:${finding.line}` : ""}` : "location not reported";
-  const link = report ? sourceLink(report, finding.file, finding.line) : null;
+/** A check that reported findings: a light section heading, then one card per finding. */
+function CheckGroup({ check, report, repo }: { check: CheckView; report?: ScanReport; repo: Repo }) {
+  const [expanded, setExpanded] = useState(false);
+  const style = STATUS_STYLE[check.status];
+  const notes = [check.reason, ...check.limitations].filter((note): note is string => Boolean(note));
+  const shown = expanded ? check.findings : check.findings.slice(0, PAGE);
+  const hidden = check.findings.length - shown.length;
   return (
-    <li className="border-t border-white/[0.07] py-4 first:border-t-0">
-      <div className="flex flex-wrap items-center gap-2">
-        <Pill className={CONFIDENCE_STYLE[finding.confidence]}>{finding.confidence} confidence</Pill>
-        {link ? (
-          <a href={link} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-mono text-xs text-zinc-200 underline decoration-white/20 underline-offset-2 hover:text-white">
-            {where}<ExternalLink className="h-3 w-3" />
-          </a>
-        ) : <span className="font-mono text-xs text-zinc-300">{where}</span>}
-      </div>
-      <p className="mt-2 text-sm leading-relaxed text-zinc-100">{finding.summary}</p>
-      {finding.evidence.map((item, i) => <EvidenceBlock key={i} item={item} />)}
-      <p className="mt-3 text-sm leading-relaxed text-zinc-300"><span className="text-zinc-400">Recommendation: </span>{finding.recommendation}</p>
-      {finding.references.length > 0 && (
-        <p className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-          {finding.references.map((url) => (
-            <a key={url} href={url} target="_blank" rel="noreferrer" className="break-all text-zinc-400 underline decoration-white/15 underline-offset-2 hover:text-zinc-200">{url}</a>
-          ))}
-        </p>
+    <li className="flex flex-col gap-3">
+      <header className="px-1 pt-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <span className="font-mono text-[11px] uppercase tracking-[0.18em] text-zinc-500">{check.checkId}</span>
+          <Badge className={style.className}>{style.label}</Badge>
+          <span className="ml-auto text-xs tabular-nums text-[#f7c062]">
+            {check.findings.length} finding{check.findings.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        <h3 className="mt-1.5 text-lg font-medium tracking-tight text-white">{check.pattern ?? check.checkId}</h3>
+        <p className="mt-0.5 text-xs text-zinc-400">{checkMeta(check)}</p>
+        {notes.length > 0 && (
+          <details className="mt-2 text-xs text-zinc-400">
+            <summary className="cursor-pointer select-none text-zinc-300 hover:text-white">
+              {check.reason ? "Why" : "Limitations"}{check.limitationsTotal > check.limitations.length ? ` (${check.limitationsTotal} total, grouped)` : ""}
+            </summary>
+            <ul className="mt-1.5 list-disc space-y-1 pl-5 leading-relaxed">
+              {notes.map((note, i) => <li key={i}>{note}</li>)}
+            </ul>
+          </details>
+        )}
+      </header>
+      <ol className="flex flex-col gap-3">
+        {shown.map((finding, i) => (
+          <li key={finding.id}><FindingCard n={i + 1} finding={finding} check={check} report={report} repo={repo} /></li>
+        ))}
+      </ol>
+      {check.findings.length > PAGE && (
+        <button type="button" onClick={() => setExpanded(!expanded)}
+          className="liquid-glass-button relative self-start rounded-full border border-white/10 px-3.5 py-1.5 text-xs font-medium text-zinc-300 transition-colors hover:border-white/25 hover:text-white">
+          {expanded ? "Show fewer findings" : `Show ${hidden} more finding${hidden === 1 ? "" : "s"}`}
+        </button>
       )}
     </li>
   );
 }
 
-function Check({ check, report }: { check: CheckView; report?: ScanReport }) {
+/** A check with no findings, in the same card anatomy: status instead of a number, notes instead of a recommendation. */
+function CheckCard({ check }: { check: CheckView }) {
   const style = STATUS_STYLE[check.status];
-  const notes = [check.reason, ...check.limitations].filter((note): note is string => Boolean(note));
+  const meta = checkMeta(check);
   return (
-    <li className={`${card} px-4 py-3 md:px-5`}>
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-        <Pill className={style.className}>{style.label}</Pill>
-        <span className="font-mono text-xs text-zinc-300">{check.checkId}</span>
-        <span className="min-w-0 flex-1 text-sm text-white">{check.pattern ?? ""}</span>
-        <span className={`text-xs tabular-nums ${check.findings.length ? "text-[#f7c062]" : "text-zinc-400"}`}>
-          {check.findings.length} finding{check.findings.length === 1 ? "" : "s"}
-        </span>
-      </div>
-      <p className="mt-1 text-[11px] text-zinc-400">
-        {[check.layer && `layer ${check.layer}`, check.owner && `owner ${check.owner}`,
-          check.scope ? `evaluated ${check.evaluated} of ${check.scope} in scope` : null].filter(Boolean).join(" · ")}
-      </p>
-      {notes.length > 0 && (
-        <details className="mt-2 text-xs text-zinc-400">
-          <summary className="cursor-pointer select-none text-zinc-300 hover:text-white">
-            {check.reason ? "Why" : "Limitations"}{check.limitationsTotal > check.limitations.length ? ` (${check.limitationsTotal} total, grouped)` : ""}
-          </summary>
-          <ul className="mt-1.5 list-disc space-y-1 pl-5 leading-relaxed">
-            {notes.map((note, i) => <li key={i}>{note}</li>)}
-          </ul>
-        </details>
-      )}
-      {check.findings.length > 0 && (
-        <ul className="mt-2">
-          {check.findings.map((finding) => <Finding key={finding.id} finding={finding} report={report} />)}
-        </ul>
-      )}
+    <li>
+      <ResultCard
+        heading={3}
+        marker={<DotMarker className={style.dot} />}
+        badge={<Badge className={style.className}>{style.label}</Badge>}
+        location={check.checkId}
+        title={check.pattern ?? check.checkId}
+        aside={check.limitations.length ? <NotesPanel label="Limitations" notes={check.limitations} total={check.limitationsTotal} /> : null}
+      >
+        {meta && <p className="mt-1 text-xs text-zinc-500">{meta}</p>}
+        {check.reason ? <p className="mt-2 text-sm leading-relaxed text-zinc-300">{check.reason}</p>
+          : (check.status === "completed" || check.status === "partial") && <p className="mt-2 text-sm text-zinc-400">No findings.</p>}
+      </ResultCard>
     </li>
   );
 }
@@ -153,6 +167,7 @@ export default function ScanResults({ state }: { state: ScanSessionState }) {
   const byConfidence = (level: Confidence) => findings.filter((f) => f.confidence === level).length;
   const commit = report?.repository.commit_sha ?? hubScan?.commit_sha ?? "";
   const repoUrl = report?.repository.url ?? state.repoUrl;
+  const repo = { url: repoUrl, commit };
 
   return (
     <div className="flex flex-col gap-5 pb-10">
@@ -180,7 +195,7 @@ export default function ScanResults({ state }: { state: ScanSessionState }) {
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Findings" value={findings.length} detail={`${byConfidence("high")} high · ${byConfidence("medium")} medium · ${byConfidence("low")} low`} />
+        <Stat label="Findings" value={findings.length} detail={`${byConfidence("high")} high · ${byConfidence("medium")} medium · ${byConfidence("low")} low evidence`} />
         <Stat label="Checks completed" value={(counts.completed ?? 0) + (counts.partial ?? 0)}
           detail={`${counts.partial ?? 0} partial · ${counts.error ?? 0} error`} />
         <Stat label="Unavailable" value={counts.unavailable ?? 0} detail="need telemetry, artifacts or a runtime" />
@@ -216,8 +231,10 @@ export default function ScanResults({ state }: { state: ScanSessionState }) {
           No check reported a finding. That covers only the {counts.completed ?? 0} checks that completed; it is not a clean bill of health.
         </p>
       ) : (
-        <ul className="flex flex-col gap-3">
-          {shown.map((check) => <Check key={check.checkId} check={check} report={report} />)}
+        <ul className="flex flex-col gap-5">
+          {shown.map((check) => check.findings.length
+            ? <CheckGroup key={check.checkId} check={check} report={report} repo={repo} />
+            : <CheckCard key={check.checkId} check={check} />)}
         </ul>
       )}
 

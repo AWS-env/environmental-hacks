@@ -33,8 +33,9 @@
   --scrollbar-hover: #87a0a3;
 }
 
-/* Dark: night sky (the original look). */
-:root[data-theme="dark"] {
+/* Dark: night sky (the original look). Matches any element, not just <html>, so a page that is
+   always dark (/home) can wrap itself in data-theme="dark" and shared components follow. */
+[data-theme="dark"] {
   color-scheme: dark;
   --page: #090d16;
   --ink: #f3f4f6;

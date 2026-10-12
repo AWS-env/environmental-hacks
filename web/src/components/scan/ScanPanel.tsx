@@ -23,7 +23,7 @@ function Problem({ state }: { state: ScanSessionState }) {
     ? "NEXT_PUBLIC_SCAN_API_URL was not set when this site was built, so there is no scan service to call. No results are shown rather than sample data."
     : state.error?.message;
   return (
-    <div role="alert" className="mx-auto w-full max-w-[560px] liquid-glass relative rounded-[28px] border bg-black/45 p-6 md:p-8">
+    <div role="alert" className="mx-auto w-full max-w-[560px] liquid-glass scan-card relative rounded-[28px] border p-6 md:p-8">
       <div className="flex items-start gap-3">
         {unconfigured ? <Settings2 className="mt-0.5 h-5 w-5 shrink-0 text-zinc-300" />
           : <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-[#f7c062]" />}
@@ -51,7 +51,8 @@ export default function ScanPanel({ state, onClose }: { state: ScanSessionState;
       aria-label={`Scan of ${repoName(state.repoUrl)}`}
       className="relative flex flex-1 flex-col pt-4 text-white [text-shadow:0_2px_8px_rgba(0,0,0,.9)]"
     >
-      <div className="mx-auto flex w-full max-w-[980px] flex-1 flex-col gap-6">
+      <div aria-hidden="true" className="scan-backdrop pointer-events-none fixed inset-0 -z-10" />
+      <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col gap-6">
         <div className="flex items-center justify-between gap-3">
           <button
             onClick={onClose}

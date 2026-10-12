@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { gsap } from "gsap";
 import { Activity, ChevronDown, FileSearch, ShieldCheck, GitBranch, Clock3, Leaf, Pause, Play, ScanLine } from "lucide-react";
 import ParticleTerrain from "@/components/ParticleTerrain";
@@ -57,7 +58,7 @@ export default function OverviewPage() {
   const findings = {label:"Findings",values:history.map(sample=>sample.findings)};
   const candidates = {label:"Candidates",values:history.map(sample=>sample.candidates),muted:true};
   return <><ParticleTerrain /><div className="overview-page" ref={root}>
-    <header className="overview-topbar"><span className="overview-brand">Kimi</span><div className="overview-account"><span className="workspace-pill"><i />Workspace</span><span className="overview-avatar">S</span></div></header>
+    <header className="overview-topbar"><Link href="/" className="overview-brand">EcoAudit</Link></header>
     <main className="overview-content">
       <div className="overview-heading"><div><div className="overview-eyebrow">WORKSPACE / OVERVIEW</div><div className="overview-title"><h1>Audit overview</h1><span className={`audit-stream ${paused ? "is-paused" : ""}`}><i />{paused ? "PAUSED" : "READ-ONLY"}</span></div><p>Find the waste. Follow the evidence. Improve with confidence.</p></div><div className="overview-source"><label className="device-select"><GitBranch size={18}/><select aria-label="Repository" value={workspace} onChange={event=>{setWorkspace(Number(event.target.value));setFrame(0);}}>{workspaces.map((name,i)=><option value={i} key={name}>{name}</option>)}</select><ChevronDown size={14}/></label><span>Repository · configuration · existing telemetry</span></div></div>
       <div className="overview-primary">

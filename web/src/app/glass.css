@@ -24,6 +24,34 @@
   background-size: 220% 100%;
   animation: glass-reflection 14s ease-in-out infinite alternate;
 }
+/* Scan results: the particle field keeps moving behind these, so they need a real fill and a
+   stronger blur than the decorative glass. (A bg-* utility can't do it: .liquid-glass is
+   unlayered, so its background shorthand beats Tailwind's layered utilities.) */
+.liquid-glass.scan-card {
+  border-color: rgb(255 255 255 / 0.1);
+  background: linear-gradient(160deg, rgb(17 21 24 / 0.9), rgb(10 13 15 / 0.94));
+  backdrop-filter: blur(14px) saturate(110%);
+  -webkit-backdrop-filter: blur(14px) saturate(110%);
+  /* One clean edge: no inset highlight, no moving sheen, and no text glow (that is for text
+     on the particle field; on a solid card it only smears the glyphs). */
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.35);
+  text-shadow: none;
+}
+.liquid-glass.scan-card::before,
+.liquid-glass.scan-card::after {
+  display: none;
+}
+/* Result cards: the border firms up on hover, no glow. */
+.liquid-glass.scan-card.scan-result {
+  transition: border-color 0.2s ease;
+}
+.liquid-glass.scan-card.scan-result:hover {
+  border-color: rgb(255 255 255 / 0.2);
+}
+/* Dims the particle field behind the results so loose text (headings, notes) reads too. */
+.scan-backdrop {
+  background: radial-gradient(ellipse at 50% 35%, rgb(7 9 10 / 0.9), rgb(7 9 10 / 0.78) 70%);
+}
 .liquid-panel { will-change: transform; }
 .liquid-panel:focus-within {
   box-shadow: inset 0 1px 0 rgba(255,255,255,.27), inset 0 -1px 0 rgba(255,255,255,.045), 0 8px 28px rgba(0,0,0,.18);
