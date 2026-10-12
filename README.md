@@ -30,7 +30,15 @@ The hosted repository scanner reads code without executing it. Optional connecto
 
 ## How it works
 
-```mermaid
+![How Ecoaudit works](docs/images/diagrams/how-it-works.svg)
+
+<details>
+<summary>Diagram source (Mermaid)</summary>
+
+<!-- The SVG preview above is generated from this source with htmlLabels: false.
+     Keep the preview and source together when updating this diagram. -->
+
+```text
 flowchart LR
     repo("01 · Choose a repository<br/>Public GitHub URL or local checkout")
     collect("02 · Collect bounded inputs<br/>Source · configuration · metadata")
@@ -50,6 +58,8 @@ flowchart LR
     class validate,report evidence;
     class improve action;
 ```
+
+</details>
 
 1. **Choose an input.** Paste a public GitHub repository into `/home`, or scan a directory with the CLI.
 2. **Read supported files.** The scanner skips vendor/build directories, symlinks, binaries and oversized files; collection limits and omissions appear in the report.
@@ -109,7 +119,15 @@ sequenceDiagram
 
 Connectors acquire evidence; detectors evaluate it. A runtime-dependent check cannot be confirmed from a source-only scan.
 
-```mermaid
+![Evidence validation routes](docs/images/diagrams/evidence-routes.svg)
+
+<details>
+<summary>Diagram source (Mermaid)</summary>
+
+<!-- The SVG preview above is generated from this source with htmlLabels: false.
+     Keep the preview and source together when updating this diagram. -->
+
+```text
 flowchart LR
     subgraph inputs["EVIDENCE SOURCES"]
         source("Repository files<br/>Code and configuration")
@@ -142,6 +160,8 @@ flowchart LR
     class rejected failure;
     style inputs fill:#0e191f,stroke:#365260,color:#e6f2f7
 ```
+
+</details>
 
 Pointer-based hub ingestion checks the allowlisted object, checksum, identity and input/result citations. Inline result events carry a weaker evidence label because the input is not supplied with the event. A hub's `verified` label describes contract and citation validation; it does not certify a production workload or measured savings. See [hub ingestion and readback](hub/README.md).
 
@@ -195,7 +215,15 @@ Repository-only reports explicitly use **`impact.status = not_quantified`**. Fin
 
 [run-it](run_it/README.md) is a separate, opt-in local tool. It can observe current-user processes or launch a command you choose, measure its process tree where supported, and expose live state to `/environment` through a loopback-only endpoint.
 
-```mermaid
+![Local energy measurements](docs/images/diagrams/local-measurements.svg)
+
+<details>
+<summary>Diagram source (Mermaid)</summary>
+
+<!-- The SVG preview above is generated from this source with htmlLabels: false.
+     Keep the preview and source together when updating this diagram. -->
+
+```text
 flowchart LR
     local("Your local run-it session<br/>Watch processes or run a chosen command")
     counters("macOS energy counters<br/>Measured joules and power")
@@ -217,6 +245,8 @@ flowchart LR
     class model modelled;
     class view output;
 ```
+
+</details>
 
 - Process energy measurement currently requires **macOS**. Other platforms show energy as unavailable while supported process and scanner views remain usable.
 - CO₂e and water are **modelled** from energy and documented factors; overrides and provenance are labelled. Water currently covers electricity generation rather than data-centre cooling.
