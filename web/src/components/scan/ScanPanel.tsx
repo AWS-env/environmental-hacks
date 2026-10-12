@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Settings2 } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowLeft, ArrowRight, Settings2 } from "lucide-react";
 import type { ScanSessionState } from "@/lib/scan-session";
 import ScanResults from "./ScanResults";
 import { useEscape } from "./ScanProgress";
@@ -61,7 +62,20 @@ export default function ScanPanel({ state, onClose }: { state: ScanSessionState;
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to repository
           </button>
-          {state.phase === "done" && <span className="text-xs text-zinc-400">Live results</span>}
+          {state.phase === "done" && (
+            <div className="flex items-center gap-3">
+              <span className="text-xs text-zinc-400">Live results</span>
+              {state.scanId && (
+                <Link
+                  href={`/reports?scan=${encodeURIComponent(state.scanId)}`}
+                  className="liquid-glass-button relative flex items-center gap-1.5 rounded-full border border-white/15 px-3.5 py-1.5 text-xs font-medium text-zinc-100 hover:border-white/30"
+                >
+                  Open full report
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              )}
+            </div>
+          )}
         </div>
         {state.phase === "done" ? <ScanResults state={state} />
           : <div className="flex flex-1 items-center pb-16"><Problem state={state} /></div>}

@@ -52,6 +52,39 @@ finding with its `file:line`, the cited source lines, the recommendation and the
 client is `src/lib/scan-api.ts`. Report fields follow `scanner/report.py`, and hub fields follow
 `hub/findings_hub/api.py`.
 
+## Report page
+
+`/reports` (`src/components/reports/`, in the workspace shell with the sidebar) shows one scan as a full report,
+in five tabs: Overview, Findings (list and detail), Checks, Provenance and History (scans seen in this browser). "Open full report" on a finished scan links to it.
+It picks the report from the URL:
+
+| URL | Report |
+| --- | --- |
+| `/reports?scan=<scan_id>` | That scan. A report finished in this tab is reused from memory. Otherwise it comes from `GET /scans/{scan_id}`, and the page waits while the scan is still running. If scan-api no longer has it (reports expire after 7 days) or the scan failed, the findings-hub copy is shown, labelled as such. |
+| `/reports` | The latest scan in this browser's history, or the sample when there is none. |
+| `/reports?sample=1` | `public/sample-report.json`, a real scan of `fastapi/full-stack-fastapi-template` labelled as a sample. |
+
+"Open report.json" opens a CLI report from disk (`python -m scanner scan ... -o report.json`). It is read
+in the browser and never uploaded. "Export report.json" downloads the report being viewed.
+
+The history (`src/lib/report-store.ts`) lives in `localStorage` and holds at most 12 scans. It stores
+each scan's counts and 16-character finding-fingerprint prefixes, so a scan can be compared with the
+previous scan of the same repository. Fingerprints exclude line numbers and commits, so a finding that
+moved lines is still the same finding.
+
+Nothing on the page is estimated. The scanner reports environmental impact as `not_quantified`, and the
+page shows that with the planned SCI methodology instead of numbers.
+
+To refresh the sample, run from the repository root with every owner's detectors installed:
+
+```bash
+python3 -m scanner scan https://github.com/fastapi/full-stack-fastapi-template -o /tmp/sample.json
+python3 -c "import json; r = json.load(open('/tmp/sample.json')); open('web/public/sample-report.json', 'w').write(json.dumps(r, separators=(',', ':'), ensure_ascii=False) + '\n')"
+```
+
+Check that the summary has no `error` checks and no `adapters_unavailable_or_failed`. Those mean
+a detector dependency is missing locally.
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
