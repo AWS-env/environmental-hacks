@@ -57,6 +57,13 @@
 .liquid-glass.scan-card::after {
   display: none;
 }
+/* Result cards: the border firms up on hover, no glow. */
+.liquid-glass.scan-card.scan-result {
+  transition: border-color 0.2s ease;
+}
+.liquid-glass.scan-card.scan-result:hover {
+  border-color: rgb(255 255 255 / 0.2);
+}
 /* Dims the particle field behind the results so loose text (headings, notes) reads too. */
 .scan-backdrop {
   background: radial-gradient(ellipse at 50% 35%, rgb(7 9 10 / 0.9), rgb(7 9 10 / 0.78) 70%);

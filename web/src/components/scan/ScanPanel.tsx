@@ -52,7 +52,7 @@ export default function ScanPanel({ state, onClose }: { state: ScanSessionState;
       className="relative flex flex-1 flex-col pt-4 text-white [text-shadow:0_2px_8px_rgba(0,0,0,.9)]"
     >
       <div aria-hidden="true" className="scan-backdrop pointer-events-none fixed inset-0 -z-10" />
-      <div className="mx-auto flex w-full max-w-[980px] flex-1 flex-col gap-6">
+      <div className="mx-auto flex w-full max-w-[1120px] flex-1 flex-col gap-6">
         <div className="flex items-center justify-between gap-3">
           <button
             onClick={onClose}
