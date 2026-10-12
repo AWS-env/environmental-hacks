@@ -67,14 +67,19 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Overview demo
+## Audit overview
 
-Open `/overview` from the sidebar for a particle-backed resource monitor. All CPU,
-memory, temperature and process values are generated demo data; the page does not
-read local system metrics. Pause/resume the stream, switch demo devices, change the
-time window or toggle chart series. The dashboard fits a single viewport at tested
-1366×768, 1440×900, 1680×1050 and 390×844 sizes. GSAP animates panel entrances,
-metric counters and chart paths, respecting the reduced-motion preference.
+`/overview` presents illustrative repository findings, taxonomy distribution,
+scan duration and evidence coverage. Its generated workspace data is isolated in
+`src/lib/overview-model.ts`; it does not read the device or call AWS, and is never
+used as a real scan result. Candidates stay separate from findings; missing
+runtime evidence stays unavailable. Energy and CO2e remain unquantified until
+workload, infrastructure, region and documented model inputs are available.
+A single footer identifies illustrative figures. Pause updates, switch repository,
+change the history window, or toggle chart series. GSAP animates counters and
+chart paths. The shared route transition uses the original drifting particles, types the
+destination route and scatters on arrival, respecting reduced motion.
+
 ## Illustrative particle pipeline
 
 The loading preview uses the shared architecture graph, with seven independent
