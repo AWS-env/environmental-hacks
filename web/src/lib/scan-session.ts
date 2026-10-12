@@ -17,6 +17,8 @@ import {
   type HubScan,
   type ScanReport,
 } from "./scan-api";
+import { fromHub, fromReport } from "./report-model";
+import { recordScan, rememberReport } from "./report-store";
 
 export type HubState =
   | { kind: "unconfigured" }
@@ -137,8 +139,10 @@ export function startScan(input: string): ScanSession {
     if (final.status === "error") {
       // The S3 report expires after the retention period; the hub may still hold the results.
       const hub = await loadHub(scanned.owner, scanned.repo, scanId, false);
-      if (hub) set({ phase: "done", finishedAt: Date.now(), error: { kind: "scan_error", message: final.error ?? "scan failed" } });
-      else fail({ kind: "scan_error", message: final.error ?? "scan failed" });
+      if (hub) {
+        set({ phase: "done", finishedAt: Date.now(), error: { kind: "scan_error", message: final.error ?? "scan failed" } });
+        if (!signal.aborted) recordScan(fromHub(hub, null, `scan-api reported: ${final.error ?? "scan failed"}`));
+      } else fail({ kind: "scan_error", message: final.error ?? "scan failed" });
       return;
     }
 
@@ -152,11 +156,18 @@ export function startScan(input: string): ScanSession {
       reportError = describe(error);
     }
     set(report ? { phase: "done", report, finishedAt: Date.now() } : { error: reportError });
+    if (report && !signal.aborted) {
+      // Hand the report to /reports (no second download) and list it in this browser's scan history.
+      rememberReport(report);
+      recordScan(fromReport(report, "scan"));
+    }
     const expected = report?.checks.filter((check) => check.status_source === "detector").length ?? 0;
     const hub = await loadHub(scanned.owner, scanned.repo, scanId, true, expected);
     if (!report) {
-      if (hub) set({ phase: "done", finishedAt: Date.now() });
-      else fail(reportError);
+      if (hub) {
+        set({ phase: "done", finishedAt: Date.now() });
+        if (!signal.aborted) recordScan(fromHub(hub, null, `the report could not be loaded (${reportError?.message ?? "unknown error"})`));
+      } else fail(reportError);
     }
   }
 
