@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { House, LayoutDashboard, Leaf, Moon, Sun } from "lucide-react";
+import { House, LayoutDashboard, Leaf, Moon, Sun, Zap } from "lucide-react";
 import { THEME_STORAGE_KEY, type Theme } from "@/components/theme/boot";
 import { useRouteTransition } from "@/components/transition/RouteTransition";
 import "./sidebar.css";
@@ -10,6 +10,7 @@ import "./sidebar.css";
 const pages = [
   { href: "/home", label: "Home", icon: House },
   { href: "/overview", label: "Overview", icon: LayoutDashboard },
+  { href: "/environment", label: "Environment (run-it)", icon: Zap },
   { href: "/reports", label: "Carbon reports", icon: Leaf },
 ];
 

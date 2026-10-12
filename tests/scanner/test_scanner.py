@@ -191,6 +191,26 @@ class ScannerTest(unittest.TestCase):
         self.assertIn("owner A is not built", adapter["reason"])
         self.assertEqual(report["summary"]["adapters_unavailable_or_failed"], ["A"])
 
+    def test_on_adapter_streams_each_adapter_without_changing_the_report(self):
+        def valid(ctx):
+            payload = service_payload(ctx)
+            return [CheckRun("PY-09", "Z", "fake", payload=payload,
+                             result=result_for(payload, 1, "def add_item(item, bucket=[]):"))]
+
+        seen = []
+        with source.resolve(str(self.root)) as target:
+            fileset = source.collect(target.root, self.limits)
+            streamed = build_report(target, fileset, [FakeAdapter(valid)], scan_id="s1", now=NOW,
+                                    on_adapter=lambda entry, checks, found: seen.append((entry["owner"], checks, found)))
+        (owner, checks, found), = seen
+        self.assertEqual((owner, [c["status"] for c in checks], len(found)), ("Z", ["completed"], 1))
+        plain = self.scan([FakeAdapter(valid)])
+        for report in (streamed, plain):
+            report.pop("timings")
+            for adapter in report["adapters"]:
+                adapter.pop("seconds", None)
+        self.assertEqual(streamed, plain)
+
 
 if __name__ == "__main__":
     unittest.main()

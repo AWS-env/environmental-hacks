@@ -6,7 +6,7 @@ import re
 import time
 import uuid
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 from scanner import VERSION
@@ -163,11 +163,13 @@ def _check_entry(run):
     return entry, findings, measurements
 
 
-def build_report(target, fileset, adapters=None, scan_id=None, now=None, results=None):
+def build_report(target, fileset, adapters=None, scan_id=None, now=None, results=None, on_adapter=None):
     """Run adapters concurrently (Node checks run in subprocesses) and assemble the report dict.
 
     `results`, when given a list, receives (owner, contract result) for every result that passed
-    validate_pair, e.g. for publishing to the findings hub (scan_api.hub)."""
+    validate_pair, e.g. for publishing to the findings hub (scan_api.hub).
+    `on_adapter(entry, checks, findings)`, when given, is called as each adapter finishes, for live
+    progress (run-it); the report is the same either way."""
     from scanner.source import content_sha
 
     started = time.monotonic()
@@ -175,16 +177,21 @@ def build_report(target, fileset, adapters=None, scan_id=None, now=None, results
     ctx = ScanContext(target.repository_id, commit, scan_id or str(uuid.uuid4()), fileset.files,
                       fileset.stats["limits"])
     adapters = default_adapters() if adapters is None else adapters
+    outcomes = []
     with ThreadPoolExecutor(max_workers=max(1, len(adapters))) as pool:
-        outcomes = list(pool.map(lambda a: _run_adapter(a, ctx), adapters))
+        for future in as_completed([pool.submit(_run_adapter, a, ctx) for a in adapters]):
+            entry, runs = future.result()
+            graded = [(run, *_check_entry(run)) for run in runs]
+            outcomes.append((entry, graded))
+            if on_adapter:
+                on_adapter(entry, [g[1] for g in graded], [f for g in graded for f in g[2]])
 
     checks, findings, measurements, adapter_entries, seconds = [], [], [], [], {}
-    for entry, runs in sorted(outcomes, key=lambda o: o[0]["owner"]):
+    for entry, graded in sorted(outcomes, key=lambda o: o[0]["owner"]):
         seconds[entry["owner"]] = entry.pop("seconds")
-        entry["checks"] = sorted(r.check_id for r in runs)
+        entry["checks"] = sorted(g[0].check_id for g in graded)
         adapter_entries.append(entry)
-        for run in runs:
-            check, found, measured = _check_entry(run)
+        for run, check, found, measured in graded:
             if results is not None and check["status_source"] == "detector":
                 results.append((run.owner, run.result))
             checks.append(check)

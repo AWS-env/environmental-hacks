@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# run-it: live energy / CO2e / water dashboard for the current folder (see run_it/README.md).
+# Install once:  ln -s "$PWD/scripts/run-it" ~/.local/bin/run-it
+set -euo pipefail
+src="${BASH_SOURCE[0]}"
+while [[ -L "$src" ]]; do
+  dir="$(cd -P "$(dirname "$src")" && pwd)"
+  src="$(readlink "$src")"
+  [[ "$src" == /* ]] || src="$dir/$src"
+done
+root="$(cd -P "$(dirname "$src")/.." && pwd)"
+py="$root/.venv/bin/python"
+if [[ ! -x "$py" ]]; then
+  echo "run-it: $py not found. Set up once from $root:" >&2
+  echo "  python3 -m venv .venv && .venv/bin/pip install -r shared/contracts/requirements.txt -r run_it/requirements.txt" >&2
+  exit 1
+fi
+PYTHONPATH="$root${PYTHONPATH:+:$PYTHONPATH}" exec "$py" -m run_it "$@"

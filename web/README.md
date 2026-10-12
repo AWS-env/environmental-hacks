@@ -85,6 +85,20 @@ python3 -c "import json; r = json.load(open('/tmp/sample.json')); open('web/publ
 Check that the summary has no `error` checks and no `adapters_unavailable_or_failed`. Those mean
 a detector dependency is missing locally.
 
+## Environment page
+
+`/environment` (`src/components/environment/`) shows run-it's live footprint for the machine it runs on:
+- measured power over time,
+- energy, with CO₂e and water modelled from cited factors,
+- where the command's energy went,
+- the process table,
+- run-it's folder scan.
+
+It polls `http://127.0.0.1:<port>/state` (`src/lib/run-it.ts`, port 47321 or `?port=`) at run-it's own
+sampling interval, and looks for run-it every 3 s otherwise. When run-it stops, the page keeps its last reading.
+When run-it was never found, the page shows `public/run-it-sample.json`: a real `run-it npm run build` session
+recorded on a Mac. The sample contains only that command's own processes. See [`run_it/README.md`](../run_it/README.md).
+
 ## Learn More
 
 To learn more about Next.js, take a look at the following resources:
