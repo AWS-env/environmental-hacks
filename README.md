@@ -1,5 +1,9 @@
 # Environmental Hacks https://main.dz3ac51z9uzpr.amplifyapp.com/
 
+[![MIT News: Explained — Generative AI’s environmental impact](docs/images/mit-generative-ai-environmental-impact.png)](https://news.mit.edu/2025/explained-generative-ai-environmental-impact-0117)
+
+[Read the article: Explained — Generative AI’s environmental impact (MIT News)](https://news.mit.edu/2025/explained-generative-ai-environmental-impact-0117)
+
 Build what the planet needs — our entry for the **WeMakeDevs × AWS Environmental Hacks** hackathon (Bharat Builds Tour, stop 2).
 
 > Stack and project idea are still being decided. This repo currently holds the **governance, workflow, and CI scaffolding** so the tree stays clean from the first commit.
