@@ -51,6 +51,7 @@ export function ResourceChart({ series, frame, minutes = 15, max = 100, suffix =
   const { width, height } = size;
   const left = small ? 0 : 42, right = width - (small ? 0 : 8), top = 8, bottom = height - (small ? 2 : 27);
   const count = series[0]?.values.length || 1;
+  const ticks = width < 240 ? 2 : width < 440 ? 4 : 7;
   const x = (index: number) => left + index / Math.max(count - 1, 1) * (right - left);
   const y = (value: number) => bottom - Math.max(0, Math.min(max, value)) / max * (bottom - top);
   const clock = (index: number) => {
@@ -72,9 +73,9 @@ export function ResourceChart({ series, frame, minutes = 15, max = 100, suffix =
           <line x1={left} x2={right} y1={y(tick*max)} y2={y(tick*max)} stroke="white" strokeOpacity=".09" strokeDasharray="2 4" />
           <text x={left-9} y={y(tick*max)+4} textAnchor="end" fill="#8d999f" fontSize="11">{tick*max}{suffix}</text>
         </g>)}
-        {!small && Array.from({length:7}, (_, i) => <g key={i}>
-          <line x1={x(i*(count-1)/6)} x2={x(i*(count-1)/6)} y1={top} y2={bottom} stroke="white" strokeOpacity=".055" />
-          <text x={x(i*(count-1)/6)} y={height-4} textAnchor={i===0 ? "start" : i===6 ? "end" : "middle"} fill="#8d999f" fontSize="10">{clock(i*(count-1)/6)}</text>
+        {!small && Array.from({length:ticks}, (_, i) => <g key={i}>
+          <line x1={x(i*(count-1)/(ticks-1))} x2={x(i*(count-1)/(ticks-1))} y1={top} y2={bottom} stroke="white" strokeOpacity=".055" />
+          <text x={x(i*(count-1)/(ticks-1))} y={height-4} textAnchor={i===0 ? "start" : i===ticks-1 ? "end" : "middle"} fill="#8d999f" fontSize="10">{clock(i*(count-1)/(ticks-1))}</text>
         </g>)}
         <g clipPath={`url(#${id}-clip)`}>
           {series.map((item, s) => {

@@ -1,0 +1,20 @@
+.workspace-sidebar{position:fixed;left:14px;top:14px;bottom:14px;width:46px;z-index:50;display:flex;flex-direction:column;justify-content:space-between;align-items:center;padding:10px 0;border:1px solid rgb(255 255 255 / .09);border-radius:22px;background:rgb(5 9 12 / .18);backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);box-shadow:inset 0 1px 0 rgb(255 255 255 / .04),0 8px 24px rgb(0 0 0 / .18)}
+.workspace-sidebar__pages,.workspace-sidebar__bottom{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%}
+.workspace-sidebar__control{position:relative;display:grid;place-items:center;width:30px;height:30px;border:0;border-radius:10px;background:transparent;color:#abb4bc;cursor:pointer;transition:color .2s ease,background .2s ease,transform .2s ease}
+.workspace-sidebar__control:hover{color:#fff;background:rgb(255 255 255 / .06)}
+.workspace-sidebar__control[aria-current="page"]{color:#f2f5f7;background:rgb(255 255 255 / .08)}
+.workspace-sidebar__control:focus-visible{outline:1px solid #c5d9df;outline-offset:3px}
+.workspace-sidebar__tooltip{position:absolute;left:43px;top:50%;transform:translateY(-50%) translateX(-3px);padding:6px 9px;border:1px solid #ffffff15;border-radius:7px;background:#101719ed;color:#e6edf0;font-size:10px;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .18s ease,transform .18s ease}
+.workspace-sidebar__control:hover .workspace-sidebar__tooltip,.workspace-sidebar__control:focus-visible .workspace-sidebar__tooltip{opacity:1;transform:translateY(-50%)}
+.workspace-sidebar__account{margin-top:1px;border-radius:50%}
+.workspace-sidebar__orb{width:21px;height:21px;border-radius:50%;background:radial-gradient(circle at 30% 23%,#c7faffaa,transparent 43%),linear-gradient(135deg,#00e4ff 5%,#7870ff 36%,#ac2bef 60%,#fd38a9 88%);box-shadow:inset 1px 1px 3px #ffffffa8,inset -2px -2px 4px #6731c5aa,0 0 6px #9176ff88,0 0 13px #b542ec44;transition:transform .22s ease,box-shadow .22s ease}
+.workspace-sidebar__account:hover .workspace-sidebar__orb{transform:scale(1.1);box-shadow:inset 1px 1px 3px #ffffffa8,0 0 10px #9176ffaa,0 0 17px #b542ec66}
+@media(prefers-reduced-motion:reduce){.workspace-sidebar__control,.workspace-sidebar__tooltip,.workspace-sidebar__orb{transition:none}}
+/* Light theme. Only /login shows the sidebar on a light page; WorkspaceShell is always dark and marks itself
+   data-theme="dark", so its sidebar keeps the night look above. */
+:root:not([data-theme="dark"]) .workspace-sidebar:not([data-theme="dark"] *){border-color:var(--line);background:rgb(255 255 255 / .42);box-shadow:inset 0 1px 0 rgb(255 255 255 / .6),0 8px 24px rgb(15 32 29 / .12)}
+:root:not([data-theme="dark"]) .workspace-sidebar:not([data-theme="dark"] *) .workspace-sidebar__control{color:var(--ink-3)}
+:root:not([data-theme="dark"]) .workspace-sidebar:not([data-theme="dark"] *) .workspace-sidebar__control:hover{color:var(--ink);background:rgb(15 32 29 / .06)}
+:root:not([data-theme="dark"]) .workspace-sidebar:not([data-theme="dark"] *) .workspace-sidebar__control[aria-current="page"]{color:var(--ink);background:rgb(15 32 29 / .08)}
+:root:not([data-theme="dark"]) .workspace-sidebar:not([data-theme="dark"] *) .workspace-sidebar__control:focus-visible{outline-color:var(--accent-strong)}
+:root:not([data-theme="dark"]) .workspace-sidebar:not([data-theme="dark"] *) .workspace-sidebar__tooltip{border-color:transparent;background:var(--ink);color:var(--page)}
