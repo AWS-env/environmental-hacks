@@ -83,6 +83,13 @@ implemented in this repository run, which is a small share of the taxonomy. Owne
 test files. Owner B runs through its pre-contract `scanSource` entry point, translated by the scanner.
 If Node.js or the owner A build is missing, that owner is reported as `unavailable`.
 
+## Live dashboard: run-it
+
+`run-it` is an htop-style terminal view for the folder you are in. It shows measured power per
+process (macOS kernel energy counters), modelled CO₂e and water with their sources, and scanner
+findings as they stream in. `run-it npm start` launches a command and measures its whole process
+tree, and quitting prints a receipt. See [`run_it/README.md`](run_it/README.md).
+
 Open decisions (idea, track, stack) live in [`docs/DECISIONS.md`](docs/DECISIONS.md).
 
 For agent-assisted AWS work, use the shared handshake in [`docs/AWS_AGENT_WORKFLOW.md`](docs/AWS_AGENT_WORKFLOW.md): agents ask before using AWS CLI/MCP, then verify local profile identity and selected Region before inspecting service state.

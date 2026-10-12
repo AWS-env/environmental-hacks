@@ -109,6 +109,12 @@ jobs:
       - name: Verify detector contracts
         run: python -m shared.contracts.verify
 
+      # Energy-counter tests are macOS-only and skip here; parsing, conversions and provenance still run.
+      - name: run-it dashboard
+        run: |
+          python -m pip install -r run_it/requirements.txt
+          python -m unittest discover -s tests/run_it
+
       - name: Owner C detectors
         env:
           PYTHONPATH: detectors/owner-c
