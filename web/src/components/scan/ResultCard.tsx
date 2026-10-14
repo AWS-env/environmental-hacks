@@ -167,7 +167,7 @@ export function RecommendationPanel({ recommendation, references, prompt }: { re
           <span aria-live="polite">{copied ? "Copied" : "Copy prompt"}</span>
         </button>
       </div>
-      {recommendation && <p className="mt-3 text-[13px] leading-relaxed text-zinc-200">{recommendation}</p>}
+      {recommendation && <p className="mt-3 text-[13px] leading-relaxed text-zinc-200 wrap-anywhere">{recommendation}</p>}
       {references.length > 0 && <div aria-hidden="true" className="min-h-4 flex-1" />}
       {references.length > 0 && (
         <ul className="flex flex-col gap-1.5 border-t border-white/[0.06] pt-3">
