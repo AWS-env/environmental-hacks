@@ -48,7 +48,7 @@ jobs:
 
       - name: Upload mapping.json (commit it via a PR)
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: taxonomy-mapping
           path: docs/taxonomy/mapping.json
