@@ -8,16 +8,16 @@
 /scripts/               @AWS-env/environmental-hacks
 
 # owner namespaces (swap handles in docs/taxonomy/owners.json)
-/detectors/owner-a/    @mrpanda
-/cdk/owner-a/          @mrpanda
+/detectors/owner-a/    @MrPanda009
+/cdk/owner-a/          @MrPanda009
 /detectors/owner-b/    @shryssssss-maker
 /cdk/owner-b/          @shryssssss-maker
 /detectors/owner-c/    @Medhansh-741
 /cdk/owner-c/          @Medhansh-741
-/detectors/owner-d/    @prXmy
-/cdk/owner-d/          @prXmy
+/detectors/owner-d/    @prx-my
+/cdk/owner-d/          @prx-my
 
 # shared hub - Owner D
-/shared/               @prXmy
-/dashboard/            @prXmy
-/cdk/hub/              @prXmy
+/shared/               @prx-my
+/dashboard/            @prx-my
+/cdk/hub/              @prx-my

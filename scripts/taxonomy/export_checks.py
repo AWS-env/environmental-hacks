@@ -194,10 +194,10 @@ def main(xlsx_path: str) -> None:
             "repo": "AWS-env/environmental-hacks",
             "team": "AWS-env/environmental-hacks",
             "owners": {
-                "A": {"label": "owner:A", "handle": "mrpanda", "aws_user": "shrey"},
+                "A": {"label": "owner:A", "handle": "MrPanda009", "aws_user": "shrey"},
                 "B": {"label": "owner:B", "handle": "shryssssss-maker", "aws_user": "shreyas"},
                 "C": {"label": "owner:C", "handle": "Medhansh-741", "aws_user": "medhansh"},
-                "D": {"label": "owner:D", "handle": "prXmy", "aws_user": "prakhar"},
+                "D": {"label": "owner:D", "handle": "prx-my", "aws_user": "prakhar"},
             },
         }
         with open(OWNERS_PATH, "w", encoding="utf-8") as fh:
