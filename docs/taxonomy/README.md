@@ -25,8 +25,8 @@ owner can work their own checks without overlap.
 | Label | GitHub | AWS user |
 | --- | --- | --- |
 | `owner:A` | [@mrpanda](https://github.com/mrpanda) | `shrey` |
-| `owner:B` | [@shreyas](https://github.com/shreyas) | `shreyas` |
-| `owner:C` | [@medhansh](https://github.com/medhansh) | `medhansh` |
+| `owner:B` | [@shryssssss-maker](https://github.com/shryssssss-maker) | `shreyas` |
+| `owner:C` | [@Medhansh-741](https://github.com/Medhansh-741) | `medhansh` |
 | `owner:D` | [@prXmy](https://github.com/prXmy) | `prakhar` |
 
 ## Regenerate from the source workbook
