@@ -2,7 +2,7 @@
 
 import { useRef } from "react";
 import type { ReactNode } from "react";
-import { MOTION_OK, MOTION_REDUCED, ScrollSmoother, ScrollTrigger, SplitText, gsap, revealOnScroll, useGSAP } from "./gsap";
+import { MOTION_OK, MOTION_REDUCED, ScrollSmoother, ScrollTrigger, gsap, useGSAP } from "./gsap";
 
 /** Fraction of the indicator track the thumb fills (lusion.co keeps a minimum of 20%). */
 const INDICATOR_THUMB = 0.22;
@@ -29,16 +29,12 @@ function fadeTreeWithScroll() {
  * splitting this across components would build the triggers against native scroll.
  *
  * Markup contract (data attributes on children):
- * - `data-scroll-cue`   "scroll to explore" button; fades out over the first screen, click scrolls to `#audit`
- * - `data-split`        text split into lines that slide up out of a mask
- * - `data-reveal`       fades and rises in when it enters the viewport
- * - `data-hero-card`    grows from a small rounded panel into the full card as it scrolls in
+ * - `data-scroll-cue`   hero Continue button; fades out over the first screen, its `data-cross` corners spin
  * - `data-cloud-part`   -1 or 1: slides off-screen that way (and swells) as the first screen scrolls away
  *                       (the hero tree fades and swells with it, via `--tree-away`)
- * - `data-count`        counts up to its value (`data-decimals`, `data-prefix`, `data-suffix`)
  * - `data-speed` / `data-lag`  ScrollSmoother parallax and trailing effects
  *
- * Reduced motion keeps native scrolling and shows everything immediately.
+ * Reduced motion keeps native scrolling and skips the animations.
  */
 export default function SmoothPage({ children }: { children: ReactNode }) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -59,41 +55,6 @@ export default function SmoothPage({ children }: { children: ReactNode }) {
           effects: true,
           ignoreMobileResize: true,
         });
-        let onCue: (() => void) | undefined;
-
-        // Headings and paragraphs: lines slide up out of a clipping mask, like lusion's titles.
-        // autoSplit re-splits on resize and when web fonts finish loading.
-        q("[data-split]").forEach((el) => {
-          SplitText.create(el, {
-            type: "lines",
-            mask: "lines",
-            autoSplit: true,
-            onSplit: (self) =>
-              gsap.from(self.lines, {
-                yPercent: 115,
-                duration: 1.2,
-                ease: "power4.out",
-                stagger: 0.09,
-                scrollTrigger: { trigger: el, start: "top 88%", once: true },
-              }),
-          });
-        });
-
-        revealOnScroll(q("[data-reveal]"));
-
-        // The hero panel starts as a small, heavily rounded card and opens up as it scrolls in.
-        q("[data-hero-card]").forEach((card) => {
-          gsap.fromTo(
-            card,
-            { scale: 0.84, borderRadius: 56 },
-            {
-              scale: 1,
-              borderRadius: 16,
-              ease: "none",
-              scrollTrigger: { trigger: card, start: "top bottom", end: "top 30%", scrub: true },
-            },
-          );
-        });
 
         // The hero's cloud banks part to either side, as if the camera were flying through them.
         q("[data-cloud-part]").forEach((el) => {
@@ -109,37 +70,15 @@ export default function SmoothPage({ children }: { children: ReactNode }) {
 
         fadeTreeWithScroll();
 
-        q("[data-count]").forEach((el) => {
-          const target = Number(el.dataset.count);
-          const decimals = Number(el.dataset.decimals ?? 0);
-          const prefix = el.dataset.prefix ?? "";
-          const suffix = el.dataset.suffix ?? "";
-          const state = { value: 0 };
-          const write = () => {
-            el.textContent = `${prefix}${state.value.toFixed(decimals)}${suffix}`;
-          };
-          write();
-          gsap.to(state, {
-            value: target,
-            duration: 1.8,
-            ease: "power2.out",
-            onUpdate: write,
-            scrollTrigger: { trigger: el, start: "top 92%", once: true },
-          });
-        });
-
         if (cue) {
-          // The cue's corner crosses turn slowly and its tick slides down the line, forever.
+          // The cue's corner crosses turn slowly, forever.
           gsap.to(q("[data-cross]"), { rotation: 90, duration: 3, ease: "power2.inOut", repeat: -1, repeatDelay: 1, stagger: 0.15, transformOrigin: "50% 50%" });
-          gsap.fromTo(q("[data-cue-tick]"), { yPercent: -120 }, { yPercent: 220, duration: 1.4, ease: "power2.inOut", repeat: -1, repeatDelay: 0.3 });
           gsap.to(cue, {
             autoAlpha: 0,
             y: -48,
             ease: "none",
             scrollTrigger: { trigger: cue, start: "top 85%", end: "top 40%", scrub: true },
           });
-          onCue = () => smoother.scrollTo("#audit", true, "top 80px");
-          cue.addEventListener("click", onCue);
         }
 
         // Thin progress bar on the right edge; shows while scrolling, hides shortly after.
@@ -165,20 +104,16 @@ export default function SmoothPage({ children }: { children: ReactNode }) {
         // Web fonts change line breaks and heights; trigger positions must follow.
         document.fonts?.ready.then(() => ScrollTrigger.refresh());
 
-        // matchMedia only reverts gsap objects, so the DOM listener is removed here.
+        // matchMedia only reverts gsap objects, so the smoother is killed here.
         return () => {
-          if (cue && onCue) cue.removeEventListener("click", onCue);
           smoother.kill();
         };
       });
 
-      // Reduced motion: no smoothing and no reveals; the cue still works, with the browser's own scrolling.
+      // Reduced motion: no smoothing and no animations, just the browser's own scrolling.
       mm.add(MOTION_REDUCED, () => {
         gsap.set(q("[data-scroll-indicator]"), { display: "none" });
         fadeTreeWithScroll();
-        const onCue = () => document.getElementById("audit")?.scrollIntoView({ behavior: "auto" });
-        cue?.addEventListener("click", onCue);
-        return () => cue?.removeEventListener("click", onCue);
       });
 
       return () => mm.revert();

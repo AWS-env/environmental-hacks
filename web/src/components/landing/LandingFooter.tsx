@@ -40,7 +40,7 @@ export default function LandingFooter() {
             </Magnetic>
             <Magnetic>
               <a
-                href="#audit"
+                href="/reports"
                 className="rounded-lg bg-accent px-4 py-2 text-xs font-semibold text-on-accent hover:bg-accent-hover transition-colors"
               >
                 <RollText>Test Sample Report</RollText>
