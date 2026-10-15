@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import ScanPipeline from "@/components/ScanPipeline";
-import { SCAN_TIMEOUT_MS } from "@/lib/scan-api";
 import type { ScanPhase, ScanSessionState } from "@/lib/scan-session";
 
 const PHASE_TEXT: Partial<Record<ScanPhase, { title: string; detail: string }>> = {
@@ -50,7 +49,7 @@ export default function ScanProgress({ state, step, activeSteps = [], onBack }: 
       status={{
         title: text.title,
         detail: state.scanId ? `${text.detail} · scan ${state.scanId.slice(0, 8)}` : text.detail,
-        meta: `${formatElapsed(now - state.startedAt)} · limit ${SCAN_TIMEOUT_MS / 60_000} min`,
+        meta: formatElapsed(now - state.startedAt),
       }}
       onBack={onBack}
     />
