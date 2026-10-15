@@ -220,10 +220,11 @@ For a public GitHub repository, the scanner also reads the repository's **public
 | Tier | What | How |
 | --- | --- | --- |
 | **Measured** | Runs in the last 30 days by workflow, event and conclusion; runner time of the sampled runs | Straight from the GitHub API: each job's `completed_at − started_at`. Jobs GitHub re-lists from an earlier attempt are counted once; queue time is excluded; runs awaiting a maintainer's approval ran nothing |
-| **Modelled** | Energy and CO₂e, always as a low–high range | Runner vCPUs ([GitHub-hosted runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)) × hours × 0.78–3.76 W per vCPU × Azure PUE 1.125–1.185 ([Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/docs/methodology/)). CO₂e assumes Azure US regions (0.322–0.426 kgCO₂e/kWh, CCF/EPA eGRID) because GitHub does not publish runner regions |
+| **Modelled** | Energy, CO₂e and water, always as a low–high range | Energy: runner vCPUs ([GitHub-hosted runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)) × hours × 0.78–3.76 W per vCPU × Azure PUE 1.125–1.185 ([Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/docs/methodology/)). CO₂e: location-based, assuming Azure US regions (0.322–0.426 kgCO₂e/kWh, CCF/EPA eGRID) because GitHub does not publish runner regions. Water: IT energy × Microsoft's Americas WUE 0.34 L/kWh ([FY2025](https://datacenters.microsoft.com/sustainability/efficiency/)) for cooling, plus energy × 1.287–9.500 L/kWh for power plants (grid consumption factors of the same regions' eGRID subregions, [WRI 2020](https://www.wri.org/research/guidance-calculating-water-use-embedded-purchased-electricity), Appendix 1), following [Li et al.](https://arxiv.org/abs/2304.03271) |
 | **Estimated** | Each workflow's runner time over the window, and for CI findings whose cited line sits in a step that GitHub's job and step names match exactly, what that step spent | A measured mean × an exact run count, always shown with the number of measured runs behind it. A step's time is what it cost, not a promised saving, and is shown only where the fix targets that step (CI-06, CI-07) |
 
-- macOS, self-hosted and larger or custom runners: time is measured, energy is not estimated. Embodied emissions, storage, network and water are not included.
+- macOS, self-hosted and larger or custom runners: time is measured, energy (and so carbon and water) is not estimated. Off-site water is consumption (WRI); on-site water is all the water Microsoft reports using for cooling, counted in full as an upper bound. The high end of the grid water factor comes mostly from hydropower reservoir evaporation, and WRI's factors use 2018 data. Embodied emissions and water, storage and network are not included.
+- The report overview shows these as two cards, **Energy** and **Carbon & water**, next to findings, checks and files.
 - No Actions runs, another CI system, a local directory scan or an exhausted API rate limit all leave the impact `not_quantified` with the reason; nothing is estimated in its place.
 - GitHub allows 60 unauthenticated requests per hour per network address, shared with the commit lookup the scan already makes. Busy networks (including shared cloud egress) can run out; the report then names the limit and its reset time.
 - Other code findings are labelled "not priced": their runtime cost needs telemetry a repository scan does not have.
@@ -265,7 +266,7 @@ flowchart LR
 </details>
 
 - Process energy measurement currently requires **macOS**. Other platforms show energy as unavailable while supported process and scanner views remain usable.
-- CO₂e and water are **modelled** from energy and documented factors; overrides and provenance are labelled. Water currently covers electricity generation rather than data-centre cooling.
+- CO₂e and water are **modelled** from energy and documented factors; overrides and provenance are labelled. run-it's water covers electricity generation only, because a local machine has no data-centre cooling (the measured CI workload above adds cooling).
 - Process measurements and code findings remain separate. The tool does not attribute a measured carbon total to individual source lines.
 - The repository report describes a planned Software Carbon Intensity methodology; its embodied-emissions and functional-unit inputs are not a completed repository estimator.
 

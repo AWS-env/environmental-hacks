@@ -37,6 +37,10 @@ HOSTED_GROUP = "GitHub Actions"  # runner_group_name of standard GitHub-hosted r
 
 RUNNERS_SOURCE = "https://docs.github.com/en/actions/reference/runners/github-hosted-runners"
 CCF_SOURCE = "https://www.cloudcarbonfootprint.org/docs/methodology/"
+WUE_SOURCE = "https://datacenters.microsoft.com/sustainability/efficiency/"
+WRI_SOURCE = "https://www.wri.org/research/guidance-calculating-water-use-embedded-purchased-electricity"
+WATER_METHOD_SOURCE = "https://arxiv.org/abs/2304.03271"
+LITRES_PER_US_GALLON = 3.785  # the conversion WRI recommends
 # Standard GitHub-hosted runners for public repositories (RUNNERS_SOURCE, "Standard GitHub-hosted runners for public
 # repositories"). Windows and Ubuntu run in Azure; macOS runs in GitHub's own macOS cloud, which publishes no power
 # data, so macOS time is measured but never converted to energy.
@@ -74,6 +78,15 @@ FACTORS = {
                  "note": "lowest CCF factor among Azure US regions (West US, West US 2/3, West Central US; EPA eGRID)"},
     "grid_high": {"value": 0.426254, "unit": "kgCO2e/kWh", "source": CCF_SOURCE,
                   "note": "highest CCF factor among Azure US regions (Central US; EPA eGRID)"},
+    "wue_onsite": {"value": 0.34, "unit": "L/kWh", "source": WUE_SOURCE,
+                   "note": "Microsoft's published water usage effectiveness for the Americas, FY2025: litres used for "
+                           "humidification and cooling per kWh of IT energy"},
+    "ewif_low": {"value": round(0.34 * LITRES_PER_US_GALLON, 4), "unit": "L/kWh", "source": WRI_SOURCE,
+                 "note": "lowest grid water consumption factor among the eGRID subregions of the Azure US regions "
+                         "(ERCT, Texas: 0.34 gal/kWh; WRI 2020, Appendix 1)"},
+    "ewif_high": {"value": round(2.51 * LITRES_PER_US_GALLON, 4), "unit": "L/kWh", "source": WRI_SOURCE,
+                  "note": "highest grid water consumption factor among the eGRID subregions of the Azure US regions "
+                          "(NWPP, Washington: 2.51 gal/kWh; WRI 2020, Appendix 1)"},
 }
 F = {key: spec["value"] for key, spec in FACTORS.items()}
 GRID_ASSUMPTION = ("GitHub does not publish which Azure regions run hosted runners. CO2e assumes Azure US regions "
@@ -82,13 +95,25 @@ ENERGY_FORMULA = ("energy (Wh) = runner vCPUs x runner hours x watts per vCPU x 
                   f"{F['min_watts_per_vcpu']} W x PUE {F['pue_low']}, high end: {F['max_watts_per_vcpu']} W x "
                   f"PUE {F['pue_high']}")
 CO2E_FORMULA = f"CO2e (g) = energy (kWh) x {F['grid_low']}-{F['grid_high']} kgCO2e/kWh x 1000"
+WATER_FORMULA = ("water (mL) = IT energy (Wh) x on-site WUE + energy with PUE (Wh) x grid water factor; on-site "
+                 f"WUE {F['wue_onsite']} L/kWh, grid factor {F['ewif_low']}-{F['ewif_high']} L/kWh (Li et al., "
+                 "Making AI Less \"Thirsty\": water = e x (WUE + PUE x EWIF))")
+WATER_ASSUMPTION = ("Off-site water is consumption (WRI's factors for water not returned at power plants), across the "
+                    "grids of the same Azure US regions as CO2e. On-site water is all the water Microsoft reports using "
+                    "for humidification and cooling (its Americas average, since per-datacenter figures for GitHub's "
+                    "runners are not published), counted in full: an upper bound on what is consumed on site.")
 EXCLUSIONS = [
     "CPU utilisation of CI jobs is not published, so energy spans idle (0%) to full (100%) CPU.",
     "CCF's Azure average watts per vCPU (from x86 servers) are applied to every Azure-hosted runner, including the "
     "arm64 ones, because CCF publishes no separate figure for them.",
     "No separate memory term: CCF adds one only for instance types with more memory per CPU than its SPECpower "
     "baseline, and GitHub's runners are not in CCF's instance lists.",
-    "Embodied hardware emissions, storage, network transfer and water are not included.",
+    "Embodied hardware emissions and embodied water, storage and network transfer are not included.",
+    "Water withdrawn and returned is not reported; on-site cooling water is counted in full, which may include some "
+    "that is discharged rather than consumed.",
+    "The high end of the grid water factor (Washington, NWPP) comes mostly from evaporation at hydropower reservoirs, "
+    "which WRI notes depends on how dams are managed. WRI's factors are modelled from 2018 data (thinkstep GaBi), "
+    "older than the eGRID data behind CO2e.",
     "macOS, self-hosted and larger or custom runners: runner time is measured, energy is not estimated.",
     "Queue time before a job starts is excluded; only time a runner spent on the job counts.",
     "Findings are matched to jobs and steps by name using the workflow file at the scanned commit; measured runs "
@@ -310,6 +335,29 @@ def co2e_g(wh):
     return None if wh is None else (wh[0] / 1000 * F["grid_low"] * 1000, wh[1] / 1000 * F["grid_high"] * 1000)
 
 
+def water_ml(wh):
+    """(low, high) mL consumed for a facility-energy range: on-site cooling on IT energy (energy / PUE) plus the
+    power plants' water on all of it. Wh x L/kWh = mL. None when the energy is unknown."""
+    split = water_split_ml(wh)
+    return None if split is None else (split[0][0] + split[1][0], split[0][1] + split[1][1])
+
+
+def water_split_ml(wh):
+    """((on-site low, high), (off-site low, high)) mL, each end paired with the same end's factors."""
+    if wh is None:
+        return None
+    onsite = (wh[0] / F["pue_low"] * F["wue_onsite"], wh[1] / F["pue_high"] * F["wue_onsite"])
+    offsite = (wh[0] * F["ewif_low"], wh[1] * F["ewif_high"])
+    return onsite, offsite
+
+
+def impacts(wh):
+    """The modelled block for one energy range: energy, CO2e, water and its split."""
+    split = water_split_ml(wh)
+    return {"energy_wh": _r(wh), "co2e_g": _r(co2e_g(wh)), "water_ml": _r(water_ml(wh)),
+            "water_ml_onsite": _r(split[0]) if split else None, "water_ml_offsite": _r(split[1]) if split else None}
+
+
 def _add(a, b):
     return b if a is None else a if b is None else (a[0] + b[0], a[1] + b[1])
 
@@ -396,7 +444,8 @@ def summarize(history, findings=(), files=()):
         measured_runs.append({"id": run["id"], "workflow": run["name"], "path": run["path"], "event": run["event"],
                               "conclusion": run["conclusion"], "attempts": run["run_attempt"],
                               "created_at": run["created_at"], "url": run["html_url"], "runner_seconds": run_seconds,
-                              "energy_wh": _r(run_wh), "jobs": run_jobs})
+                              "energy_wh": _r(run_wh), "co2e_g": _r(co2e_g(run_wh)), "water_ml": _r(water_ml(run_wh)),
+                              "jobs": run_jobs})
 
     workflows, est_seconds, est_wh, est_runs, unsampled_runs, energy_complete = [], 0, None, 0, 0, True
     names = {}
@@ -413,7 +462,8 @@ def summarize(history, findings=(), files=()):
                "by_event": dict(Counter(str(r["event"]) for r in group).most_common()),
                "retried_runs": sum(int(r["run_attempt"] or 1) > 1 for r in group),
                "measured_runs": 0, "measured_seconds": 0, "mean_seconds_per_run": None,
-               "energy_wh_per_run": None, "estimated_seconds": None, "estimated_energy_wh": None}
+               "energy_wh_per_run": None, "estimated_seconds": None, "estimated_energy_wh": None,
+               "estimated_co2e_g": None, "estimated_water_ml": None}
         if stats:
             mean = statistics.fmean(stats["seconds"])
             # Energy is only averaged when every measured run of this workflow ran on runners with published hardware.
@@ -421,7 +471,9 @@ def summarize(history, findings=(), files=()):
             row.update(measured_runs=len(stats["seconds"]), measured_seconds=sum(stats["seconds"]),
                        mean_seconds_per_run=round(mean, 1), energy_wh_per_run=_r(wh_mean),
                        estimated_seconds=round(mean * len(executed)),
-                       estimated_energy_wh=_r(_scale(wh_mean, len(executed))))
+                       estimated_energy_wh=_r(_scale(wh_mean, len(executed))),
+                       estimated_co2e_g=_r(co2e_g(_scale(wh_mean, len(executed)))),
+                       estimated_water_ml=_r(water_ml(_scale(wh_mean, len(executed)))))
             est_seconds += mean * len(executed)
             est_runs += len(executed)
             if wh_mean is None:
@@ -429,22 +481,22 @@ def summarize(history, findings=(), files=()):
             else:
                 est_wh = _add(est_wh, _scale(wh_mean, len(executed)))
         elif not executed:  # every run waited for approval: nothing ran, which is known without measuring
-            row.update(estimated_seconds=0, estimated_energy_wh=[0.0, 0.0])
+            row.update(estimated_seconds=0, estimated_energy_wh=[0.0, 0.0], estimated_co2e_g=[0.0, 0.0],
+                       estimated_water_ml=[0.0, 0.0])
         else:
             unsampled_runs += len(executed)
         workflows.append(row)
 
     executed_total = sum(w["executed_runs"] for w in workflows)
     measured = {"runs": len(measured_runs), "jobs": totals["jobs"], "runner_seconds": totals["seconds"],
-                "energy_covered_seconds": totals["energy_seconds"], "energy_wh": _r(totals["wh"]),
-                "co2e_g": _r(co2e_g(totals["wh"])),
+                "energy_covered_seconds": totals["energy_seconds"], **impacts(totals["wh"]),
                 "seconds_by_runner": dict(totals["by_runner"].most_common()),
                 "jobs_not_counted": dict(totals["excluded"]),
                 "span": [min((r["created_at"] for r in measured_runs), default=None),
                          max((r["created_at"] for r in measured_runs), default=None)]}
     estimate = {"runner_seconds": round(est_seconds), "runs": est_runs, "runs_total": executed_total,
                 "runs_without_sample": unsampled_runs, "measured_runs": len(measured_runs),
-                "energy_wh": _r(est_wh), "co2e_g": _r(co2e_g(est_wh)),
+                **impacts(est_wh),
                 "energy_complete": est_wh is not None and energy_complete,
                 "method": ("per workflow: mean measured runner time per run x that workflow's completed runs in the "
                            "window (runs still waiting for approval ran no jobs and count as zero); workflows with no "
@@ -479,6 +531,8 @@ def summarize(history, findings=(), files=()):
 
 def model_block():
     return {"energy_formula": ENERGY_FORMULA, "co2e_formula": CO2E_FORMULA, "grid_assumption": GRID_ASSUMPTION,
+            "water_formula": WATER_FORMULA, "water_assumption": WATER_ASSUMPTION,
+            "water_method_source": WATER_METHOD_SOURCE,
             "factors": FACTORS, "runner_specs_source": RUNNERS_SOURCE, "exclusions": EXCLUSIONS,
             "runner_specs": {label: dict(spec) for label, spec in RUNNER_SPECS.items()}}
 
@@ -637,14 +691,16 @@ def link_findings(findings, files, history, by_run, workflows):
         wh_mean = _mean_range(step_wh) if energy_known else None
         link["match"] = "step"
         link["step"] = {"name": step_name, "measured_runs": len(step_secs), "mean_seconds_per_run": round(mean, 1),
-                        "energy_wh_per_run": _r(wh_mean)}
+                        "energy_wh_per_run": _r(wh_mean), "co2e_g_per_run": _r(co2e_g(wh_mean)),
+                        "water_ml_per_run": _r(water_ml(wh_mean))}
         if finding["check_id"] in STEP_TARGETS:
             runs_n = row["executed_runs"]
             link["step_in_window"] = {"targets": STEP_TARGETS[finding["check_id"]], "seconds_per_run": round(mean, 1),
                                       "measured_runs": len(step_secs), "runs": runs_n,
                                       "seconds_in_window": round(mean * runs_n),
                                       "energy_wh_in_window": _r(_scale(wh_mean, runs_n)),
-                                      "co2e_g_in_window": _r(co2e_g(_scale(wh_mean, runs_n)))}
+                                      "co2e_g_in_window": _r(co2e_g(_scale(wh_mean, runs_n))),
+                                      "water_ml_in_window": _r(water_ml(_scale(wh_mean, runs_n)))}
     return links
 
 

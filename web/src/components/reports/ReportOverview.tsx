@@ -17,7 +17,7 @@ import {
   formatBytes,
   formatDate,
 } from "./parts";
-import { CiImpactPanel, ImpactKpi } from "./ReportImpact";
+import { CarbonWaterKpi, CiImpactPanel, EnergyKpi } from "./ReportImpact";
 
 const TOP_CHECKS = 10;
 const IMPACT_STATUS: Record<string, string> = { ci_measured: "CI workload measured", not_quantified: "Not quantified" };
@@ -83,7 +83,7 @@ export default function ReportOverview({ model, totals, comparison, onPickCheck,
       ))}
 
       {/* KPIs */}
-      <div className="rp-grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="rp-grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5">
         <section className="rp-panel rp-kpi" aria-label="Findings">
           <div className="rp-kpi-top"><span className="rp-icon"><ScanSearch size={18} strokeWidth={1.5} /></span><div><h2>Findings</h2><p>Source patterns at a cited line</p></div></div>
           <div className="rp-kpi-value">{fmt(totals.findings)}</div>
@@ -108,7 +108,8 @@ export default function ReportOverview({ model, totals, comparison, onPickCheck,
             </>
           )}
         </section>
-        <ImpactKpi model={model} />
+        <EnergyKpi model={model} />
+        <CarbonWaterKpi model={model} />
       </div>
 
       {comparison && (

@@ -86,11 +86,14 @@ export interface CiFindingLink {
   mean_seconds_per_run: number | null;
   match: "none" | "workflow" | "job" | "step";
   job: { name: string; measured_runs: number; executions: number; mean_seconds_per_run: number } | null;
-  step: { name: string; measured_runs: number; mean_seconds_per_run: number; energy_wh_per_run: Range | null } | null;
+  step: {
+    name: string; measured_runs: number; mean_seconds_per_run: number; energy_wh_per_run: Range | null;
+    co2e_g_per_run?: Range | null; water_ml_per_run?: Range | null;
+  } | null;
   /** What the cited step spent across the window's runs (estimated), for checks whose fix targets that step. Not a saving. */
   step_in_window: {
     targets: string; seconds_per_run: number; measured_runs: number; runs: number; seconds_in_window: number;
-    energy_wh_in_window: Range | null; co2e_g_in_window: Range | null;
+    energy_wh_in_window: Range | null; co2e_g_in_window: Range | null; water_ml_in_window?: Range | null;
   } | null;
   note: string | null;
 }
@@ -111,6 +114,17 @@ export interface CiWorkflow {
   energy_wh_per_run: Range | null;
   estimated_seconds: number | null;
   estimated_energy_wh: Range | null;
+  estimated_co2e_g?: Range | null;
+  estimated_water_ml?: Range | null;
+}
+
+/** The modelled figures for one energy range (scanner/ci_impact.py `impacts`). Water is consumption, in mL. */
+export interface CiImpacts {
+  energy_wh: Range | null;
+  co2e_g: Range | null;
+  water_ml?: Range | null;
+  water_ml_onsite?: Range | null;
+  water_ml_offsite?: Range | null;
 }
 
 /** The report's measured CI workload from public GitHub Actions history (scanner/ci_impact.py `summarize`). */
@@ -127,22 +141,23 @@ export interface CiImpact {
   };
   model?: {
     energy_formula: string; co2e_formula: string; grid_assumption: string; runner_specs_source: string;
+    water_formula?: string; water_assumption?: string; water_method_source?: string;
     factors: Record<string, CiFactor>; exclusions: string[];
   };
   workflows?: CiWorkflow[];
-  measured?: {
+  measured?: CiImpacts & {
     runs: number; jobs: number; runner_seconds: number; energy_covered_seconds: number;
-    energy_wh: Range | null; co2e_g: Range | null; seconds_by_runner: Record<string, number>;
-    jobs_not_counted: Record<string, number>; span: [string | null, string | null];
+    seconds_by_runner: Record<string, number>; jobs_not_counted: Record<string, number>;
+    span: [string | null, string | null];
   };
-  estimate?: {
+  estimate?: CiImpacts & {
     runner_seconds: number; runs: number; runs_total: number; runs_without_sample: number; measured_runs: number;
-    energy_wh: Range | null;
-    co2e_g: Range | null; energy_complete: boolean; method: string;
+    energy_complete: boolean; method: string;
   };
   measured_runs?: {
     id: number; workflow: string; path: string; event: string; conclusion: string | null; attempts: number;
     created_at: string; url: string; runner_seconds: number; energy_wh: Range | null;
+    co2e_g?: Range | null; water_ml?: Range | null;
   }[];
   finding_links?: Record<string, CiFindingLink>;
   limitations?: string[];

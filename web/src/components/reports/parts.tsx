@@ -43,13 +43,13 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${Math.floor(total / 60)} h${total % 60 ? ` ${total % 60} min` : ""}`;
 }
 
-/** Enough digits to keep the low and high ends of a range distinguishable. */
-const sig = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 0 : n >= 10 ? 1 : n >= 1 ? 2 : 3 });
+/** Two significant digits below 100, whole numbers above: a modelled range is not more precise than that. */
+const sig = (n: number) => n.toLocaleString("en-US", n >= 100 ? { maximumFractionDigits: 0 } : { maximumSignificantDigits: 2 });
 
-/** A modelled [low, high] range in the unit that keeps it readable: Wh -> kWh, g -> kg. */
-export function formatRange(range: [number, number] | null | undefined, unit: "Wh" | "gCO2e"): string {
+/** A modelled [low, high] range in the unit that keeps it readable: Wh -> kWh, g -> kg, mL -> L. */
+export function formatRange(range: [number, number] | null | undefined, unit: "Wh" | "gCO2e" | "mL"): string {
   if (!range) return "not estimated";
-  const [base, big] = unit === "Wh" ? ["Wh", "kWh"] : ["g CO₂e", "kg CO₂e"];
+  const [base, big] = unit === "Wh" ? ["Wh", "kWh"] : unit === "mL" ? ["mL", "L"] : ["g CO₂e", "kg CO₂e"];
   const scale = range[1] >= 1000 ? 1000 : 1;
   const [low, high] = [sig(range[0] / scale), sig(range[1] / scale)];
   return `${low === high ? low : `${low}–${high}`} ${scale === 1 ? base : big}`;
