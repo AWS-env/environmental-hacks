@@ -211,7 +211,23 @@ Stable fingerprints help track findings when lines move. The shared comparison l
 
 ## Environmental measurements
 
-Repository-only reports explicitly use **`impact.status = not_quantified`**. Finding counts do not determine watts, CO₂e, water use or savings.
+Finding counts never determine watts, CO₂e, water use or savings. A report quantifies impact only from measured data, and says why when it has none (`impact.status = not_quantified` with a reason).
+
+### Measured CI workload
+
+For a public GitHub repository, the scanner also reads the repository's **public GitHub Actions history** ([`scanner/ci_impact.py`](scanner/ci_impact.py)). It uses no credentials, executes nothing and makes at most 13 unauthenticated API requests per scan (one runs listing and up to 12 job listings, spread across workflows and over the window). When CI is measured, `impact.status` is `ci_measured` and `impact.ci` holds three separate tiers:
+
+| Tier | What | How |
+| --- | --- | --- |
+| **Measured** | Runs in the last 30 days by workflow, event and conclusion; runner time of the sampled runs | Straight from the GitHub API: each job's `completed_at − started_at`. Jobs GitHub re-lists from an earlier attempt are counted once; queue time is excluded; runs awaiting a maintainer's approval ran nothing |
+| **Modelled** | Energy and CO₂e, always as a low–high range | Runner vCPUs ([GitHub-hosted runners reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)) × hours × 0.78–3.76 W per vCPU × Azure PUE 1.125–1.185 ([Cloud Carbon Footprint](https://www.cloudcarbonfootprint.org/docs/methodology/)). CO₂e assumes Azure US regions (0.322–0.426 kgCO₂e/kWh, CCF/EPA eGRID) because GitHub does not publish runner regions |
+| **Estimated** | Each workflow's runner time over the window, and for CI findings whose cited line sits in a step that GitHub's job and step names match exactly, what that step spent | A measured mean × an exact run count, always shown with the number of measured runs behind it. A step's time is what it cost, not a promised saving, and is shown only where the fix targets that step (CI-06, CI-07) |
+
+- macOS, self-hosted and larger or custom runners: time is measured, energy is not estimated. Embodied emissions, storage, network and water are not included.
+- No Actions runs, another CI system, a local directory scan or an exhausted API rate limit all leave the impact `not_quantified` with the reason; nothing is estimated in its place.
+- GitHub allows 60 unauthenticated requests per hour per network address, shared with the commit lookup the scan already makes. Busy networks (including shared cloud egress) can run out; the report then names the limit and its reset time.
+- Other code findings are labelled "not priced": their runtime cost needs telemetry a repository scan does not have.
+- `python -m scanner scan <url> --no-ci-history` skips the API calls.
 
 [run-it](run_it/README.md) is a separate, opt-in local tool. It can observe current-user processes or launch a command you choose, measure its process tree where supported, and expose live state to `/environment` through a loopback-only endpoint.
 

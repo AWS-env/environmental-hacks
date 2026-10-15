@@ -5,6 +5,8 @@ import { Copy, ExternalLink } from "lucide-react";
 import {
   CONFIDENCES,
   NO_FILTERS,
+  ciLinkOf,
+  ciOf,
   filterFindings,
   safeUrl,
   sourceLink,
@@ -13,6 +15,7 @@ import {
   type ReportModel,
 } from "@/lib/report-model";
 import { ConfidenceBadge, ConfidenceDot, EvidenceBlock, StatusBadge, cap, copyText, fmt, layerName, plural } from "./parts";
+import { FindingImpact } from "./ReportImpact";
 
 const PAGE = 60;
 
@@ -65,6 +68,9 @@ function FindingDetail({ finding, model, isNew, onCopied }: {
             {finding.evidence.map((item, i) => <EvidenceBlock key={i} item={item} />)}
           </section>
         )}
+
+        <FindingImpact link={ciLinkOf(model, finding.id)} isCi={finding.checkId.startsWith("CI-")}
+          ciMeasured={ciOf(model)?.status === "measured"} />
 
         <section>
           <p className="rp-section-label">Recommended fix</p>

@@ -9,6 +9,7 @@ from pathlib import Path
 from unittest import mock
 
 from scan_api import hub, store, worker
+from scanner import ci_impact
 from shared.contracts.validation import validate
 from test_scan_api import SERVICE, SHA, FakeS3, make_tarball
 
@@ -44,7 +45,9 @@ class WorkerHubTest(unittest.TestCase):
         top = "owner-repo-aaaaaaa"
         make_tarball(fixture, [(top, None), (f"{top}/app", None), (f"{top}/app/service.py", SERVICE)])
         scan_id = str(uuid.uuid4())
+        offline = ci_impact.Unavailable("offline test")
         with mock.patch.object(worker, "resolve_sha", return_value=SHA), \
+                mock.patch.object(ci_impact, "http_fetch", side_effect=offline), \
                 mock.patch.object(worker, "download", side_effect=lambda url, path: shutil.copy(fixture, path)):
             worker.handler({"scan_id": scan_id, "repo_url": "https://github.com/owner/repo"})
         return scan_id, self.s3.json(scan_id, "status.json"), self.s3.json(scan_id, "report.json")

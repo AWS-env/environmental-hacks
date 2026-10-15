@@ -3,7 +3,7 @@
  * from the findings-hub copy of the same scan (detector-validated checks only, no taxonomy metadata).
  * Nothing here invents values: a field the source does not carry stays null and the page says so.
  */
-import type { CheckStatus, Confidence, Evidence, HubScan, Measurement, ScanReport } from "./scan-api";
+import type { CheckStatus, CiFindingLink, CiImpact, Confidence, Evidence, HubScan, Measurement, ScanReport } from "./scan-api";
 import { primaryLocation } from "./scan-view";
 
 export type ReportOrigin = "scan" | "hub" | "sample" | "file";
@@ -256,3 +256,10 @@ export function commitLink(model: ReportModel): string | null {
 }
 
 export const measurementsOf = (model: ReportModel): Measurement[] => model.impact?.detector_measurements ?? [];
+
+/** The measured CI block, or null for copies without one (hub copies, reports from older scanners). */
+export const ciOf = (model: ReportModel): CiImpact | null => model.impact?.ci ?? null;
+
+/** A finding's measured CI context, only when the report linked it. */
+export const ciLinkOf = (model: ReportModel, findingId: string): CiFindingLink | null =>
+  ciOf(model)?.finding_links?.[findingId] ?? null;

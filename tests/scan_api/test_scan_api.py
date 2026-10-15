@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from scan_api import api, store, worker
+from scanner import ci_impact
 
 SHA = "a" * 40
 SERVICE = b"def add_item(item, bucket=[]):\n    bucket.append(item)\n    return bucket\n"
@@ -154,8 +155,10 @@ class ScanApiTest(unittest.TestCase):
         make_tarball(fixture, [(top, None), (f"{top}/app", None), (f"{top}/app/service.py", SERVICE),
                                (f"{top}/escape", ("symlink", "/etc/passwd"))])
         scan_id = str(uuid.uuid4())
+        offline = ci_impact.Unavailable("the GitHub API could not be reached (offline test)")
         with mock.patch.object(worker, "resolve_sha", return_value=SHA), \
                 mock.patch.object(worker, "LAMBDA_OWNERS", {"C", "D"}), \
+                mock.patch.object(ci_impact, "http_fetch", side_effect=offline) as gh, \
                 mock.patch.object(worker, "download", side_effect=lambda url, path: shutil.copy(fixture, path)) as dl:
             worker.handler({"scan_id": scan_id, "repo_url": "https://github.com/owner/repo"})
 
@@ -168,6 +171,12 @@ class ScanApiTest(unittest.TestCase):
         self.assertIn(("PY-09", "app/service.py", 1), [(f["check_id"], f["file"], f["line"]) for f in report["findings"]])
         unavailable = {a["owner"]: a["reason"] for a in report["adapters"] if a["status"] == "unavailable"}
         self.assertEqual(unavailable, {"A": worker.NODE_REASON, "B": worker.NODE_REASON})
+        # The worker reads the repository's public Actions history; when GitHub cannot be reached the scan still
+        # completes and the impact says why instead of showing numbers.
+        self.assertTrue(gh.call_args.args[0].startswith("https://api.github.com/repos/owner/repo/actions/runs?"))
+        self.assertEqual(report["impact"]["status"], "not_quantified")
+        self.assertEqual(report["impact"]["ci"]["status"], "unavailable")
+        self.assertIn("offline test", report["impact"]["ci"]["reason"])
 
     def test_worker_failure_records_error(self):
         scan_id = str(uuid.uuid4())

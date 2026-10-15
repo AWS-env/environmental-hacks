@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Activity, FileCode2, Leaf, ListChecks, ScanSearch } from "lucide-react";
+import { Activity, FileCode2, ListChecks, ScanSearch } from "lucide-react";
 import type { Comparison } from "@/lib/report-store";
 import { CONFIDENCES, STATUSES, findingsByCheck, measurementsOf, safeUrl, type ReportModel, type ReportTotals } from "@/lib/report-model";
 import {
@@ -16,10 +16,11 @@ import {
   layerName,
   formatBytes,
   formatDate,
-  plural,
 } from "./parts";
+import { CiImpactPanel, ImpactKpi } from "./ReportImpact";
 
 const TOP_CHECKS = 10;
+const IMPACT_STATUS: Record<string, string> = { ci_measured: "CI workload measured", not_quantified: "Not quantified" };
 
 function countBy(values: (string | null)[]): [string, number][] {
   const counts = new Map<string, number>();
@@ -107,11 +108,7 @@ export default function ReportOverview({ model, totals, comparison, onPickCheck,
             </>
           )}
         </section>
-        <section className="rp-panel rp-kpi" aria-label="Environmental impact">
-          <div className="rp-kpi-top"><span className="rp-icon"><Leaf size={18} strokeWidth={1.5} /></span><div><h2>Environmental impact</h2><p>Energy, emissions and water</p></div></div>
-          <div className="rp-kpi-value is-text">{measurements.length ? plural(measurements.length, "measurement") : "Not quantified"}</div>
-          <p className="rp-kpi-foot">A repository scan has no telemetry, so no impact figures are estimated. See below.</p>
-        </section>
+        <ImpactKpi model={model} />
       </div>
 
       {comparison && (
@@ -195,7 +192,7 @@ export default function ReportOverview({ model, totals, comparison, onPickCheck,
             ))}
           </ul>
         </Panel>
-        <Panel title="Environmental impact" hint={model.impact ? cap(model.impact.status.replace(/_/g, " ")) : "Not in this copy"} labelledBy="impact-h">
+        <Panel title="Environmental impact" hint={model.impact ? IMPACT_STATUS[model.impact.status] ?? cap(model.impact.status.replace(/_/g, " ")) : "Not in this copy"} labelledBy="impact-h">
           <p className="text-[12.5px] leading-relaxed text-[#c3cdd2]">
             {model.impact?.explanation ?? "The findings hub stores check results and findings only, so this copy has no impact section."}
           </p>
@@ -223,6 +220,8 @@ export default function ReportOverview({ model, totals, comparison, onPickCheck,
           )}
         </Panel>
       </div>
+
+      <CiImpactPanel model={model} />
     </div>
   );
 }
