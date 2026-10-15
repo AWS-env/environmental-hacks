@@ -178,6 +178,50 @@ class SummarizeTest(unittest.TestCase):
         for spec in ci["model"]["factors"].values():
             self.assertTrue(spec["source"].startswith("https://"))
 
+    def test_water_is_on_site_cooling_plus_power_plant_consumption(self):
+        ci = ci_impact.summarize(history([run(1)], {"1": [job("test", "2026-10-14T10:00:00Z", "2026-10-14T11:00:00Z")]}))
+        f, m = ci_impact.F, ci["measured"]
+        it_low, it_high = 4 * f["min_watts_per_vcpu"], 4 * f["max_watts_per_vcpu"]  # Wh of IT energy, before PUE
+        onsite = [it_low * f["wue_onsite"], it_high * f["wue_onsite"]]  # Wh x L/kWh = mL
+        offsite = [it_low * f["pue_low"] * f["ewif_low"], it_high * f["pue_high"] * f["ewif_high"]]
+        self.assertEqual(m["water_ml_onsite"], [round(x, 4) for x in onsite])
+        self.assertEqual(m["water_ml_offsite"], [round(x, 4) for x in offsite])
+        self.assertEqual(m["water_ml"], [round(onsite[0] + offsite[0], 4), round(onsite[1] + offsite[1], 4)])
+        self.assertEqual(f["ewif_low"], round(0.34 * 3.785, 4))  # WRI's gal/kWh, converted as WRI recommends
+        self.assertEqual(f["ewif_high"], round(2.51 * 3.785, 4))
+        self.assertIn("consumption", ci["model"]["water_assumption"])
+        wf = ci["workflows"][0]
+        self.assertEqual(wf["estimated_water_ml"], m["water_ml"])  # one run in the window, measured
+        self.assertEqual(ci["measured_runs"][0]["water_ml"], m["water_ml"])
+        self.assertIsNone(ci_impact.water_ml(None))  # no energy, no water
+
+    def test_factors_are_the_published_values(self):
+        # A silent edit to a factor must fail here: each value is what its cited source states.
+        self.assertEqual({k: ci_impact.F[k] for k in ci_impact.F}, {
+            "min_watts_per_vcpu": 0.78, "max_watts_per_vcpu": 3.76,  # CCF, Azure averages
+            "pue_low": 1.125, "pue_high": 1.185,  # CCF appendix / Microsoft fleet trailing 12 months
+            "grid_low": 0.322167, "grid_high": 0.426254,  # CCF, Azure US regions (EPA eGRID)
+            "wue_onsite": 0.34,  # Microsoft, Americas FY2025
+            "ewif_low": 1.2869, "ewif_high": 9.5003,  # WRI 2020 Appendix 1: 0.34 and 2.51 gal/kWh x 3.785
+        })
+
+    def test_water_follows_the_energy_and_its_gaps(self):
+        jobs = {"1": [job("linux", t(0), t(1))], "2": [job("mac", t(0), t(2), labels=["macos-latest"])]}
+        runs = [run(1), run(2), run(3, path=".github/workflows/fork.yml", conclusion=ci_impact.AWAITING)]
+        ci = ci_impact.summarize(history(runs, jobs))
+        main = next(w for w in ci["workflows"] if w["path"] == ".github/workflows/ci.yml")
+        self.assertIsNone(main["estimated_energy_wh"])  # one measured run had no energy: nothing is averaged
+        self.assertIsNone(main["estimated_water_ml"])
+        self.assertIsNone(main["estimated_co2e_g"])
+        fork = next(w for w in ci["workflows"] if w["path"] == ".github/workflows/fork.yml")
+        self.assertEqual(fork["estimated_water_ml"], [0.0, 0.0])  # nothing ran while it waited for approval
+        self.assertIsNone(ci["estimate"]["water_ml"])
+        self.assertEqual(set(ci_impact.impacts(None)), {"energy_wh", "co2e_g", "water_ml", "water_ml_onsite",
+                                                        "water_ml_offsite"})
+        whole = ci_impact.summarize(history([run(1)], {"1": [job("linux", t(0), t(1))]}))["estimate"]
+        self.assertEqual(whole["water_ml"], [round(whole["water_ml_onsite"][i] + whole["water_ml_offsite"][i], 4)
+                                             for i in (0, 1)])
+
     def test_runners_without_published_hardware_get_time_but_no_energy(self):
         jobs = {"1": [job("linux", t(0), t(1)), job("mac", t(0), t(2), labels=["macos-latest"]),
                       job("own", t(0), t(3), labels=["self-hosted", "linux"], group="Default"),
@@ -225,6 +269,11 @@ class SummarizeTest(unittest.TestCase):
         self.assertIn("no GitHub Actions runs in the last 30 days", ci["reason"])
 
 
+def spent_wh(spent):
+    """The step's window energy, recomputed from its own figures: (low, high) Wh."""
+    return tuple(spent["energy_wh_in_window"])
+
+
 class FindingLinkTest(unittest.TestCase):
     def finding(self, check, line, path=".github/workflows/ci.yml"):
         return {"id": f"{check}-{line}", "check_id": check, "file": path, "line": line}
@@ -254,6 +303,9 @@ class FindingLinkTest(unittest.TestCase):
         self.assertEqual(link["step_in_window"]["runs"], 3)
         self.assertEqual(link["step_in_window"]["measured_runs"], 2)
         self.assertEqual(link["step_in_window"]["seconds_in_window"], 150)
+        spent = link["step_in_window"]
+        for got, want in zip(spent["water_ml_in_window"], ci_impact.water_ml(spent_wh(spent))):
+            self.assertAlmostEqual(got, want, places=3)  # recomputed from the rounded energy
         self.assertNotIn("save", str(link).lower())  # spent time, never a promised saving
 
     def test_checks_whose_cost_is_not_the_cited_step_get_no_window_time(self):

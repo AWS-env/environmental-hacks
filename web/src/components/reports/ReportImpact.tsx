@@ -1,7 +1,7 @@
 "use client";
 
-import { Gauge, Leaf } from "lucide-react";
-import type { CiFindingLink } from "@/lib/scan-api";
+import { Gauge, Leaf, Zap } from "lucide-react";
+import type { CiFindingLink, Range } from "@/lib/scan-api";
 import { ciOf, measurementsOf, safeUrl, type ReportModel } from "@/lib/report-model";
 import { Panel, Tier, cap, fmt, formatDate, formatDuration, formatRange, plural } from "./parts";
 
@@ -15,45 +15,118 @@ const FACTOR_LABELS: Record<string, string> = {
   pue_high: "PUE, high end",
   grid_low: "Grid factor, low end",
   grid_high: "Grid factor, high end",
+  wue_onsite: "On-site WUE (cooling)",
+  ewif_low: "Grid water factor, low end",
+  ewif_high: "Grid water factor, high end",
 };
 
-/** Overview KPI: measured CI runner time when the report has it, otherwise why nothing is quantified. */
-export function ImpactKpi({ model }: { model: ReportModel }) {
+/** Why a card has no figures: the CI reason when there is one, otherwise the repository-scan default. */
+function notQuantifiedReason(model: ReportModel): string {
+  const ci = ciOf(model);
+  return ci && ci.status !== "not_collected" && ci.reason
+    ? `${cap(ci.reason)}. Nothing is estimated in its place.`
+    : "A repository scan has no telemetry, so no impact figures are estimated. See below.";
+}
+
+/** "after Sep 23" / "since Sep 15": the window's start, for one-line labels. */
+function windowLabel(model: ReportModel): string {
+  const w = ciOf(model)?.window;
+  return w ? `${w.start_exclusive ? "after" : "since"} ${formatDay(w.start)}` : "in the window";
+}
+
+/** A range as a KPI value: the numbers large, the unit small, like the other cards' "72 / 130". */
+function KpiRange({ range, unit, text, label }: { range: Range; unit: "Wh" | "gCO2e" | "mL"; text?: boolean; label?: string }) {
+  const formatted = formatRange(range, unit);
+  const split = formatted.indexOf(" ");
+  // Long ranges ("1,200–5,800") step down to the cards' text size instead of overflowing a fifth-width card.
+  const small = text || split > 9;
+  return (
+    <div className={`rp-kpi-value whitespace-nowrap${small ? " is-text" : ""}`}>
+      {formatted.slice(0, split)}<small>{formatted.slice(split + 1)}{label && ` ${label}`}</small>
+    </div>
+  );
+}
+
+/** A range for a table cell: "–" when the report predates the field (absent), "not estimated" when it is null. */
+const cell = (range: Range | null | undefined, unit: "Wh" | "gCO2e" | "mL") => (range === undefined ? "–" : formatRange(range, unit));
+
+/** ", 0.27–1.8 g CO2e" style suffixes, only for fields this report has. */
+const extra = (range: Range | null | undefined, unit: "gCO2e" | "mL", label = "") =>
+  range === undefined ? "" : `, ${formatRange(range, unit)}${label}`;
+
+/** Overview KPI: modelled energy of the measured CI runs, with the runner time it comes from. */
+export function EnergyKpi({ model }: { model: ReportModel }) {
   const ci = ciOf(model);
   const measurements = measurementsOf(model);
   const m = ci?.status === "measured" ? ci.measured : undefined;
   const est = ci?.estimate;
   const partial = m && m.energy_covered_seconds < m.runner_seconds;
   return (
-    <section className="rp-panel rp-kpi" aria-label="Environmental impact">
+    <section className="rp-panel rp-kpi" aria-label="Energy">
+      <div className="rp-kpi-top">
+        <span className="rp-icon"><Zap size={18} strokeWidth={1.5} /></span>
+        <div><h2>Energy</h2><p>{m ? "CI workload from public GitHub Actions history" : "Energy used by the workload"}</p></div>
+      </div>
+      {m && m.energy_wh ? (
+        <>
+          <KpiRange range={m.energy_wh} unit="Wh" />
+          <p className="rp-kpi-foot">
+            Modelled from {formatDuration(m.runner_seconds)} of runner time measured on {plural(m.runs, "run")}
+            {partial && `; covers the ${formatDuration(m.energy_covered_seconds)} on runners with published hardware`}
+          </p>
+          {est && est.runs > 0 && est.energy_complete && (
+            <p className="rp-kpi-foot">
+              {fmt(est.runs)} of {plural(est.runs_total, "run")} {windowLabel(model)}: ≈ {formatRange(est.energy_wh, "Wh")} over {formatDuration(est.runner_seconds)}, estimated from {plural(est.measured_runs, "measured run")}
+            </p>
+          )}
+        </>
+      ) : m ? (
+        <>
+          <div className="rp-kpi-value is-text">Not estimated</div>
+          <p className="rp-kpi-foot">{formatDuration(m.runner_seconds)} of runner time measured on {plural(m.runs, "run")}, on runners whose hardware is not published (macOS, self-hosted or custom).</p>
+        </>
+      ) : (
+        <>
+          <div className="rp-kpi-value is-text">{measurements.length ? plural(measurements.length, "measurement") : "Not quantified"}</div>
+          <p className="rp-kpi-foot">{notQuantifiedReason(model)}</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+/** Overview KPI: CO2e and water, both modelled from the energy under stated region assumptions. */
+export function CarbonWaterKpi({ model }: { model: ReportModel }) {
+  const ci = ciOf(model);
+  const m = ci?.status === "measured" ? ci.measured : undefined;
+  const est = ci?.estimate;
+  return (
+    <section className="rp-panel rp-kpi sm:col-span-2 xl:col-span-1" aria-label="Carbon and water">
       <div className="rp-kpi-top">
         <span className="rp-icon"><Leaf size={18} strokeWidth={1.5} /></span>
-        <div><h2>Environmental impact</h2><p>{m ? "CI workload from public GitHub Actions history" : "Energy, emissions and water"}</p></div>
+        <div><h2>Carbon &amp; water</h2><p>{m?.energy_wh ? "Modelled from the energy, Azure US regions assumed" : "Emissions and water"}</p></div>
       </div>
-      {m ? (
+      {m && m.energy_wh && m.co2e_g ? (
         <>
-          <div className="rp-kpi-value">{formatDuration(m.runner_seconds)}<small>runner time</small></div>
+          <div className="flex flex-col gap-2">
+            <KpiRange range={m.co2e_g} unit="gCO2e" text />
+            {m.water_ml && <KpiRange range={m.water_ml} unit="mL" text label="water" />}
+          </div>
           <p className="rp-kpi-foot">
-            Measured on {plural(m.runs, "run")} ·{" "}
-            {m.energy_wh
-              ? <>≈ {formatRange(m.energy_wh, "Wh")}, {formatRange(m.co2e_g, "gCO2e")} modelled{partial && ` (energy covers ${formatDuration(m.energy_covered_seconds)} of it)`}</>
-              : "energy not estimated: runner hardware not published"}
+            {m.water_ml === undefined
+              ? "Water is not in this report: it was scanned before water was added. Scan again to see it."
+              : `Water: ${formatRange(m.water_ml_onsite, "mL")} used cooling the datacenter, ${formatRange(m.water_ml_offsite, "mL")} consumed at power plants`}
           </p>
-          {est && est.runs > 0 && (
+          {est && est.runs > 0 && est.energy_complete && (
             <p className="rp-kpi-foot">
-              {fmt(est.runs)} of {plural(est.runs_total, "run")} {ci?.window ? `${ci.window.start_exclusive ? "after" : "since"} ${formatDay(ci.window.start)}` : "in the window"}: ≈ {formatDuration(est.runner_seconds)}
-              {est.energy_complete ? ` · ${formatRange(est.energy_wh, "Wh")}` : ""}, estimated from {plural(est.measured_runs, "measured run")}
+              {fmt(est.runs)} of {plural(est.runs_total, "run")} {windowLabel(model)}: ≈ {formatRange(est.co2e_g, "gCO2e")}{extra(est.water_ml, "mL", " water")}, estimated
             </p>
           )}
         </>
       ) : (
         <>
-          <div className="rp-kpi-value is-text">{measurements.length ? plural(measurements.length, "measurement") : "Not quantified"}</div>
-          <p className="rp-kpi-foot">
-            {ci && ci.status !== "not_collected" && ci.reason
-              ? `${cap(ci.reason)}. Nothing is estimated in its place.`
-              : "A repository scan has no telemetry, so no impact figures are estimated. See below."}
-          </p>
+          <div className="rp-kpi-value is-text">{m ? "Not estimated" : "Not quantified"}</div>
+          <p className="rp-kpi-foot">{m ? "No energy could be modelled for these runners, so neither can carbon or water." : notQuantifiedReason(model)}</p>
         </>
       )}
     </section>
@@ -66,18 +139,18 @@ export function CiImpactPanel({ model }: { model: ReportModel }) {
   if (!ci || ci.status === "not_collected") return null;
   const { window: w, measured: m, estimate: est, model: mdl } = ci;
   const source = safeUrl(ci.source);
-  const hint = ci.status === "measured" ? "Measured runner time, modelled energy. Code findings are not priced here."
+  const hint = ci.status === "measured" ? "Measured runner time; modelled energy, carbon and water. Code findings are not priced here."
     : ci.reason ?? "Not measured";
 
   return (
     <Panel title="Measured CI workload" icon={<Gauge size={18} strokeWidth={1.5} />} hint={hint} labelledBy="ci-h">
       {ci.status !== "measured" ? (
         <p className="text-[12.5px] leading-relaxed text-[#c3cdd2]">
-          {ci.reason ? `${cap(ci.reason)}.` : "CI history was not measured."} No runner time, energy or CO₂e is shown in its place.
+          {ci.reason ? `${cap(ci.reason)}.` : "CI history was not measured."} No runner time, energy, CO₂e or water is shown in its place.
         </p>
       ) : (
         <div className="flex flex-col gap-5">
-          <div className="rp-grid grid-cols-1 lg:grid-cols-3">
+          <div className="rp-grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4">
             <div className="flex flex-col gap-2">
               <div className="flex items-center gap-2"><p className="rp-section-label !mb-0">Measured</p><Tier tier="measured" /></div>
               <p className="font-mono text-xl text-[#f3f6f7]">{formatDuration(m?.runner_seconds)}</p>
@@ -86,12 +159,23 @@ export function CiImpactPanel({ model }: { model: ReportModel }) {
               </p>
             </div>
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-2"><p className="rp-section-label !mb-0">Energy and CO₂e</p><Tier tier="modelled" /></div>
+              <div className="flex items-center gap-2"><p className="rp-section-label !mb-0">Energy</p><Tier tier="modelled" /></div>
               <p className="font-mono text-xl text-[#f3f6f7]">{formatRange(m?.energy_wh, "Wh")}</p>
               <p className="text-[11px] leading-relaxed text-[#93a0a6]">
                 {m?.energy_wh
-                  ? <>{formatRange(m.co2e_g, "gCO2e")} for the same measured runs{m.energy_covered_seconds < m.runner_seconds && `; energy covers ${formatDuration(m.energy_covered_seconds)} on runners with published hardware`}.</>
+                  ? <>For the same measured runs{m.energy_covered_seconds < m.runner_seconds ? `; covers ${formatDuration(m.energy_covered_seconds)} on runners with published hardware` : ""}.</>
                   : "The measured jobs ran on runners whose hardware is not published (macOS, self-hosted or custom), so no energy is estimated."}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-2"><p className="rp-section-label !mb-0">Carbon &amp; water</p><Tier tier="modelled" /></div>
+              <p className="font-mono text-xl text-[#f3f6f7]">{formatRange(m?.co2e_g, "gCO2e")}</p>
+              {m?.water_ml !== undefined && <p className="font-mono text-[15px] text-[#dfe6e9]">{formatRange(m.water_ml, "mL")} water</p>}
+              <p className="text-[11px] leading-relaxed text-[#93a0a6]">
+                {m?.water_ml === undefined ? "Water is not in this report: it was scanned before water was added."
+                  : m.water_ml
+                    ? <>Water: {formatRange(m.water_ml_onsite, "mL")} used cooling the datacenter, {formatRange(m.water_ml_offsite, "mL")} consumed at power plants.</>
+                    : "Follows the energy: not estimated without it."}
               </p>
             </div>
             <div className="flex flex-col gap-2">
@@ -99,7 +183,7 @@ export function CiImpactPanel({ model }: { model: ReportModel }) {
               <p className="font-mono text-xl text-[#f3f6f7]">{est && est.runs ? formatDuration(est.runner_seconds) : "not estimated"}</p>
               <p className="text-[11px] leading-relaxed text-[#93a0a6]">
                 {est && est.runs
-                  ? <>{fmt(est.runs)} of {plural(est.runs_total, "run")}, scaled from {plural(est.measured_runs, "measured run")}: ≈ {formatRange(est.energy_wh, "Wh")}, {formatRange(est.co2e_g, "gCO2e")}{!est.energy_complete && " (energy only for workflows whose measured runs all had published hardware)"}{est.runs_without_sample > 0 && `; ${plural(est.runs_without_sample, "run")} in workflows with no measured run are left out`}.</>
+                  ? <>{fmt(est.runs)} of {plural(est.runs_total, "run")}, scaled from {plural(est.measured_runs, "measured run")}: ≈ {formatRange(est.energy_wh, "Wh")}, {formatRange(est.co2e_g, "gCO2e")}{extra(est.water_ml, "mL", " water")}{!est.energy_complete && " (energy only for workflows whose measured runs all had published hardware)"}{est.runs_without_sample > 0 && `; ${plural(est.runs_without_sample, "run")} in workflows with no measured run are left out`}.</>
                   : "No workflow had a measured run to scale."}
               </p>
             </div>
@@ -116,7 +200,7 @@ export function CiImpactPanel({ model }: { model: ReportModel }) {
           {ci.workflows && ci.workflows.length > 0 && (
             <div className="rp-table-wrap">
               <table className="rp-table">
-                <thead><tr><th>Workflow</th><th>Runs</th><th>Measured runs</th><th>Per run</th><th>Window (estimated)</th><th>Energy (estimated)</th></tr></thead>
+                <thead><tr><th>Workflow</th><th>Runs</th><th>Measured runs</th><th>Per run</th><th>Window (estimated)</th><th>Energy (estimated)</th><th>CO₂e (estimated)</th><th>Water (estimated)</th></tr></thead>
                 <tbody>
                   {ci.workflows.map((row) => (
                     <tr key={row.path}>
@@ -130,6 +214,8 @@ export function CiImpactPanel({ model }: { model: ReportModel }) {
                       <td className="whitespace-nowrap font-mono">{row.mean_seconds_per_run === null ? "–" : formatDuration(row.mean_seconds_per_run)}</td>
                       <td className="whitespace-nowrap font-mono">{row.estimated_seconds === null ? "not estimated" : formatDuration(row.estimated_seconds)}</td>
                       <td className="whitespace-nowrap font-mono">{row.estimated_seconds === null ? "–" : formatRange(row.estimated_energy_wh, "Wh")}</td>
+                      <td className="whitespace-nowrap font-mono">{row.estimated_seconds === null ? "–" : cell(row.estimated_co2e_g, "gCO2e")}</td>
+                      <td className="whitespace-nowrap font-mono">{row.estimated_seconds === null ? "–" : cell(row.estimated_water_ml, "mL")}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -142,7 +228,7 @@ export function CiImpactPanel({ model }: { model: ReportModel }) {
               <summary className="cursor-pointer select-none text-[12px] text-[#a9b5bb] hover:text-white">The {plural(ci.measured_runs.length, "measured run")}</summary>
               <div className="rp-table-wrap mt-2.5">
                 <table className="rp-table">
-                  <thead><tr><th>Run</th><th>Workflow</th><th>Event</th><th>Conclusion</th><th>Runner time</th><th>Energy (modelled)</th></tr></thead>
+                  <thead><tr><th>Run</th><th>Workflow</th><th>Event</th><th>Conclusion</th><th>Runner time</th><th>Energy (modelled)</th><th>CO₂e (modelled)</th><th>Water (modelled)</th></tr></thead>
                   <tbody>
                     {ci.measured_runs.map((r) => {
                       const url = safeUrl(r.url);
@@ -154,6 +240,8 @@ export function CiImpactPanel({ model }: { model: ReportModel }) {
                           <td>{r.conclusion ?? "–"}{r.attempts > 1 && <div className="text-[10.5px] text-[#86939a]">{plural(r.attempts, "attempt")}</div>}</td>
                           <td className="whitespace-nowrap font-mono">{formatDuration(r.runner_seconds)}</td>
                           <td className="whitespace-nowrap font-mono">{formatRange(r.energy_wh, "Wh")}</td>
+                          <td className="whitespace-nowrap font-mono">{cell(r.co2e_g, "gCO2e")}</td>
+                          <td className="whitespace-nowrap font-mono">{cell(r.water_ml, "mL")}</td>
                         </tr>
                       );
                     })}
@@ -178,6 +266,18 @@ export function CiImpactPanel({ model }: { model: ReportModel }) {
                   <dd className="font-mono text-[11.5px]">{mdl.energy_formula}</dd>
                   <dt>CO₂e</dt>
                   <dd><span className="font-mono text-[11.5px]">{mdl.co2e_formula}</span><small>{mdl.grid_assumption}</small></dd>
+                  {mdl.water_formula && (
+                    <>
+                      <dt>Water</dt>
+                      <dd>
+                        <span className="font-mono text-[11.5px]">{mdl.water_formula}</span>
+                        <small>
+                          {mdl.water_assumption}
+                          {safeUrl(mdl.water_method_source) && <> Method: <a className="rp-link" href={mdl.water_method_source} target="_blank" rel="noreferrer">Li et al., Making AI Less &quot;Thirsty&quot;</a>.</>}
+                        </small>
+                      </dd>
+                    </>
+                  )}
                   {est && <><dt>Whole window</dt><dd>{est.method}</dd></>}
                 </dl>
                 <div className="rp-table-wrap">
@@ -243,14 +343,14 @@ export function FindingImpact({ link, isCi, ciMeasured }: { link: CiFindingLink 
           </small>
         </dd>
         {job && <><dt>Job</dt><dd><span className="font-mono text-[11.5px]">{job.name}</span><small>{formatDuration(job.mean_seconds_per_run)} per run across {plural(job.executions, "job execution")} in {plural(job.measured_runs, "measured run")}.</small></dd></>}
-        {step && <><dt>Step</dt><dd><span className="font-mono text-[11.5px]">{step.name}</span><small>{formatDuration(step.mean_seconds_per_run)} per run{step.energy_wh_per_run && ` · ≈ ${formatRange(step.energy_wh_per_run, "Wh")} modelled`}.</small></dd></>}
+        {step && <><dt>Step</dt><dd><span className="font-mono text-[11.5px]">{step.name}</span><small>{formatDuration(step.mean_seconds_per_run)} per run{step.energy_wh_per_run && ` · ≈ ${formatRange(step.energy_wh_per_run, "Wh")}${extra(step.co2e_g_per_run, "gCO2e")}${extra(step.water_ml_per_run, "mL", " water")}, modelled`}.</small></dd></>}
       </dl>
       {spent && (
         <div className="flex flex-col gap-1.5 border-t border-[#ffffff0f] pt-3">
           <div className="flex items-center gap-2"><p className="rp-section-label !mb-0">What this step spent in the window</p><Tier tier="estimated" /></div>
           <p className="text-[12.5px] leading-relaxed text-[#dfe6e9]">
             {formatDuration(spent.seconds_per_run)} per run × {plural(spent.runs, "run")} = <b className="font-mono">{formatDuration(spent.seconds_in_window)}</b> of runner time
-            {spent.energy_wh_in_window && <> · ≈ {formatRange(spent.energy_wh_in_window, "Wh")}, {formatRange(spent.co2e_g_in_window, "gCO2e")} modelled</>}.
+            {spent.energy_wh_in_window && <> · ≈ {formatRange(spent.energy_wh_in_window, "Wh")}{extra(spent.co2e_g_in_window, "gCO2e")}{extra(spent.water_ml_in_window, "mL", " water")}, modelled</>}.
           </p>
           <p className="text-[11px] leading-relaxed text-[#93a0a6]">
             Per-run time is the mean of {plural(spent.measured_runs, "measured run")}. This is what the step cost, not a promised saving. {spent.targets}
