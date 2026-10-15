@@ -12,7 +12,7 @@ import json
 import sys
 from pathlib import Path
 
-from scanner import source
+from scanner import ci_impact, source
 from scanner.report import build_report
 
 OWNERS = ("A", "B", "C", "D")
@@ -36,6 +36,13 @@ def _summary(report) -> str:
         f"findings: {s['findings_total']} ({conf})",
     ]
     lines += [f"adapter {a['owner']} {a['status']}: {a['reason']}" for a in report["adapters"] if a["status"] != "ok"]
+    ci = report["impact"].get("ci") or {}
+    if ci.get("status") == "measured":
+        m = ci["measured"]
+        lines.append(f"ci: {m['runner_seconds']}s runner time measured over {m['runs']} runs "
+                     f"({ci['window']['runs_listed']} runs in window, {ci['requests']} GitHub API requests)")
+    else:
+        lines.append(f"ci: {ci.get('status')}: {ci.get('reason')}")
     lines.append(f"took {report['timings']['total_seconds']}s")
     return "\n".join(lines)
 
@@ -49,7 +56,10 @@ def _scan(args) -> int:
     try:
         with source.resolve(args.target) as target:
             fileset = source.collect(target.root, limits)
-            report = build_report(target, fileset, adapters)
+            owner_repo = target.repository_id.removeprefix("github:").split("/")
+            ci = (None if args.no_ci_history or not target.repository_id.startswith("github:")
+                  else lambda: ci_impact.collect(*owner_repo))
+            report = build_report(target, fileset, adapters, ci=ci)
     except source.TargetError as error:
         print(f"scan failed: {error}", file=sys.stderr)
         return 2
@@ -68,6 +78,8 @@ def main(argv=None) -> int:
     scan.add_argument("--owners", help="comma-separated owners to run (default: A,B,C,D)")
     scan.add_argument("--max-files", type=int, default=source.DEFAULT_MAX_FILES)
     scan.add_argument("--max-file-bytes", type=int, default=source.DEFAULT_MAX_FILE_BYTES)
+    scan.add_argument("--no-ci-history", action="store_true",
+                      help="do not read the repository's public GitHub Actions history (no network calls to the API)")
     scan.set_defaults(func=_scan)
     args = parser.parse_args(argv)
     return args.func(args)

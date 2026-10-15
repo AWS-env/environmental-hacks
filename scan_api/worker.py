@@ -18,7 +18,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from scan_api import hub, store
-from scanner import source
+from scanner import ci_impact, source
 from scanner.adapters import node
 from scanner.core import AdapterUnavailable
 from scanner.report import build_report, default_adapters
@@ -129,7 +129,9 @@ def run_scan(scan_id: str, owner: str, repo: str, workdir: Path, results: list |
                              else ("", "content-hash"))
     target = source.Target(f"github:{owner}/{repo}", root, commit, commit_source, f"https://github.com/{owner}/{repo}")
     adapters = [a if a.owner in LAMBDA_OWNERS else NodeOnly(a) for a in default_adapters()]
-    return build_report(target, source.collect(root, source.Limits()), adapters, scan_id=scan_id, results=results)
+    # Public Actions history, read without credentials alongside the detectors: fills the report's measured CI impact.
+    return build_report(target, source.collect(root, source.Limits()), adapters, scan_id=scan_id, results=results,
+                        ci=lambda: ci_impact.collect(owner, repo))
 
 
 def publish_to_hub(scan_id: str, results: list) -> dict | None:

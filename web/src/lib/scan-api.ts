@@ -72,6 +72,82 @@ export interface Measurement {
   provenance: { source_ids: string[]; method: string; assumptions: string[] };
 }
 
+/** [low, high]: every modelled figure is a range, never one number. */
+export type Range = [number, number];
+
+export interface CiFactor { value: number; unit: string; source: string; note: string }
+
+/** One CI finding's measured context: exact matches only (scanner/ci_impact.py `link_findings`). */
+export interface CiFindingLink {
+  workflow: string;
+  runs: number;
+  executed_runs: number;
+  measured_runs: number;
+  mean_seconds_per_run: number | null;
+  match: "none" | "workflow" | "job" | "step";
+  job: { name: string; measured_runs: number; executions: number; mean_seconds_per_run: number } | null;
+  step: { name: string; measured_runs: number; mean_seconds_per_run: number; energy_wh_per_run: Range | null } | null;
+  /** What the cited step spent across the window's runs (estimated), for checks whose fix targets that step. Not a saving. */
+  step_in_window: {
+    targets: string; seconds_per_run: number; measured_runs: number; runs: number; seconds_in_window: number;
+    energy_wh_in_window: Range | null; co2e_g_in_window: Range | null;
+  } | null;
+  note: string | null;
+}
+
+export interface CiWorkflow {
+  path: string;
+  name: string;
+  runs: number;
+  completed_runs: number;
+  executed_runs: number;
+  awaiting_approval_runs: number;
+  by_conclusion: Record<string, number>;
+  by_event: Record<string, number>;
+  retried_runs: number;
+  measured_runs: number;
+  measured_seconds: number;
+  mean_seconds_per_run: number | null;
+  energy_wh_per_run: Range | null;
+  estimated_seconds: number | null;
+  estimated_energy_wh: Range | null;
+}
+
+/** The report's measured CI workload from public GitHub Actions history (scanner/ci_impact.py `summarize`). */
+export interface CiImpact {
+  status: "measured" | "runs_only" | "no_runs" | "unavailable" | "not_collected";
+  reason: string | null;
+  source?: string;
+  authenticated?: boolean;
+  collected_at?: string;
+  requests?: number;
+  window?: {
+    start: string; start_exclusive: boolean; end: string; days: number;
+    runs_listed: number; runs_total_since: number; complete: boolean;
+  };
+  model?: {
+    energy_formula: string; co2e_formula: string; grid_assumption: string; runner_specs_source: string;
+    factors: Record<string, CiFactor>; exclusions: string[];
+  };
+  workflows?: CiWorkflow[];
+  measured?: {
+    runs: number; jobs: number; runner_seconds: number; energy_covered_seconds: number;
+    energy_wh: Range | null; co2e_g: Range | null; seconds_by_runner: Record<string, number>;
+    jobs_not_counted: Record<string, number>; span: [string | null, string | null];
+  };
+  estimate?: {
+    runner_seconds: number; runs: number; runs_total: number; runs_without_sample: number; measured_runs: number;
+    energy_wh: Range | null;
+    co2e_g: Range | null; energy_complete: boolean; method: string;
+  };
+  measured_runs?: {
+    id: number; workflow: string; path: string; event: string; conclusion: string | null; attempts: number;
+    created_at: string; url: string; runner_seconds: number; energy_wh: Range | null;
+  }[];
+  finding_links?: Record<string, CiFindingLink>;
+  limitations?: string[];
+}
+
 export interface ScanReport {
   report_version: string;
   scanner: { name: string; version: string };
@@ -105,6 +181,7 @@ export interface ScanReport {
     explanation: string;
     detector_measurements?: Measurement[];
     planned_methodology?: { name: string; formula: string; inputs_needed: string[]; reference: string };
+    ci?: CiImpact;
   };
   limitations: string[];
   timings?: { total_seconds: number; adapters: Record<string, number> };

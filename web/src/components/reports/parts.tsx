@@ -34,6 +34,34 @@ export function formatBytes(bytes: number): string {
   return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unit]}`;
 }
 
+/** Runner time: "29 s", "3 min 23 s", "1 h 4 min". */
+export function formatDuration(seconds: number | null | undefined): string {
+  const s = Math.max(0, Math.round(seconds ?? 0));
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min${s % 60 ? ` ${s % 60} s` : ""}`;
+  const total = Math.round(s / 60); // whole minutes first, so 1 h 59 min 30 s reads "2 h", never "1 h 60 min"
+  return `${Math.floor(total / 60)} h${total % 60 ? ` ${total % 60} min` : ""}`;
+}
+
+/** Enough digits to keep the low and high ends of a range distinguishable. */
+const sig = (n: number) => n.toLocaleString("en-US", { maximumFractionDigits: n >= 100 ? 0 : n >= 10 ? 1 : n >= 1 ? 2 : 3 });
+
+/** A modelled [low, high] range in the unit that keeps it readable: Wh -> kWh, g -> kg. */
+export function formatRange(range: [number, number] | null | undefined, unit: "Wh" | "gCO2e"): string {
+  if (!range) return "not estimated";
+  const [base, big] = unit === "Wh" ? ["Wh", "kWh"] : ["g CO₂e", "kg CO₂e"];
+  const scale = range[1] >= 1000 ? 1000 : 1;
+  const [low, high] = [sig(range[0] / scale), sig(range[1] / scale)];
+  return `${low === high ? low : `${low}–${high}`} ${scale === 1 ? base : big}`;
+}
+
+/** Where a number comes from, styled like /environment's tags: measured (read from GitHub), modelled (published
+ *  coefficients) or estimated (a measured mean scaled by an exact count). */
+export function Tier({ tier }: { tier: "measured" | "modelled" | "estimated" }) {
+  const tone = tier === "measured" ? "text-[#8fd1a8] border-[#8fd1a840]" : tier === "modelled" ? "text-[#f7c062] border-[#f7c06240]" : "text-[#a9b5bb] border-[#ffffff1f]";
+  return <span className={`rounded-full border px-2 py-[1px] text-[9.5px] uppercase tracking-[0.12em] ${tone}`}>{tier}</span>;
+}
+
 export function StatusIcon({ status }: { status: CheckStatus }) {
   const meta = STATUS_META[status];
   return (

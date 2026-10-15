@@ -9,7 +9,7 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-from scanner import VERSION
+from scanner import VERSION, ci_impact
 from scanner.core import REPO_ROOT, AdapterUnavailable, ScanContext
 from shared.contracts.validation import ContractError, validate_pair
 
@@ -19,6 +19,12 @@ CONFIDENCES = ("high", "medium", "low")
 MAX_LIMITATIONS = 12  # per check, after grouping per-file omissions by reason
 FILE_LIMITATION = re.compile(r"^file:(?P<path>[^:]+): (?P<reason>.+)$")
 TAXONOMY = {c["key"]: c for c in json.loads((REPO_ROOT / "docs/taxonomy/checks.json").read_text())}
+
+CI_EXPLANATION = (
+    "Measured from the repository's public GitHub Actions history: run counts and runner time come straight from the "
+    "GitHub API; energy and CO2e are modelled ranges from published coefficients, shown with their sources. Code "
+    "findings stay separate: their runtime cost is not measured, and no figure is ever derived from finding counts.")
+CI_NOT_COLLECTED = "CI history is only read for public GitHub repositories; this scan had none to read"
 
 IMPACT = {
     "status": "not_quantified",
@@ -163,9 +169,26 @@ def _check_entry(run):
     return entry, findings, measurements
 
 
-def build_report(target, fileset, adapters=None, scan_id=None, now=None, results=None, on_adapter=None):
+def _impact(measurements, history, findings, files):
+    if history is None:
+        ci = {"status": "not_collected", "reason": CI_NOT_COLLECTED}
+    else:
+        try:
+            ci = ci_impact.summarize(history.result(), findings, files)
+        except Exception as error:  # a CI summary bug must never sink the scan or read as a measurement
+            ci = {"status": "unavailable", "reason": f"CI history could not be summarised ({type(error).__name__})"}
+    if ci["status"] == "measured":
+        return {**IMPACT, "status": "ci_measured", "explanation": CI_EXPLANATION,
+                "detector_measurements": measurements, "ci": ci}
+    return {**IMPACT, "detector_measurements": measurements, "ci": ci}
+
+
+def build_report(target, fileset, adapters=None, scan_id=None, now=None, results=None, on_adapter=None, ci=None):
     """Run adapters concurrently (Node checks run in subprocesses) and assemble the report dict.
 
+    `ci`, when given, is a zero-argument callable returning `ci_impact.collect()` output for the repository's
+    public GitHub Actions history; it runs alongside the adapters and fills `impact.ci`. Without it (local
+    directories, tests) the impact stays `not_quantified` and says why.
     `results`, when given a list, receives (owner, contract result) for every result that passed
     validate_pair, e.g. for publishing to the findings hub (scan_api.hub).
     `on_adapter(entry, checks, findings)`, when given, is called as each adapter finishes, for live
@@ -178,7 +201,8 @@ def build_report(target, fileset, adapters=None, scan_id=None, now=None, results
                       fileset.stats["limits"])
     adapters = default_adapters() if adapters is None else adapters
     outcomes = []
-    with ThreadPoolExecutor(max_workers=max(1, len(adapters))) as pool:
+    with ThreadPoolExecutor(max_workers=max(1, len(adapters)) + 1) as pool:
+        history = pool.submit(ci) if ci else None
         for future in as_completed([pool.submit(_run_adapter, a, ctx) for a in adapters]):
             entry, runs = future.result()
             graded = [(run, *_check_entry(run)) for run in runs]
@@ -223,7 +247,7 @@ def build_report(target, fileset, adapters=None, scan_id=None, now=None, results
         "adapters": adapter_entries,
         "checks": checks,
         "findings": findings,
-        "impact": {**IMPACT, "detector_measurements": measurements},
+        "impact": _impact(measurements, history, findings, fileset.files),
         "limitations": [
             "Static, read-only analysis: repository code is never executed, installed, built or imported.",
             "A finding proves a source pattern at the cited line, not its runtime cost or environmental impact.",
